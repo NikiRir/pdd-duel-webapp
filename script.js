@@ -7,11 +7,25 @@ let currentQuestionIndex = 0;
 let userScore = 0;
 let timerInterval = null;
 
+// Создание частиц
+function createParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 15; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        particle.style.left = Math.random() * 100 + '%';
+        particle.style.top = Math.random() * 100 + '%';
+        particle.style.animationDelay = Math.random() * 6 + 's';
+        container.appendChild(particle);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
 function initApp() {
+    createParticles();
     loadTickets();
 }
 
@@ -68,7 +82,7 @@ function copyDuelId() {
     navigator.clipboard.writeText(duelId);
     tg.showPopup({
         title: 'Скопировано!',
-        message: 'ID дуэли скопирован'
+        message: 'ID дуэли скопирован в буфер обмена'
     });
 }
 
@@ -78,15 +92,15 @@ function cancelDuel() {
 
 function showStats() {
     tg.showPopup({
-        title: 'Статистика',
-        message: 'Функция скоро будет доступна!'
+        title: '📊 Статистика',
+        message: 'Эта функция скоро будет доступна!\n\nСледи за обновлениями 👀'
     });
 }
 
 function showTop() {
     tg.showPopup({
-        title: 'Топ игроков',
-        message: 'Функция скоро будет доступна!'
+        title: '🏆 Топ игроков',
+        message: 'Рейтинги появятся в следующем обновлении!\n\nГотовься к битве! ⚔️'
     });
 }
 
@@ -102,15 +116,29 @@ function startGameSession(type, mode, questionCount, ticketNumber = null, duelId
 
 function generateMockQuestions(count) {
     const questions = [];
-    for (let i = 1; i <= count; i++) {
+    const questionTexts = [
+        "Разрешено ли Вам выполнить разворот в указанном месте?",
+        "Что означает этот дорожный знак 'Главная дорога'?",
+        "С какой максимальной скоростью разрешено движение в населенном пункте?",
+        "Обязаны ли Вы включить указатели поворота при перестроении?",
+        "Кто имеет преимущество на нерегулируемом перекрестке?",
+        "Разрешена ли остановка в указанном месте?",
+        "Что должен сделать водитель при приближении к пешеходному переходу?",
+        "Разрешено ли Вам обогнать грузовой автомобиль в данной ситуации?",
+        "Какой знак информирует о начале населенного пункта?",
+        "Что означает мигающий зеленый сигнал светофора?"
+    ];
+    
+    for (let i = 0; i < count; i++) {
         questions.push({
-            id: i,
-            text: `Вопрос ${i}: Что означает этот дорожный знак?`,
+            id: i + 1,
+            text: questionTexts[i % questionTexts.length],
             options: [
-                { id: 1, text: "Первый вариант ответа" },
-                { id: 2, text: "Второй вариант ответа" },
-                { id: 3, text: "Третий вариант ответа" }
-            ],
+                { id: 1, text: "Разрешено" },
+                { id: 2, text: "Разрешено, если не будут созданы помехи" },
+                { id: 3, text: "Запрещено" },
+                { id: 4, text: "Запрещено, кроме случаев предусмотренных ПДД" }
+            ].slice(0, 3),
             correctAnswer: Math.floor(Math.random() * 3) + 1
         });
     }
@@ -208,11 +236,14 @@ function showResults() {
     
     const resultMessage = document.getElementById('resultMessage');
     if (userScore >= 4) {
-        resultMessage.textContent = '🎉 Победа! Отличный результат!';
+        resultMessage.textContent = '🎉 БЛЕСТЯЩАЯ ПОБЕДА! ТЫ ГЕНИЙ ПДД! 🎉';
+        resultMessage.style.background = 'linear-gradient(45deg, rgba(76, 175, 80, 0.3), rgba(56, 142, 60, 0.3))';
     } else if (userScore >= 2) {
-        resultMessage.textContent = '👍 Хорошо! Можно лучше!';
+        resultMessage.textContent = '👍 ХОРОШИЙ РЕЗУЛЬТАТ! МОЖНО ЛУЧШЕ! 💪';
+        resultMessage.style.background = 'linear-gradient(45deg, rgba(255, 193, 7, 0.3), rgba(255, 152, 0, 0.3))';
     } else {
-        resultMessage.textContent = '😔 Поражение. Тренируйся больше!';
+        resultMessage.textContent = '😔 ПОРА ТРЕНИРОВАТЬСЯ! НЕ СДАВАЙСЯ! 📚';
+        resultMessage.style.background = 'linear-gradient(45deg, rgba(244, 67, 54, 0.3), rgba(211, 47, 47, 0.3))';
     }
     
     showScreen('resultsScreen');
