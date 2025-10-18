@@ -1,5 +1,6 @@
 let tg = window.Telegram.WebApp;
 tg.expand();
+tg.enableClosingConfirmation();
 
 let currentQuestions = [];
 let currentQuestionIndex = 0;
