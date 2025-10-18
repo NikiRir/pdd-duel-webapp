@@ -66,4 +66,33 @@
                 </div>
             </div>
             <div class="question-content">
-                <div class="question-text" id="
+                <div class="question-text" id="questionText"></div>
+                <div class="options" id="optionsContainer"></div>
+            </div>
+        </div>
+
+        <div id="resultsScreen" class="screen">
+            <div class="header">
+                <h2>🎯 Результаты</h2>
+            </div>
+            <div class="results-content">
+                <div class="score-board">
+                    <div class="player-score">
+                        <h3>Вы</h3>
+                        <div class="score" id="playerScore">0</div>
+                    </div>
+                    <div class="vs">VS</div>
+                    <div class="player-score">
+                        <h3>Соперник</h3>
+                        <div class="score" id="opponentScore">0</div>
+                    </div>
+                </div>
+                <div class="result-message" id="resultMessage"></div>
+                <button class="btn-primary" onclick="backToMain()">🏠 Главное меню</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
