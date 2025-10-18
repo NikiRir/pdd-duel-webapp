@@ -4,195 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ПДД Дуэли</title>
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://nikirir.github.io; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org;">
-    <meta name="referrer" content="no-referrer">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="background-animation">
-        <div class="floating-shape shape-1"></div>
-        <div class="floating-shape shape-2"></div>
-        <div class="floating-shape shape-3"></div>
-        <div class="floating-shape shape-4"></div>
-    </div>
-
     <div class="container">
         <!-- Главный экран -->
         <div id="mainScreen" class="screen active">
             <div class="main-header">
-                <div class="logo-container">
-                    <div class="logo-icon">🚗</div>
-                    <div class="title-wrapper">
-                        <h1 class="main-title">ДУЭЛИ</h1>
-                        <h2 class="sub-title">ПРАВИЛА ДОРОЖНОГО ДВИЖЕНИЯ</h2>
-                    </div>
-                </div>
-                <div class="tagline">Реальные вопросы ПДД • Рейтинговая система</div>
+                <div class="logo">🚗</div>
+                <h1 class="title">ДУЭЛИ ПДД</h1>
+                <p class="subtitle">Проверь знания правил дорожного движения</p>
             </div>
 
             <div class="menu-buttons">
-                <button class="btn-duel" onclick="startDuel()">
+                <button class="btn btn-primary" onclick="startDuel()">
                     <span class="btn-icon">⚔️</span>
-                    <span class="btn-text">НАЧАТЬ ДУЭЛЬ</span>
-                    <span class="btn-glow"></span>
+                    Начать дуэль
                 </button>
                 
-                <button class="btn-training" onclick="startTraining()">
+                <button class="btn btn-secondary" onclick="startTraining()">
                     <span class="btn-icon">📚</span>
-                    <span class="btn-text">ТРЕНИРОВКА</span>
-                    <span class="btn-glow"></span>
+                    Тренировка
                 </button>
 
-                <div class="secondary-buttons">
-                    <button class="btn-stats" onclick="showRealStats()">
+                <div class="btn-group">
+                    <button class="btn btn-outline" onclick="showStats()">
                         <span class="btn-icon">📊</span>
-                        <span>СТАТИСТИКА</span>
+                        Статистика
                     </button>
-                    <button class="btn-top" onclick="showRealTop()">
+                    <button class="btn btn-outline" onclick="showTop()">
                         <span class="btn-icon">🏆</span>
-                        <span>ТОП ИГРОКОВ</span>
+                        Топ игроков
                     </button>
                 </div>
             </div>
 
-            <div class="creator-credit">
-                Создатель бота <span class="creator-tag">@wlknek</span>
+            <div class="footer">
+                Создатель бота <span class="creator">@wlknek</span>
             </div>
         </div>
 
-        <!-- Экран статистики -->
-        <div id="statsScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">📊 Твоя статистика</h2>
-                <button class="btn-back" onclick="backToMain()">← Назад</button>
-            </div>
-            <div class="stats-content">
-                <div class="stat-cards">
-                    <div class="stat-card">
-                        <div class="stat-value" id="statRating">1250</div>
-                        <div class="stat-label">РЕЙТИНГ</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statRank">3</div>
-                        <div class="stat-label">ПОЗИЦИЯ</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statWins">10</div>
-                        <div class="stat-label">ПОБЕДЫ</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="statAccuracy">85%</div>
-                        <div class="stat-label">ТОЧНОСТЬ</div>
-                    </div>
-                </div>
-                
-                <div class="stats-details">
-                    <div class="stat-row">
-                        <span>Всего игр:</span>
-                        <span id="statTotalGames">15</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Побед:</span>
-                        <span id="statWinsCount">10</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Поражений:</span>
-                        <span id="statLosses">5</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Винрейт:</span>
-                        <span id="statWinRate">67%</span>
-                    </div>
-                    <div class="stat-row">
-                        <span>Правильных ответов:</span>
-                        <span id="statCorrect">85/100</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Экран топа -->
-        <div id="topScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">🏆 Топ игроков</h2>
-                <button class="btn-back" onclick="backToMain()">← Назад</button>
-            </div>
-            <div class="top-content">
-                <div class="top-tabs">
-                    <button class="tab-btn active" onclick="switchTab('rating')">По рейтингу</button>
-                    <button class="tab-btn" onclick="switchTab('wins')">По победам</button>
-                </div>
-                <div class="top-list" id="topList">
-                    <!-- Топ игроков будет здесь -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Остальные экраны (дуэли, вопросы, результаты) -->
+        <!-- Экран выбора дуэли -->
         <div id="duelModeScreen" class="screen">
             <div class="header">
-                <h2 class="screen-title">🤺 Выбор дуэли</h2>
-                <button class="btn-back" onclick="backToMain()">← Назад</button>
+                <button class="btn-back" onclick="backToMain()">←</button>
+                <h2>Выбор дуэли</h2>
             </div>
             <div class="menu-buttons">
                 <button class="btn-mode" onclick="createDuel('random', 5)">
-                    <span class="btn-icon">🎲</span>
-                    <span class="btn-text">Случайные вопросы (5)</span>
+                    🎲 Случайные вопросы (5)
                 </button>
                 <button class="btn-mode" onclick="showTicketSelection()">
-                    <span class="btn-icon">📚</span>
-                    <span class="btn-text">По билету (20)</span>
+                    📚 По билету
                 </button>
                 <button class="btn-mode" onclick="createDuel('quick', 3)">
-                    <span class="btn-icon">⚡</span>
-                    <span class="btn-text">Быстрая дуэль (3)</span>
+                    ⚡ Быстрая дуэль (3)
                 </button>
             </div>
         </div>
 
+        <!-- Экран выбора билета -->
         <div id="ticketScreen" class="screen">
             <div class="header">
-                <h2 class="screen-title">📚 Выбор билета</h2>
-                <button class="btn-back" onclick="backToDuelModes()">← Назад</button>
+                <button class="btn-back" onclick="backToDuelModes()">←</button>
+                <h2>Выбор билета</h2>
             </div>
-            <div class="ticket-grid" id="ticketGrid"></div>
+            <div class="ticket-grid" id="ticketGrid">
+                <!-- Билеты будут добавлены через JS -->
+            </div>
         </div>
 
+        <!-- Экран ожидания -->
         <div id="waitingScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">⏳ Ожидание соперника</h2>
-            </div>
             <div class="waiting-content">
                 <div class="loader"></div>
-                <p>ID дуэли: <strong id="duelId">---</strong></p>
+                <h2>Ожидание соперника</h2>
+                <p class="duel-id">ID: <strong id="duelId">---</strong></p>
                 <p>Поделись этим ID с другом!</p>
-                <button class="btn-outline" onclick="copyDuelId()">📋 Скопировать ID</button>
-                <button class="btn-secondary" onclick="cancelDuel()">❌ Отменить</button>
+                <div class="btn-group" style="margin-top: 30px;">
+                    <button class="btn btn-outline" onclick="copyDuelId()">📋 Копировать ID</button>
+                    <button class="btn btn-secondary" onclick="cancelDuel()">❌ Отменить</button>
+                </div>
             </div>
         </div>
 
+        <!-- Экран вопроса -->
         <div id="questionScreen" class="screen">
-            <div class="header">
+            <div class="question-header">
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
                 </div>
-                <div class="question-header">
+                <div class="progress-info">
                     <span id="questionNumber">1/5</span>
                     <span id="timer">30s</span>
                 </div>
             </div>
+            
             <div class="question-content">
                 <div class="question-text" id="questionText"></div>
                 <div class="options" id="optionsContainer"></div>
             </div>
         </div>
 
+        <!-- Экран результатов -->
         <div id="resultsScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">🎯 Результаты</h2>
-            </div>
             <div class="results-content">
                 <div class="score-board">
                     <div class="player-score">
@@ -206,11 +122,14 @@
                     </div>
                 </div>
                 <div class="result-message" id="resultMessage"></div>
-                <button class="btn-primary" onclick="backToMain()">🏠 Главное меню</button>
+                <button class="btn btn-primary" onclick="backToMain()">
+                    <span class="btn-icon">🏠</span>
+                    Главное меню
+                </button>
             </div>
         </div>
     </div>
 
-    <script src="script.js?v=5"></script>
+    <script src="script.js"></script>
 </body>
 </html>
