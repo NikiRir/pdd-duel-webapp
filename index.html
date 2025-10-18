@@ -8,22 +8,61 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://nikirir.github.io; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org;">
     <meta name="referrer" content="no-referrer">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div class="background-animation">
+        <div class="floating-shape shape-1"></div>
+        <div class="floating-shape shape-2"></div>
+        <div class="floating-shape shape-3"></div>
+        <div class="floating-shape shape-4"></div>
+    </div>
+
     <div class="container">
+        <!-- Главный экран -->
         <div id="mainScreen" class="screen active">
-            <div class="header">
-                <h1>🚗 ПДД Дуэли</h1>
-                <p>Соревнуйся в знании ПДД!</p>
+            <div class="main-header">
+                <div class="logo-container">
+                    <div class="logo-icon">🚗</div>
+                    <div class="title-wrapper">
+                        <h1 class="main-title">ДУЭЛИ</h1>
+                        <h2 class="sub-title">ПРАВИЛА ДОРОЖНОГО ДВИЖЕНИЯ</h2>
+                    </div>
+                </div>
+                <div class="tagline">Проверь свои знания в эпических баттлах!</div>
             </div>
+
             <div class="menu-buttons">
-                <button class="btn-primary" onclick="startDuel()">🤺 Начать дуэль</button>
-                <button class="btn-secondary" onclick="startTraining()">📚 Тренировка</button>
-                <button class="btn-outline" onclick="showStats()">📊 Моя статистика</button>
-                <button class="btn-outline" onclick="showTop()">🏆 Топ игроков</button>
+                <button class="btn-duel" onclick="startDuel()">
+                    <span class="btn-icon">⚔️</span>
+                    <span class="btn-text">НАЧАТЬ ДУЭЛЬ</span>
+                    <span class="btn-glow"></span>
+                </button>
+                
+                <button class="btn-training" onclick="startTraining()">
+                    <span class="btn-icon">📚</span>
+                    <span class="btn-text">ТРЕНИРОВКА</span>
+                    <span class="btn-glow"></span>
+                </button>
+
+                <div class="secondary-buttons">
+                    <button class="btn-stats" onclick="showStats()">
+                        <span class="btn-icon">📊</span>
+                        <span>СТАТИСТИКА</span>
+                    </button>
+                    <button class="btn-top" onclick="showTop()">
+                        <span class="btn-icon">🏆</span>
+                        <span>ТОП ИГРОКОВ</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="creator-credit">
+                Создатель бота <span class="creator-tag">@wlknek</span>
             </div>
         </div>
 
+        <!-- Остальные экраны остаются без изменений -->
         <div id="duelModeScreen" class="screen">
             <div class="header">
                 <h2>🤺 Выбор дуэли</h2>
