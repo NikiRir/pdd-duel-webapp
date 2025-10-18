@@ -836,4 +836,46 @@ body {
     align-items: center;
     justify-content: center;
     gap: 12px;
-   
+    background: var(--duel-gradient);
+    background-size: 200% 200%;
+    color: white;
+    box-shadow: var(--shadow-medium);
+    animation: gradientShift 3s ease infinite;
+}
+
+.btn-home:hover {
+    transform: translateY(-5px) scale(1.05);
+    box-shadow: var(--shadow-strong);
+}
+
+/* Адаптивность */
+@media (max-width: 480px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .main-title {
+        font-size: 3em;
+    }
+    
+    .logo-icon {
+        font-size: 3.5em;
+    }
+    
+    .btn-duel, .btn-training {
+        padding: 22px 25px;
+        font-size: 1.2em;
+    }
+    
+    .secondary-buttons {
+        grid-template-columns: 1fr;
+    }
+    
+    .score-value {
+        font-size: 3em;
+    }
+    
+    .ticket-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
