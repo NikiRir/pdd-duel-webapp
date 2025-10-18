@@ -60,4 +60,36 @@ function switchTab(tabType) {
     ] : [
         {position: 1, name: "Алексей", rating: 1500, accuracy: "92%", wins: 25, you: false},
         {position: 2, name: "Мария", rating: 1420, accuracy: "88%", wins: 22, you: false},
-        {position: 
+        {position: 3, name: "Сергей", rating: 1200, accuracy: "83%", wins: 15, you: false}
+    ];
+    
+    renderTopList(topPlayers);
+}
+
+function renderTopList(players) {
+    const topList = document.getElementById('topList');
+    topList.innerHTML = '';
+    
+    players.forEach(player => {
+        const medal = player.position === 1 ? "🥇" : 
+                     player.position === 2 ? "🥈" : 
+                     player.position === 3 ? "🥉" : "🔸";
+        
+        const topItem = document.createElement('div');
+        topItem.className = `top-item ${player.you ? 'you' : ''}`;
+        topItem.innerHTML = `
+            <div class="top-position">
+                <span class="position-medal">${medal}</span>
+                <span>${player.position}. ${player.name}</span>
+            </div>
+            <div class="top-player-stats">
+                <span class="top-player-rating">⭐ ${player.rating}</span>
+                <span class="top-player-accuracy">🎯 ${player.accuracy}</span>
+                <span class="top-player-wins">✅ ${player.wins} побед</span>
+            </div>
+        `;
+        topList.appendChild(topItem);
+    });
+}
+
+// Остальной код script.js остается без изменений
