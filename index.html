@@ -6,19 +6,22 @@
   <title>ПДД Дуэли — РФ</title>
   <meta name="description" content="Дуэли по ПДД с билетами, темами, знаками и разметкой. Источник данных: etspring/pdd_russia." />
 
-  <!-- Tailwind via CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- GSAP for animations -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <!-- Telegram WebApp SDK -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Tailwind via CDN (utility-классы) -->
+  <script src="https://cdn.tailwindcss.com" defer></script>
+  <!-- GSAP для анимаций -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+  <!-- Telegram WebApp SDK (не обязателен для работы в браузере) -->
+  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
 
+  <link rel="preconnect" href="https://raw.githubusercontent.com" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body class="min-h-screen bg-gradient-to-br from-gray-950 via-slate-900 to-indigo-950 text-slate-100">
+<body class="min-h-screen bg-gradient-to-br from-gray-950 via-slate-900 to-indigo-950 text-slate-100 selection:bg-indigo-500/40">
+
+  <!-- Header -->
   <header class="sticky top-0 z-30 backdrop-blur bg-white/5 border-b border-white/10">
     <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-      <img src="logo.svg" alt="logo" class="w-8 h-8 opacity-90" />
+      <img src="logo.svg" alt="logo" class="w-8 h-8 opacity-90" onerror="this.style.visibility='hidden'"/>
       <div>
         <h1 class="text-lg font-semibold tracking-wide">ПДД Дуэли</h1>
         <p class="text-xs text-slate-300/80">Учись, соревнуйся, побеждай</p>
@@ -30,10 +33,34 @@
     </div>
   </header>
 
+  <!-- Main -->
   <main class="max-w-5xl mx-auto px-4 py-8">
+    <!-- Hero -->
     <section id="hero" class="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-xl p-6 md:p-10">
       <div class="absolute inset-0 bg-[radial-gradient(60%_50%_at_10%_10%,rgba(99,102,241,0.25),transparent_70%),radial-gradient(30%_30%_at_90%_10%,rgba(16,185,129,0.2),transparent_70%)]"></div>
       <div class="relative z-10 grid md:grid-cols-2 gap-6 items-center">
         <div>
           <h2 class="text-2xl md:text-4xl font-bold mb-3 leading-tight">Экзаменационные вопросы РФ + <span class="text-indigo-400">дуэли</span> по темам</h2>
-          <p class="text-slate-300/90">Билеты 1–
+          <p class="text-slate-300/90">Билеты 1–40, темы ПДД, дорожные знаки и разметка. Сразись с ИИ или соперником.</p>
+          <div class="mt-5 flex flex-wrap gap-3">
+            <button id="btnQuickDuel" class="btn-primary">Быстрая дуэль</button>
+            <button id="btnTopics" class="btn-secondary">Темы</button>
+            <button id="btnTickets" class="btn-secondary">Билеты</button>
+            <button id="btnSigns" class="btn-secondary">Знаки / Разметка</button>
+          </div>
+        </div>
+        <div class="rounded-2xl aspect-[4/3] bg-white/5 border border-white/10 shadow-inner" id="heroCanvas"></div>
+      </div>
+    </section>
+
+    <!-- Workspace -->
+    <section id="screen" class="mt-8"></section>
+  </main>
+
+  <!-- Toasts -->
+  <div id="toast" class="pointer-events-none fixed left-1/2 -translate-x-1/2 bottom-6 opacity-0 transition-opacity"></div>
+
+  <!-- App -->
+  <script src="script.js"></script>
+</body>
+</html>
