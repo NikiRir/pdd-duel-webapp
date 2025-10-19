@@ -17,19 +17,23 @@
       <p class="hdr-sub">Учись, соревнуйся, побеждай!</p>
     </header>
 
+    <!-- Игровое меню -->
     <nav class="menu">
-      <button id="btnQuickDuel" class="btn btn-primary">⚡ Быстрая дуэль</button>
-      <button id="btnTopics" class="btn">📚 Темы</button>
-      <button id="btnTickets" class="btn">🎟️ Билеты</button>
-      <button id="btnMarkup" class="btn">📏 Разметка</button>
-      <button id="btnPenalties" class="btn">💸 Штрафы</button>
-      <button id="btnStats" class="btn">📊 Статистика</button>
+      <button data-view="duel"     id="btnQuickDuel" class="btn btn-primary">⚡ Быстрая дуэль</button>
+      <button data-view="topics"   id="btnTopics"    class="btn">📚 Темы</button>
+      <button data-view="tickets"  id="btnTickets"   class="btn">🎟️ Билеты</button>
+      <button data-view="markup"   id="btnMarkup"    class="btn">📏 Разметка</button>
+      <button data-view="penalty"  id="btnPenalties" class="btn">💸 Штрафы</button>
+      <button data-view="stats"    id="btnStats"     class="btn">📊 Статистика</button>
     </nav>
 
+    <!-- Один экран. Каждый раздел рендерится как НОВАЯ страница (без простыни вниз) -->
     <section id="screen" class="screen"></section>
   </div>
 
+  <!-- Тосты -->
   <div id="toast" class="toast-wrap"></div>
+
   <script src="script.js"></script>
 </body>
 </html>
