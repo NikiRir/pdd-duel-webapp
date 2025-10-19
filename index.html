@@ -3,53 +3,34 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ПДД Дуэли — РФ</title>
-  <meta name="description" content="Дуэли по ПДД с билетами, темами, знаками и разметкой. Источник данных: etspring/pdd_russia." />
+  <title>ПДД Дуэли</title>
 
-  <!-- ✅ только локальные стили -->
   <link rel="stylesheet" href="style.css" />
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
 </head>
 
 <body>
-  <header class="header">
-    <div class="header-container">
-      <img src="logo.svg" alt="logo" class="logo" onerror="this.style.visibility='hidden'"/>
-      <div>
-        <h1 class="title">ПДД Дуэли</h1>
-        <p class="subtitle">Учись, соревнуйся, побеждай</p>
-      </div>
-      <div class="nav">
-        <button id="btnStats" class="btn-ghost">Моя статистика</button>
-        <a href="https://github.com/etspring/pdd_russia" target="_blank" class="btn-ghost">Источник данных</a>
-      </div>
-    </div>
-  </header>
+  <div class="app">
+    <!-- ====== Анимированный заголовок ====== -->
+    <header class="hero-header">
+      <h1 class="glow-title">🚦 ПДД <span>ДУЭЛИ</span></h1>
+      <p class="hero-sub">Учись, соревнуйся, побеждай!</p>
+    </header>
 
-  <main class="main">
-    <section id="hero" class="hero">
-      <div class="hero-bg"></div>
-      <div class="hero-content">
-        <div>
-          <h2 class="hero-title">
-            Экзаменационные вопросы РФ + <span class="accent">дуэли</span> по темам
-          </h2>
-          <p class="hero-desc">Билеты 1–40, темы ПДД, дорожные знаки и разметка. Сразись с ИИ или соперником.</p>
-          <div class="buttons">
-            <button id="btnQuickDuel" class="btn-primary">Быстрая дуэль</button>
-            <button id="btnTopics" class="btn-secondary">Темы</button>
-            <button id="btnTickets" class="btn-secondary">Билеты</button>
-            <button id="btnSigns" class="btn-secondary">Знаки / Разметка</button>
-          </div>
-        </div>
-      </div>
-    </section>
+    <!-- ====== Блок кнопок ====== -->
+    <main class="menu">
+      <button id="btnQuickDuel" class="menu-btn primary">⚡ Быстрая дуэль</button>
+      <button id="btnTopics" class="menu-btn">📚 Темы</button>
+      <button id="btnTickets" class="menu-btn">🎟️ Билеты</button>
+      <button id="btnStats" class="menu-btn">📊 Статистика</button>
+    </main>
+
+    <!-- Контейнер для отображения экрана -->
     <section id="screen" class="screen"></section>
-  </main>
+    <div id="toast" class="toast-container"></div>
+  </div>
 
-  <div id="toast" class="toast-container"></div>
   <script src="script.js"></script>
 </body>
 </html>
