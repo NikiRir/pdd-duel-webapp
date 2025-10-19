@@ -6,16 +6,17 @@
   <title>ПДД Дуэли — РФ</title>
   <meta name="description" content="Дуэли по ПДД с билетами, темами, знаками и разметкой. Источник данных: etspring/pdd_russia." />
 
-  <!-- Tailwind via CDN (utility-классы) -->
-  <script src="https://cdn.tailwindcss.com" defer></script>
+  <!-- ✅ Подключаем Tailwind CSS (готовую сборку) -->
+  <link href="https://unpkg.com/tailwindcss@3.4.10/dist/tailwind.min.css" rel="stylesheet">
+
   <!-- GSAP для анимаций -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-  <!-- Telegram WebApp SDK (не обязателен для работы в браузере) -->
+  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
 
-  <link rel="preconnect" href="https://raw.githubusercontent.com" />
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body class="min-h-screen bg-gradient-to-br from-gray-950 via-slate-900 to-indigo-950 text-slate-100 selection:bg-indigo-500/40">
 
   <!-- Header -->
@@ -60,7 +61,7 @@
   <!-- Toasts -->
   <div id="toast" class="pointer-events-none fixed left-1/2 -translate-x-1/2 bottom-6 opacity-0 transition-opacity"></div>
 
-  <!-- App -->
+  <!-- Подключаем JS -->
   <script src="script.js"></script>
 </body>
 </html>
