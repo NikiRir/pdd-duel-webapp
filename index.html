@@ -3,30 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ПДД Дуэли</title>
+  <title>ПДД Дуэли — РФ</title>
+  <meta name="description" content="Дуэли по ПДД с билетами и темами. Реальные вопросы из официальных экзаменационных билетов РФ." />
 
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
 </head>
 
 <body>
-  <div class="app">
-    <!-- ====== Анимированный заголовок ====== -->
-    <header class="hero-header">
-      <h1 class="glow-title">🚦 ПДД <span>ДУЭЛИ</span></h1>
-      <p class="hero-sub">Учись, соревнуйся, побеждай!</p>
+  <div class="wrapper">
+    <header class="hero">
+      <h1 class="title">🚦 <span>ПДД</span> ДУЭЛИ</h1>
+      <p class="subtitle">Учись, соревнуйся, побеждай!</p>
     </header>
 
-    <!-- ====== Блок кнопок ====== -->
     <main class="menu">
-      <button id="btnQuickDuel" class="menu-btn primary">⚡ Быстрая дуэль</button>
-      <button id="btnTopics" class="menu-btn">📚 Темы</button>
-      <button id="btnTickets" class="menu-btn">🎟️ Билеты</button>
-      <button id="btnStats" class="menu-btn">📊 Статистика</button>
+      <button id="btnQuickDuel" class="btn primary">⚡ Быстрая дуэль</button>
+      <button id="btnTopics" class="btn">📚 Темы</button>
+      <button id="btnTickets" class="btn">🎟️ Билеты</button>
+      <button id="btnStats" class="btn">📊 Статистика</button>
     </main>
 
-    <!-- Контейнер для отображения экрана -->
     <section id="screen" class="screen"></section>
     <div id="toast" class="toast-container"></div>
   </div>
