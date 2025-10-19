@@ -1,30 +1,19 @@
-/* ===== БАЗА ===== */
 :root{
-  --bg-1:#0f172a;  /* slate-900 */
-  --bg-2:#1e1b4b;  /* indigo-950 */
-  --bg-3:#312e81;  /* indigo-900 */
-  --text:#e2e8f0;  /* slate-200 */
-  --muted:#cbd5e1; /* slate-300 */
-  --brand:#6366f1; /* indigo-500 */
-  --brand-2:#818cf8; /* indigo-400 */
-  --ok:#10b981;    /* emerald-500 */
-  --bad:#f43f5e;   /* rose-500 */
+  --bg-1:#0f172a; --bg-2:#1e1b4b; --bg-3:#312e81;
+  --text:#e2e8f0; --muted:#cbd5e1; --brand:#6366f1; --brand2:#818cf8;
+  --ok:#10b981; --bad:#f43f5e;
 }
-
-*{box-sizing:border-box}
-html,body{height:100%}
+*{box-sizing:border-box} html,body{height:100%}
 body{
-  margin:0;
-  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+  margin:0;font-family:"Inter",system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
   color:var(--text);
   background: radial-gradient(1200px 600px at 20% 0%, rgba(99,102,241,.25), transparent 60%),
               radial-gradient(900px 500px at 90% -10%, rgba(16,185,129,.18), transparent 60%),
               linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 55%, var(--bg-3) 100%);
 }
-
 .app{max-width:780px;margin:0 auto;padding:24px}
 
-/* ===== ХЕДЕР ===== */
+/* header */
 .hdr{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:6px}
 .pill{
   width:56px;height:56px;border-radius:999px;
@@ -41,7 +30,7 @@ body{
 }
 .hdr-sub{margin:0; color:var(--muted); animation: fadeUp .9s .15s ease-out both}
 
-/* ===== МЕНЮ ===== */
+/* menu */
 .menu{display:flex;flex-direction:column;gap:14px;margin:26px auto 14px;max-width:520px;animation:fadeUp .9s .25s ease-out both}
 .btn{
   width:100%; padding:14px 18px; border-radius:16px; border:1px solid rgba(255,255,255,.08);
@@ -57,7 +46,7 @@ body{
 }
 .btn-primary:hover{background: linear-gradient(90deg, #6366f1, #818cf8)}
 
-/* ===== ЭКРАН/КАРТОЧКИ ===== */
+/* screen/cards */
 .screen{margin-top:22px;min-height:150px}
 .card{
   border:1px solid rgba(255,255,255,.09);
@@ -70,7 +59,6 @@ body{
 .grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
 .grid.auto{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
 
-/* ответы/варианты */
 .answer{
   padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
   background: rgba(255,255,255,.06); cursor:pointer; transition:.16s ease;
@@ -84,10 +72,10 @@ body{
 .timer{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;width:180px}
 .tbar{height:100%;width:100%;background:var(--brand);transition:width .05s linear}
 
-/* тосты */
+/* toast */
 .toast-wrap{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;opacity:0;transition:opacity .25s}
 .toast{background:rgba(15,23,42,.94);border:1px solid rgba(255,255,255,.08);color:#f1f5f9;border-radius:12px;padding:10px 16px;box-shadow:0 18px 60px rgba(0,0,0,.45)}
 
-/* ===== анимации ===== */
+/* anim */
 @keyframes pop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}
 @keyframes fadeUp{0%{opacity:0;transform:translateY(18px)}100%{opacity:1;transform:translateY(0)}}
