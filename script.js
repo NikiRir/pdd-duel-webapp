@@ -10,7 +10,7 @@ const State = {
   topics: new Map(),
   duel: null,
   lock: false,
-  lastTouchTs: 0, // защита от двойного срабатывания (touchstart + click)
+  lastTouchTs: 0,
 };
 
 /* =======================
@@ -24,8 +24,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function boot(){
   showLoader(true);
-  setLoader(8);
-  await loadTickets(p => setLoader(8 + Math.floor(p*80)));
+  setLoader(5);
+  try {
+    await loadTickets(p => setLoader(5 + Math.floor(p * 85)));
+  } catch(e) {
+    console.error("Ошибка загрузки билетов:", e);
+  }
   setLoader(100);
   setTimeout(()=>showLoader(false), 250);
   renderHome();
@@ -43,11 +47,7 @@ function setLoader(p){ qs("#loaderBar").style.width = Math.max(0,Math.min(100,p)
 function setView(html){
   const host = qs("#screen");
   host.scrollTop = 0;
-  host.replaceChildren();
-  const view = document.createElement("div");
-  view.className = "view";
-  view.innerHTML = html;
-  host.appendChild(view);
+  host.innerHTML = `<div class="view">${html}</div>`;
 }
 function renderHome(){
   setActive(null);
@@ -68,7 +68,7 @@ function setActive(id){
 ======================= */
 function bindMenu(){
   qsa(".menu [data-action]").forEach(btn=>{
-    btn.addEventListener("click", (e)=>{
+    btn.addEventListener("click", e=>{
       const act = e.currentTarget.dataset.action;
       setActive(e.currentTarget.id);
       if (act==="quick")    startDuel({mode:"quick"});
@@ -80,46 +80,32 @@ function bindMenu(){
 }
 
 /* =======================
-   Стабильная делегация событий (touchstart + click)
+   Делегация событий
 ======================= */
 function bindDelegation(){
   const screen = qs("#screen");
   screen.addEventListener("touchstart", handleTap, { passive:false });
-  screen.addEventListener("click", (e)=>{
-    // игнорируем клики, которые следуют сразу за touchstart
+  screen.addEventListener("click", e=>{
     if (Date.now() - State.lastTouchTs < 350) return;
     handleTap(e);
   }, { passive:false });
 }
 
 function handleTap(e){
-  // фикс для некоторых WebView: если это touchstart — помечаем время
   if (e.type === "touchstart") State.lastTouchTs = Date.now();
 
   const ans = e.target.closest("button.answer");
-  if (ans && ans.dataset.i != null){
-    e.preventDefault();
-    onAnswer(+ans.dataset.i);
-    return;
-  }
+  if (ans && ans.dataset.i != null){ e.preventDefault(); onAnswer(+ans.dataset.i); return; }
   const ticket = e.target.closest("[data-n]");
-  if (ticket){
-    e.preventDefault();
-    startTicket(+ticket.dataset.n);
-    return;
-  }
+  if (ticket){ e.preventDefault(); startTicket(+ticket.dataset.n); return; }
   const topic = e.target.closest("[data-t]");
-  if (topic){
-    e.preventDefault();
-    startDuel({mode:"topic", topic: topic.dataset.t});
-    return;
-  }
+  if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
   if (e.target.id === "again"){ e.preventDefault(); startDuel(State.duel?.topic?{mode:"topic",topic:State.duel.topic}:{mode:"quick"}); return; }
   if (e.target.id === "home"){ e.preventDefault(); renderHome(); return; }
 }
 
 /* =======================
-   Загрузка вопросов
+   Загрузка билетов
 ======================= */
 async function loadTickets(onProgress){
   const TOTAL = 40; let loaded = 0;
@@ -127,36 +113,45 @@ async function loadTickets(onProgress){
 
   for(let i=1;i<=TOTAL;i++){
     const names = [
-      `Билет ${i}.json`, `Билет_${i}.json`,
-      `${i}.json`, `ticket_${i}.json`
+      `Билет ${i}.json`,
+      `Билет_${i}.json`,
+      `${i}.json`,
+      `ticket_${i}.json`
     ];
-    let ok=false;
+    let found = false;
     for(const name of names){
       const url = `questions/A_B/tickets/${encodeURIComponent(name)}`;
       try{
-        const r = await fetch(url, { cache: "no-store" });
+        const r = await fetch(url, { cache:"no-store" });
         if(!r.ok) continue;
         const data = await r.json();
         const arr = Array.isArray(data) ? data : (data.questions || data.list || data.data || []);
-        for(const q of arr) if(q.ticket_number==null) q.ticket_number = `Билет ${i}`;
+        for(const q of arr) if(!q.ticket_number) q.ticket_number = `Билет ${i}`;
         raw.push(...arr);
-        ok=true; break;
-      }catch{}
+        found = true;
+        break;
+      }catch(err){ console.warn("Ошибка загрузки:", name, err); }
     }
-    onProgress && onProgress(++loaded/TOTAL);
+    onProgress && onProgress(++loaded / TOTAL);
+    await delay(20);
   }
 
   const norm = normalizeQuestions(raw);
   for(const q of norm){
     State.pool.push(q);
-    (State.byTicket.get(q.ticket) ??= []).push(q);
-    for(const t of q.topics) (State.topics.get(t) ??= []).push(q);
+    if (!State.byTicket.has(q.ticket)) State.byTicket.set(q.ticket, []);
+    State.byTicket.get(q.ticket).push(q);
+
+    for(const t of q.topics){
+      if (!State.topics.has(t)) State.topics.set(t, []);
+      State.topics.get(t).push(q);
+    }
   }
-  console.log(`✅ Загружено ${State.pool.length} вопросов, билетов: ${State.byTicket.size}, тем: ${State.topics.size}`);
+  console.log(`✅ Загружено ${State.pool.length} вопросов`);
 }
 
 /* =======================
-   Нормализация
+   Нормализация данных
 ======================= */
 function normalizeQuestions(raw){
   const out=[];
@@ -164,43 +159,31 @@ function normalizeQuestions(raw){
     const answersRaw = q.answers || q.variants || q.options || [];
     const answers = answersRaw.map(a => a?.answer_text ?? a?.text ?? a?.title ?? String(a));
 
-    // Правильный индекс: сначала по флагу, потом по строке "Правильный ответ: N", потом по числовым полям
-    let correctIndex = answersRaw.findIndex(a => a?.is_correct===true || a?.correct===true || a?.isRight===true);
+    let correctIndex = answersRaw.findIndex(a => a?.is_correct===true);
     if (correctIndex < 0 && typeof q.correct_answer === "string"){
-      const m = q.correct_answer.match(/(\d+)/);
-      if (m){ const n = parseInt(m[1],10); if (!Number.isNaN(n)) correctIndex = n-1; }
+      const m = q.correct_answer.match(/\d+/);
+      if (m) correctIndex = parseInt(m[0]) - 1;
     }
-    if (correctIndex < 0 && typeof q.correct === "number") correctIndex = q.correct>0 ? q.correct-1 : q.correct;
-    if (correctIndex < 0 && typeof q.correct_index === "number") correctIndex = q.correct_index;
-    if (correctIndex < 0 && typeof q.correctIndex === "number") correctIndex = q.correctIndex;
-    if (!Number.isInteger(correctIndex) || correctIndex<0 || correctIndex>=answers.length) correctIndex = 0;
+    if (correctIndex < 0) correctIndex = 0;
 
-    // Билет: "Билет 1" -> 1
-    const ticket = parseTicketNumber(q.ticket_number ?? q.ticket);
+    let ticket = 0; const m2 = String(q.ticket_number||"").match(/\d+/);
+    if (m2) ticket = parseInt(m2[0]);
 
-    // Картинка: убираем ./ и корректно собираем путь
-    const image = normalizeImagePath(q.image ?? q.img ?? null);
+    let image = (q.image || "").replace(/^\.\//,"");
+    if (image && !image.startsWith("images/")) image = "images/" + image;
 
     out.push({
-      id: q.id ?? cryptoId(),
-      question: q.question ?? q.title ?? "Вопрос",
-      answers: answers.length?answers:["Да","Нет","Не знаю"],
+      question: q.question || q.title || "Вопрос",
+      answers,
       correctIndex,
+      tip: q.answer_tip || q.tip || "",
       ticket,
-      topics: toArray(q.topic),
-      image,
-      tip: q.answer_tip ?? q.tip ?? ""
+      topics: Array.isArray(q.topic) ? q.topic : q.topic ? [q.topic] : [],
+      image
     });
   }
   return out;
 }
-function parseTicketNumber(val){
-  if (val == null) return null;
-  const m = String(val).match(/(\d+)/);
-  return m ? parseInt(m[1],10) : null;
-}
-function toArray(x){ return Array.isArray(x) ? x : (x ? [x] : []); }
-function cryptoId(){ try{ return crypto.randomUUID(); } catch{ return 'id-'+Math.random().toString(36).slice(2);}}
 
 /* =======================
    Экраны
@@ -232,18 +215,18 @@ function uiStats(){
 }
 
 /* =======================
-   Викторина / Дуэль
+   Викторина
 ======================= */
 function startDuel({mode,topic=null}){
   const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Данных нет</p></div>`); return; }
+  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`); return; }
   const q = shuffle(src).slice(0,20);
   State.duel = { mode, topic, i:0, me:0, q };
   renderQuestion();
 }
 function startTicket(n){
   const arr = State.byTicket.get(n) || [];
-  if(!arr.length){ setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Вопросы не найдены</p></div>`); return; }
+  if(!arr.length){ setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Нет вопросов</p></div>`); return; }
   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
   State.duel = { mode:"ticket", topic:null, i:0, me:0, q };
   renderQuestion();
@@ -253,54 +236,38 @@ function renderQuestion(){
   const d = State.duel, q = d.q[d.i];
   setView(`
     <div class="card">
-      <div class="meta">
-        <div>Вопрос ${d.i+1}/${d.q.length}${q.ticket!=null?` • Билет ${esc(q.ticket)}`:""}${d.topic?` • Тема: ${esc(d.topic)}`:""}</div>
-      </div>
+      <div class="meta">Вопрос ${d.i+1}/${d.q.length} • Билет ${q.ticket}</div>
       <h3>${esc(q.question)}</h3>
-      ${q.image?`<img class="qimg" src="${imgQuestion(q.image)}" alt="" onerror="this.style.display='none'"/>`:""}
-      <div class="grid">
-        ${q.answers.map((a,i)=>`<button type="button" class="answer" data-i="${i}">${esc(a)}</button>`).join("")}
-      </div>
-      <div id="tip" class="meta" style="margin-top:10px;display:none">
-        <span class="badge">💡 Подсказка</span><span>${esc(q.tip||"")}</span>
-      </div>
-      <div class="meta" style="margin-top:10px"><div>Ты: <b>${d.me}</b></div></div>
+      ${q.image?`<img src="${q.image}" class="qimg" onerror="this.style.display='none'"/>`:""}
+      <div class="grid">${q.answers.map((a,i)=>`<button class="answer" data-i="${i}">${esc(a)}</button>`).join("")}</div>
+      <div id="tip" class="meta" style="display:none;margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
     </div>
   `);
-  // Сбрасываем блокировку на каждый новый вопрос
   State.lock = false;
 }
 
-function onAnswer(idx){
+function onAnswer(i){
   if(State.lock) return;
-  const d=State.duel; if(!d) return;
-  const q=d.q[d.i]; const correct=q.correctIndex ?? 0;
-
-  // блок повторных тапов
   State.lock = true;
+  const d = State.duel, q = d.q[d.i];
+  const correct = q.correctIndex;
 
-  const items = qsa(".answer");
-  items.forEach((el,i)=>{
-    el.disabled = true;
-    el.classList.add(i===correct?"correct":(i===idx?"wrong":""));
+  const btns = qsa(".answer");
+  btns.forEach((b,idx)=>{
+    b.disabled = true;
+    if(idx===correct)b.classList.add("correct");
+    else if(idx===i)b.classList.add("wrong");
   });
 
-  if(idx===correct){
-    d.me++; toast("✅ Верно!");
-  }else{
-    toast("❌ Ошибка");
-    const tip=qs("#tip"); if(tip) tip.style.display="flex";
-  }
+  if(i===correct){ d.me++; toast("✅ Верно!"); }
+  else { toast("❌ Ошибка"); qs("#tip").style.display="block"; }
 
-  // Гарантированный переход на новую «страницу»
   setTimeout(()=>{
+    State.lock=false;
     d.i++;
-    if(d.i<d.q.length){
-      renderQuestion();
-    }else{
-      finishDuel();
-    }
-  }, 900);
+    if(d.i<d.q.length) renderQuestion();
+    else finishDuel();
+  }, 1000);
 }
 
 function finishDuel(){
@@ -308,7 +275,7 @@ function finishDuel(){
   setView(`
     <div class="card">
       <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
-      <p style="margin:.35rem 0 0">Верных: <b>${d.me}</b> из ${d.q.length}</p>
+      <p>Верных: <b>${d.me}</b> из ${d.q.length}</p>
       <div class="grid two" style="margin-top:10px">
         <button class="btn btn-primary" id="again">Ещё раз</button>
         <button class="btn" id="home">На главную</button>
@@ -320,28 +287,9 @@ function finishDuel(){
 /* =======================
    Утилиты
 ======================= */
-const qs  = s => document.querySelector(s);
-const qsa = s => [...document.querySelectorAll(s)];
-function toast(text){ const t=qs("#toast"); t.innerHTML=`<div class="toast">${esc(text)}</div>`; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1400); }
-function shuffle(a){ return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
-function esc(s){ return String(s??"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
-
-function normalizeImagePath(img){
-  if(!img) return null;
-  let name = String(img).trim();
-  // убираем ведущие ./ и /
-  name = name.replace(/^(\.\/)+/,'').replace(/^\/+/,'');
-  // если уже начинается с images/ — используем как есть
-  if(/^images\//i.test(name)) return name;
-  // если начинается с A_B/ → это подпапка в images
-  if(/^A_B\//i.test(name)) return "images/" + name;
-  // если начинается с images/A_B/ уже правильно
-  if(/^images\/A_B\//i.test(name)) return name;
-  // иначе кладём по умолчанию в images/…
-  return "images/" + name;
-}
-function imgQuestion(img){ return normalizeImagePath(img) || ""; }
-
-/* =======================
-   Конец
-======================= */
+const qs=s=>document.querySelector(s);
+const qsa=s=>[...document.querySelectorAll(s)];
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
+function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
