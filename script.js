@@ -71,9 +71,9 @@ function renderHome(){
 function bindScreenDelegation(){
   const screen = qs("#screen");
 
-  // pointerup — самый стабильный для Telegram WebApp
+  // pointerup — стабильно для Telegram WebApp
   screen.addEventListener("pointerup", handleScreenTap, { passive:false });
-  // запасной click, если вдруг pointer события отключены
+  // запасной click (если pointer события "съедятся")
   screen.addEventListener("click", (e)=>{
     if (e.defaultPrevented) return;
     handleScreenTap(e);
@@ -81,10 +81,10 @@ function bindScreenDelegation(){
 }
 
 function handleScreenTap(e){
-  const a = e.target.closest(".answer");
-  if (a && a.dataset.i != null){
+  const ans = e.target.closest(".answer");
+  if (ans && ans.dataset.i != null){
     e.preventDefault();
-    onAnswer(+a.dataset.i);
+    onAnswer(+ans.dataset.i);
     return;
   }
   const ticket = e.target.closest("[data-n]");
@@ -120,7 +120,7 @@ async function loadTicketsAndBuildTopics(onProgress){
         if(!r.ok) continue;
         const data = await r.json();
         const arr = Array.isArray(data)?data:(data.questions||data.list||data.data||[]);
-        for(const q of arr) q.ticket_number ??= i;
+        for(const q of arr) q.ticket_number ??= `Билет ${i}`; // нормализуем как в твоих файлах
         raw.push(...arr);
         found=true; break;
       }catch{}
@@ -162,31 +162,53 @@ async function loadMarkup(){
 
 // ===================== НОРМАЛИЗАЦИЯ =====================
 function normalizeQuestions(raw){
-  return raw.map((q,i)=>{
+  const out=[];
+  for(const q of raw){
     const answersRaw = q.answers || q.variants || q.options || [];
     const answers = answersRaw.map(a=>a?.answer_text??a?.text??a?.title??String(a));
-    let correctIndex = -1;
-    const byFlag = answersRaw.findIndex(a=>a?.is_correct===true||a?.correct===true||a?.isRight===true);
-    if(byFlag>=0) correctIndex = byFlag;
-    else if (typeof q.correctIndex === "number") correctIndex = q.correctIndex;
-    else if (typeof q.correct_index === "number") correctIndex = q.correct_index;
-    else if (typeof q.correct === "number") correctIndex = q.correct>0 ? q.correct-1 : q.correct;
-    else if (typeof q.correctAnswer === "number") correctIndex = q.correctAnswer>0 ? q.correctAnswer-1 : q.correctAnswer;
-    else if (q.correct_answer!=null){ const n=parseInt(q.correct_answer,10); if(!Number.isNaN(n)) correctIndex = n>0 ? n-1 : n; }
-    if(!Number.isInteger(correctIndex)||correctIndex<0||correctIndex>=answers.length) correctIndex = 0;
 
-    const topics = Array.isArray(q.topic)?q.topic:(q.topic?[q.topic]:[]);
-    return {
-      id: q.id ?? i,
+    // 1) пробуем флаг is_correct
+    let correctIndex = answersRaw.findIndex(a => a?.is_correct===true || a?.correct===true || a?.isRight===true);
+
+    // 2) если нет, пробуем строку "Правильный ответ: N"
+    if (correctIndex < 0 && typeof q.correct_answer === "string"){
+      const m = q.correct_answer.match(/(\d+)/);
+      if (m){ const n = parseInt(m[1],10); if (!Number.isNaN(n)) correctIndex = n-1; }
+    }
+    // 3) другие возможные поля
+    if (correctIndex < 0 && typeof q.correct === "number") correctIndex = q.correct>0 ? q.correct-1 : q.correct;
+    if (correctIndex < 0 && typeof q.correct_index === "number") correctIndex = q.correct_index;
+    if (correctIndex < 0 && typeof q.correctIndex === "number") correctIndex = q.correctIndex;
+    if (!Number.isInteger(correctIndex) || correctIndex<0 || correctIndex>=answers.length) correctIndex = 0;
+
+    // ticket_number может быть "Билет 1" → вытаскиваем число
+    const tNum = parseTicketNumber(q.ticket_number ?? q.ticket);
+
+    out.push({
+      id: q.id ?? cryptoId(),
       question: q.question ?? q.title ?? "Вопрос",
       answers: answers.length?answers:["Да","Нет","Не знаю"],
       correctIndex,
-      ticket: q.ticket_number ?? q.ticket ?? null,
-      topics,
-      image: q.image ?? q.img ?? null,
+      ticket: tNum,                               // числовой ID билета
+      topics: toArray(q.topic),
+      image: normalizeImagePath(q.image ?? q.img ?? null),
       tip: q.answer_tip ?? q.tip ?? null
-    };
-  });
+    });
+  }
+  return out;
+}
+
+function parseTicketNumber(val){
+  if (val == null) return null;
+  if (typeof val === "number") return val;
+  const s = String(val);
+  const m = s.match(/(\d+)/);
+  return m ? parseInt(m[1],10) : null;
+}
+function toArray(x){ return Array.isArray(x) ? x : (x ? [x] : []); }
+function cryptoId(){
+  if (crypto?.randomUUID) return crypto.randomUUID();
+  return 'id-' + Math.random().toString(36).slice(2);
 }
 
 // ===================== ЭКРАНЫ =====================
@@ -202,7 +224,7 @@ function uiTopics(){
 }
 
 function uiTickets(){
-  const ids=[...new Set(State.pool.map(q=>q.ticket).filter(v=>v!=null))].sort((a,b)=>a-b);
+  const ids=[...State.byTicket.keys()].sort((a,b)=>a-b);
   if(!ids.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`); return; }
   setView(`
     <div class="card"><h3>Билеты</h3></div>
@@ -309,12 +331,10 @@ function renderQuestion(){
 }
 
 function onAnswer(idx){
-  // железобетонная проверка
   if(State.lock) return;
   const d=State.duel; if(!d) return;
   const q=d.q[d.i]; const correct=q.correctIndex??0;
 
-  // блокируем повторные тапы
   State.lock = true;
 
   const items = qsa(".answer");
@@ -330,14 +350,14 @@ function onAnswer(idx){
   const ai = Math.random()<0.85 ? correct : pickWrong(correct, items.length);
   if(ai===correct) d.ai++;
 
-  // по rAF → таймер, чтобы телега не «съела» перерисовку
+  // Надёжный переход на «новую страницу» с вопросом
   requestAnimationFrame(()=>{
     setTimeout(()=>{
       d.i++;
       State.lock = false;
       if(d.i<d.q.length) renderQuestion();
       else finishDuel();
-    }, 850);
+    }, 900);
   });
 }
 
@@ -364,17 +384,27 @@ function pickWrong(c,n){ const arr=[...Array(n).keys()].filter(i=>i!==c); return
 function esc(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 
 /* пути изображений */
-function imgQuestion(img){
-  let name = String(img||"").replace(/^\.?\//,'');
-  if(!name) return "";
+function normalizeImagePath(img){
+  if(!img) return null;
+  let name = String(img).trim();
+
+  // убираем стартовое "./"
+  name = name.replace(/^\.\/+/, "");
+
+  // если уже начинается с images/ — возвращаем как есть
   if(/^images\//i.test(name)) return name;
-  if(/^A_B\//i.test(name))    return `images/${name}`;
-  return `images/A_B/${name}`;
+
+  // если начинается с A_B/ → это каталог внутри images
+  if(/^A_B\//i.test(name)) return "images/" + name;
+
+  // дефолт: кладём в images/A_B
+  return "images/A_B/" + name;
 }
+function imgQuestion(img){ return normalizeImagePath(img) || ""; }
 function imgMarkup(img){
-  let name = String(img||"").replace(/^\.?\//,'');
-  if(!name) return "";
+  if(!img) return "";
+  let name = String(img).replace(/^\.\/+/, "");
   if(/^images\//i.test(name)) return name;
-  if(/^markup\//i.test(name)) return `images/${name}`;
-  return `images/markup/${name}`;
+  if(/^markup\//i.test(name)) return "images/" + name;
+  return "images/markup/" + name;
 }
