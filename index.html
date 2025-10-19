@@ -31,15 +31,15 @@
 
     <!-- Игровое меню -->
     <nav class="menu">
-      <button id="btnQuickDuel" class="btn btn-primary">⚡ Быстрая дуэль</button>
-      <button id="btnTopics"    class="btn">📚 Темы</button>
-      <button id="btnTickets"   class="btn">🎟️ Билеты</button>
-      <button id="btnMarkup"    class="btn">📏 Разметка</button>
-      <button id="btnPenalties" class="btn">💸 Штрафы</button>
-      <button id="btnStats"     class="btn">📊 Статистика</button>
+      <button id="btnQuickDuel" class="btn btn-primary" data-action="quick">⚡ Быстрая дуэль</button>
+      <button id="btnTopics"    class="btn" data-action="topics">📚 Темы</button>
+      <button id="btnTickets"   class="btn" data-action="tickets">🎟️ Билеты</button>
+      <button id="btnMarkup"    class="btn" data-action="markup">📏 Разметка</button>
+      <button id="btnPenalties" class="btn" data-action="penalties">💸 Штрафы</button>
+      <button id="btnStats"     class="btn" data-action="stats">📊 Статистика</button>
     </nav>
 
-    <!-- Один экран. Всегда целиком заменяется. Внутри свой скролл. -->
+    <!-- Один экран. Всегда заменяется. Скролл только внутри. -->
     <section id="screen" class="screen"></section>
   </div>
 
