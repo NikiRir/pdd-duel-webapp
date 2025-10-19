@@ -1,25 +1,20 @@
-/* ======== НАСТРОЙКА ======== */
+/* ===== Параметры репозитория ===== */
 const REPO = "etspring/pdd_russia";
 const BRANCH = "master";
 
-/* ======== ЗАГРУЗКА ФАЙЛОВ ЧЕРЕЗ GITHUB API ======== */
-const RAW = (p) =>
-  `https://api.github.com/repos/${REPO}/contents/${p}?ref=${BRANCH}`;
+/* ===== Зеркала для загрузки JSON/картинок =====
+   1) jsDelivr  (обычно работает в Telegram WebView)
+   2) raw.githubusercontent (классический RAW)
+   3) GitHub API (JSON base64) — как последний fallback
+*/
+const MIRRORS_JSON = [
+  (p) => `https://cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/${p}`,
+  (p) => `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${p}`,
+  (p) => `https://api.github.com/repos/${REPO}/contents/${p}?ref=${BRANCH}`, // спец. обработка
+];
+const MIRROR_IMG = (p) => `https://cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/${p}`;
 
-async function fetchJsonFile(path) {
-  try {
-    const res = await fetch(RAW(path));
-    if (!res.ok) throw new Error(`Ошибка загрузки ${path}`);
-    const data = await res.json();
-    const text = atob(data.content);
-    return JSON.parse(text);
-  } catch (err) {
-    console.error("Ошибка при загрузке файла:", path, err);
-    return null;
-  }
-}
-
-/* ======== ГЛОБАЛЬНОЕ СОСТОЯНИЕ ======== */
+/* ===== Глобальное состояние ===== */
 const State = {
   pool: [],
   byTicket: new Map(),
@@ -27,51 +22,58 @@ const State = {
   duel: null,
 };
 
-/* ======== ИНИЦИАЛИЗАЦИЯ ======== */
+/* ===== DOM Ready ===== */
 document.addEventListener("DOMContentLoaded", () => {
   bindUI();
   initApp();
 });
 
 async function initApp() {
-  toast("📥 Загружаю реальные вопросы ПДД...");
-  await loadAllData();
-  toast(`✅ Загружено ${State.pool.length} вопросов, ${State.topics.size} тем`);
+  toast("📥 Загружаю реальные вопросы ПДД…");
+  try {
+    await loadAllData();
+    toast(`✅ Готово! Вопросов: ${State.pool.length}, тем: ${State.topics.size}`);
+  } catch (e) {
+    console.error(e);
+    toast("❌ Не удалось загрузить данные. Проверь интернет/Telegram.");
+  }
 }
 
-/* ======== КНОПКИ ======== */
+/* ===== Кнопки ===== */
 function bindUI() {
-  el("#btnQuickDuel").onclick = () => startDuel({ mode: "quick" });
-  el("#btnTopics").onclick = () => showTopics();
-  el("#btnTickets").onclick = () => showTickets();
-  el("#btnStats").onclick = () =>
-    toast("📊 Статистика работает только внутри Telegram WebApp");
+  qs("#btnQuickDuel").onclick = () => startDuel({ mode: "quick" });
+  qs("#btnTopics").onclick = () => showTopics();
+  qs("#btnTickets").onclick = () => showTickets();
+  qs("#btnStats").onclick = () =>
+    toast("📊 Статистика доступна при открытии через Telegram WebApp");
 }
 
-/* ======== ЗАГРУЗКА ДАННЫХ ======== */
+/* ===== Загрузка данных ===== */
 async function loadAllData() {
-  const ticketsPaths = [
+  // Точки входа (поддерживаем разные структуры репозитория)
+  const ticketCandidates = [
     "questions/tickets_A_B.json",
     "questions/tickets.json",
     "questions/tickets_C_D.json",
   ];
+  const topicCandidates = ["questions/topics.json", "questions/topic.json"];
 
-  const topicsPaths = ["questions/topics.json", "questions/topic.json"];
+  const ticketsRaw = await fetchFirstJson(ticketCandidates);
+  const topicsRaw = await fetchFirstJson(topicCandidates); // может отсутствовать — ок
 
-  const ticketsData = await loadFirstAvailable(ticketsPaths);
-  const topicsData = await loadFirstAvailable(topicsPaths);
+  const tickets = Array.isArray(ticketsRaw)
+    ? ticketsRaw
+    : ticketsRaw?.tickets || ticketsRaw?.data || [];
 
-  const tickets = Array.isArray(ticketsData)
-    ? ticketsData
-    : ticketsData?.tickets || [];
-  const topics = Array.isArray(topicsData)
-    ? topicsData
-    : topicsData?.topics || [];
+  const topics = Array.isArray(topicsRaw)
+    ? topicsRaw
+    : topicsRaw?.topics || topicsRaw?.data || topicsRaw?.topic || [];
 
-  const normalized = normalizeQuestions(tickets);
-  for (const q of normalized) {
+  // нормализация
+  const t1 = normalizeQuestions(tickets);
+  for (const q of t1) {
     State.pool.push(q);
-    if (q.ticket) {
+    if (q.ticket != null) {
       const arr = State.byTicket.get(q.ticket) || [];
       arr.push(q);
       State.byTicket.set(q.ticket, arr);
@@ -83,8 +85,8 @@ async function loadAllData() {
     }
   }
 
-  const normalizedTopics = normalizeQuestions(topics);
-  for (const q of normalizedTopics) {
+  const t2 = normalizeQuestions(topics);
+  for (const q of t2) {
     if (!State.pool.find((x) => x.id === q.id)) State.pool.push(q);
     for (const t of q.topics) {
       const arr = State.topics.get(t) || [];
@@ -94,15 +96,33 @@ async function loadAllData() {
   }
 }
 
-async function loadFirstAvailable(paths) {
-  for (const p of paths) {
-    const data = await fetchJsonFile(p);
-    if (data) return data;
+/* Загружаем JSON, пробуя зеркала по очереди */
+async function fetchFirstJson(paths) {
+  for (const path of paths) {
+    // 1 и 2 зеркала — сразу как текст JSON
+    for (let i = 0; i < 2; i++) {
+      try {
+        const url = MIRRORS_JSON[i](path) + `?nocache=${Date.now()}`;
+        const r = await fetch(url, { cache: "no-store" });
+        if (r.ok) return await r.json();
+      } catch {}
+    }
+    // 3-е зеркало — GitHub API (content base64)
+    try {
+      const url = MIRRORS_JSON[2](path);
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) throw 0;
+      const data = await r.json();
+      if (data && data.content) {
+        const text = atob(data.content);
+        return JSON.parse(text);
+      }
+    } catch {}
   }
-  return [];
+  return []; // не нашли — вернём пусто, дальше корректно обработаем
 }
 
-/* ======== НОРМАЛИЗАЦИЯ ВОПРОСОВ ======== */
+/* Нормализация формата вопросов к общему виду */
 function normalizeQuestions(raw) {
   const out = [];
   for (const q of raw) {
@@ -120,10 +140,10 @@ function normalizeQuestions(raw) {
 
     out.push({
       id: q.id || crypto.randomUUID(),
-      question: q.question || q.title || "Без текста вопроса",
-      answers: answers.length ? answers : ["Да", "Нет"],
+      question: q.question || q.title || "Вопрос",
+      answers: answers.length ? answers : ["Да", "Нет", "Не знаю"],
       correctIndex: correctIndex >= 0 ? correctIndex : 0,
-      ticket: q.ticket_number || q.ticket || null,
+      ticket: q.ticket_number ?? q.ticket ?? null,
       topics,
       image: q.image || null,
       tip: q.answer_tip || q.tip || null,
@@ -132,74 +152,76 @@ function normalizeQuestions(raw) {
   return out;
 }
 
-/* ======== ДУЭЛЬ ======== */
+/* ===== Дуэль / Викторина ===== */
 function startDuel({ mode, topic = null }) {
   const src = topic ? State.topics.get(topic) || [] : State.pool;
-  if (!src.length) {
-    toast("⚠️ Данные ещё не загружены");
-    return;
-  }
+  if (!src.length) return toast("⚠️ Данные ещё не загружены");
 
-  const questions = shuffle(src).slice(0, 20);
+  const questions = shuffle(src).slice(0, 20); // 20 вопросов
   State.duel = { mode, topic, i: 0, me: 0, ai: 0, q: questions, timerMs: 25000 };
   renderQuestion();
 }
 
 function renderQuestion() {
-  const d = State.duel,
-    q = d.q[d.i];
-  const screen = el("#screen");
-
-  screen.innerHTML = `
+  const d = State.duel;
+  const q = d.q[d.i];
+  const container = qs("#screen");
+  container.innerHTML = `
     <div class="card">
       <div class="meta">
         <div>Вопрос ${d.i + 1}/${d.q.length}${
-    q.ticket ? " • Билет " + q.ticket : ""
+    q.ticket != null ? " • Билет " + escape(q.ticket) : ""
   }</div>
         <div class="timer"><div class="tbar" id="tbar"></div></div>
       </div>
-      <h3>${escapeHtml(q.question)}</h3>
-      ${q.image ? `<img class="qimg" src="${imgUrl(q.image)}"/>` : ""}
+      <h3>${escape(q.question)}</h3>
+      ${q.image ? `<img class="qimg" src="${imageUrl(q.image)}" alt=""/>` : ""}
       <div class="grid">
         ${q.answers
-          .map(
-            (a, i) => `<div class="answer" data-i="${i}">${escapeHtml(a)}</div>`
-          )
+          .map((a, i) => `<div class="answer" data-i="${i}">${escape(a)}</div>`)
           .join("")}
+      </div>
+      ${q.tip ? `<div class="meta" style="margin-top:8px"><span>Подсказка:</span><span>${escape(q.tip)}</span></div>` : ""}
+      <div class="meta" style="margin-top:6px">
+        <div>Ты: <b>${d.me}</b></div><div>ИИ: <b>${d.ai}</b></div>
       </div>
     </div>
   `;
 
+  // таймер
   let left = d.timerMs;
-  const bar = el("#tbar");
-  const timer = setInterval(() => {
+  const bar = qs("#tbar");
+  const t = setInterval(() => {
     left -= 50;
-    bar.style.width = (100 * left) / d.timerMs + "%";
+    bar.style.width = Math.max(0, (100 * left) / d.timerMs) + "%";
     if (left <= 0) {
-      clearInterval(timer);
-      finishAnswer(-1);
+      clearInterval(t);
+      finish(-1);
     }
   }, 50);
 
-  elAll(".answer").forEach((el) => {
+  qsa(".answer").forEach((el) => {
     el.onclick = () => {
-      clearInterval(timer);
-      finishAnswer(+el.dataset.i);
+      clearInterval(t);
+      finish(+el.dataset.i);
     };
   });
 
-  function finishAnswer(i) {
+  function finish(i) {
     const correct = q.correctIndex;
-    elAll(".answer").forEach((a, j) => {
-      a.classList.add(j === correct ? "correct" : j === i ? "wrong" : "");
-      a.style.pointerEvents = "none";
+    qsa(".answer").forEach((el, j) => {
+      el.classList.add(j === correct ? "correct" : j === i ? "wrong" : "");
+      el.style.pointerEvents = "none";
     });
     if (i === correct) {
       d.me++;
       toast("✅ Верно!");
     } else toast("❌ Ошибка");
+
+    // ИИ (85% точность)
     const ai = Math.random() < 0.85 ? correct : pickWrong(correct, q.answers.length);
     if (ai === correct) d.ai++;
+
     setTimeout(() => {
       d.i++;
       d.i < d.q.length ? renderQuestion() : finishDuel();
@@ -209,81 +231,58 @@ function renderQuestion() {
 
 function finishDuel() {
   const d = State.duel;
-  el("#screen").innerHTML = `
+  qs("#screen").innerHTML = `
     <div class="card">
       <h3>${d.me > d.ai ? "🏆 Победа!" : d.me < d.ai ? "💀 Поражение" : "🤝 Ничья"}</h3>
-      <p>Ты: ${d.me} • ИИ: ${d.ai}</p>
-      <div class="grid two" style="margin-top:8px">
+      <p style="margin:6px 0 0">Ты: <b>${d.me}</b> • ИИ: <b>${d.ai}</b></p>
+      <div class="grid two" style="margin-top:10px">
         <button class="btn btn-primary" id="again">Ещё раз</button>
         <button class="btn" id="home">На главную</button>
       </div>
     </div>`;
-  el("#again").onclick = () => startDuel({ mode: d.mode, topic: d.topic });
-  el("#home").onclick = () => (el("#screen").innerHTML = "");
+  qs("#again").onclick = () => startDuel({ mode: d.mode, topic: d.topic });
+  qs("#home").onclick = () => (qs("#screen").innerHTML = "");
 }
 
-/* ======== СПИСКИ ======== */
+/* ===== Темы / Билеты ===== */
 function showTopics() {
-  const topics = [...State.topics.keys()].sort();
-  if (!topics.length) return toast("❌ Темы не найдены");
-  el("#screen").innerHTML = `
+  const list = [...State.topics.keys()].sort();
+  if (!list.length) return toast("❌ Темы не найдены");
+  qs("#screen").innerHTML = `
     <div class="card">
       <h3>Темы</h3>
       <div class="grid auto" style="margin-top:8px">
-        ${topics
-          .map((t) => `<div class="answer" data-t="${escapeHtml(t)}">${t}</div>`)
-          .join("")}
+        ${list.map((t) => `<div class="answer" data-t="${escape(t)}">${escape(t)}</div>`).join("")}
       </div>
     </div>`;
-  elAll("[data-t]").forEach(
-    (e) => (e.onclick = () => startDuel({ mode: "topic", topic: e.dataset.t }))
-  );
+  qsa("[data-t]").forEach((e) => (e.onclick = () => startDuel({ mode: "topic", topic: e.dataset.t })));
 }
 
 function showTickets() {
-  const tickets = [...new Set(State.pool.map((q) => q.ticket).filter(Boolean))];
-  if (!tickets.length) return toast("❌ Билеты не найдены");
-  el("#screen").innerHTML = `
+  const list = [...new Set(State.pool.map((q) => q.ticket).filter((x) => x != null))].sort((a,b)=>a-b);
+  if (!list.length) return toast("❌ Билеты не найдены");
+  qs("#screen").innerHTML = `
     <div class="card">
       <h3>Билеты</h3>
       <div class="grid auto" style="margin-top:8px">
-        ${tickets
-          .map((t) => `<div class="answer" data-n="${t}">Билет ${t}</div>`)
-          .join("")}
+        ${list.map((t) => `<div class="answer" data-n="${t}">Билет ${t}</div>`).join("")}
       </div>
     </div>`;
-  elAll("[data-n]").forEach(
-    (e) => (e.onclick = () => startTicket(+e.dataset.n))
-  );
+  qsa("[data-n]").forEach((e) => (e.onclick = () => startTicket(+e.dataset.n)));
 }
 
-function startTicket(num) {
-  const arr = State.pool.filter((q) => q.ticket === num);
-  if (!arr.length) return toast("Нет данных по билету");
+function startTicket(n) {
+  const arr = State.pool.filter((q) => q.ticket === n);
+  if (!arr.length) return toast("Нет вопросов для этого билета");
   State.duel = { mode: "ticket", topic: null, i: 0, me: 0, ai: 0, q: shuffle(arr).slice(0, 20), timerMs: 25000 };
   renderQuestion();
 }
 
-/* ======== УТИЛИТЫ ======== */
-const el = (s) => document.querySelector(s);
-const elAll = (s) => [...document.querySelectorAll(s)];
-function toast(text) {
-  const t = el("#toast");
-  t.innerHTML = `<div class="toast">${escapeHtml(text)}</div>`;
-  t.style.opacity = 1;
-  setTimeout(() => (t.style.opacity = 0), 1500);
-}
-function shuffle(a) {
-  return a.map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
-}
-function pickWrong(c, n) {
-  const arr = [...Array(n).keys()].filter((i) => i !== c);
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-}
-function imgUrl(p) {
-  const clean = p.replace(/^\.\//, "").replace(/^\//, "");
-  return `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${clean}`;
-}
+/* ===== Утилиты ===== */
+const qs = (s) => document.querySelector(s);
+const qsa = (s) => [...document.querySelectorAll(s)];
+function toast(text){ const t=qs("#toast"); t.innerHTML=`<div class="toast">${escape(text)}</div>`; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1500); }
+function escape(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+function shuffle(a){ return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
+function pickWrong(c,n){ const arr=[...Array(n).keys()].filter(i=>i!==c); return arr[Math.floor(Math.random()*arr.length)]; }
+function imageUrl(p){ if(!p) return ""; const clean=String(p).replace(/^\.\//,"").replace(/^\//,""); return MIRROR_IMG(clean); }
