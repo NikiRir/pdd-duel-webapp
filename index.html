@@ -10,15 +10,15 @@
 </head>
 
 <body>
-  <!-- Глобальный лоадер (поверх всего) -->
-  <div id="loader" class="loader hidden">
+  <!-- Фуллскрин лоадер -->
+  <div id="loader" class="loader">
     <div class="loader-bg"></div>
     <div class="loader-core">
-      <div class="loader-glow"></div>
-      <div class="spinner"></div>
+      <div class="orb"></div>
+      <div class="orb-ring"></div>
       <div class="loader-title">ПДД ДУЭЛИ</div>
-      <div class="loader-sub">загружаем билеты, темы и медиа…</div>
-      <div class="progress"><div class="bar" id="loaderBar"></div></div>
+      <div class="loader-sub">загружаем билеты, медиа и справочники…</div>
+      <div class="progress"><div id="loaderBar" class="bar"></div></div>
     </div>
   </div>
 
@@ -39,13 +39,11 @@
       <button id="btnStats"     class="btn">📊 Статистика</button>
     </nav>
 
-    <!-- Один экран/контейнер. Никаких «простыней» — контент всегда заменяется. -->
+    <!-- ОДИН экран. Всегда заменяется целиком — без прокрутки простынёй. -->
     <section id="screen" class="screen"></section>
   </div>
 
-  <!-- Тосты -->
   <div id="toast" class="toast-wrap"></div>
-
   <script src="script.js"></script>
 </body>
 </html>
