@@ -59,11 +59,11 @@ body{
 .btn-primary:hover{background:linear-gradient(90deg,#6366f1,#818cf8)}
 .btn.active{border-color:var(--brand2);box-shadow:0 0 0 2px rgba(129,140,248,.35) inset}
 
-/* Экран (страницы) — фиксированная рамка со СКРОЛЛОМ ВНУТРИ */
+/* Экран (стрницы) — фиксированная рамка со СКРОЛЛОМ ВНУТРИ */
 .screen{
   position:relative;
-  height:clamp(460px,65vh,680px);
-  overflow:auto; /* <- скролл тут */
+  height:clamp(480px,66vh,720px);
+  overflow:auto; /* скролл здесь */
   border-radius:20px;border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.04);
   box-shadow:0 24px 70px rgba(0,0,0,.4);
@@ -71,11 +71,12 @@ body{
 .view{
   min-height:100%;
   padding:clamp(12px,2vw,16px);
-  opacity:0;transform:translateY(8px);animation:viewIn .22s ease forwards;
+  opacity:0;transform:translateY(8px);
+  animation:viewIn .22s ease forwards;
 }
 .view.fadeout{animation:viewOut .18s ease forwards}
 
-/* Стили скроллбара (эстетично) */
+/* Скроллбар */
 .screen::-webkit-scrollbar{width:10px}
 .screen::-webkit-scrollbar-track{background:transparent}
 .screen::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#4f46e5,#818cf8);border-radius:999px}
@@ -95,12 +96,20 @@ body{
 /* Викторина */
 .meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:clamp(12px,2.4vw,13px);margin-bottom:8px}
 .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.12);padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.06);font-size:12px;color:#e5e7eb}
-.qimg{width:100%;max-height:clamp(220px,40vh,340px);object-fit:contain;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.15);margin:8px 0}
+.qimg{
+  width:100%;
+  max-height:clamp(200px,38vh,320px);
+  object-fit:contain;
+  border-radius:14px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(0,0,0,.15);margin:8px 0
+}
 
 .answer{
   padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.06);cursor:pointer;transition:.16s ease;
   font-size:clamp(14px,2.6vw,16px);
+  position:relative; /* гарантируем кликабельность */
+  z-index:0;
 }
 .answer:hover{background:rgba(255,255,255,.12)}
 .answer.correct{border-color:var(--ok);background:rgba(16,185,129,.12)}
@@ -113,11 +122,11 @@ body{
 }
 
 /* Toast */
-.toast-wrap{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;opacity:0;transition:opacity .25s;z-index:99}
+.toast-wrap{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;opacity:0;transition:opacity .25s;z-index:9999}
 .toast{background:rgba(15,23,42,.94);border:1px solid rgba(255,255,255,.08);color:#f1f5f9;border-radius:12px;padding:10px 16px;box-shadow:0 18px 60px rgba(0,0,0,.45)}
 
 /* Лоадер */
-.loader{position:fixed;inset:0;display:grid;place-items:center;z-index:9999}
+.loader{position:fixed;inset:0;display:grid;place-items:center;z-index:99999}
 .loader.hidden{display:none}
 .loader-bg{
   position:absolute;inset:0;
