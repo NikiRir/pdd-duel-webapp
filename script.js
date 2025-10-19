@@ -27,7 +27,7 @@ async function boot(){
 
   setLoader(100);
   setTimeout(()=> showLoader(false), 250);
-  renderHome();            // всегда есть стартовый экран — не будет «пустой коробки»
+  renderHome();
 }
 
 /* =======================
@@ -37,14 +37,12 @@ function showLoader(v){ qs("#loader").classList.toggle("hidden", !v); }
 function setLoader(p){ qs("#loaderBar").style.width = Math.max(0,Math.min(100,p))+"%"; }
 
 /* =======================
-   НАВИГАЦИЯ (всегда новый экран)
+   НАВИГАЦИЯ (стрницы)
 ======================= */
 function setView(html){
   const host = qs("#screen");
-  // плавно скрываем старый
   const old = host.firstElementChild;
   if (old){ old.classList.add("fadeout"); setTimeout(()=>old.remove(), 160); }
-  // добавляем новый
   const view = document.createElement("div");
   view.className = "view";
   view.innerHTML = html;
@@ -73,11 +71,19 @@ function bindMenu(){
   qs("#btnTickets").onclick   = () => { setActive("btnTickets");   uiTickets(); };
   qs("#btnMarkup").onclick    = () => { setActive("btnMarkup");    uiMarkup(); };
   qs("#btnPenalties").onclick = () => { setActive("btnPenalties"); uiPenalties(); };
-  qs("#btnStats").onclick     = () => { setActive("btnStats");     setView(`<div class="card"><h3>Статистика</h3><p>Открой через Telegram WebApp, чтобы связать результаты с профилем.</p></div>`); };
+  qs("#btnStats").onclick     = () => { setActive("btnStats");     uiStats(); };
 }
 
 /* =======================
-   ЗАГРУЗКА ДАННЫХ (локально)
+   ОПРЕДЕЛЕНИЕ TELEGRAM
+======================= */
+function inTG(){
+  try{ return typeof Telegram!=="undefined" && Telegram.WebApp && Telegram.WebApp.initDataUnsafe; }
+  catch{ return false; }
+}
+
+/* =======================
+   ЗАГРУЗКА ДАННЫХ
 ======================= */
 async function loadTicketsAndBuildTopics(onProgress){
   const TOTAL = 40; let loaded = 0;
@@ -95,11 +101,11 @@ async function loadTicketsAndBuildTopics(onProgress){
         const r = await fetch(url, { cache: "no-store" });
         if(!r.ok) continue;
         const data = await r.json();
-        const list = Array.isArray(data) ? data : (data.questions || []);
+        const list = Array.isArray(data) ? data : (data.questions || data.list || data.data || []);
         for(const q of list) if(q.ticket_number==null) q.ticket_number = i;
         raw.push(...list);
-        break; // нашли вариант — идём к след. номеру
-      }catch{/* пробуем следующее имя */}
+        break;
+      }catch{/* next name */}
     }
     step();
   }
@@ -116,17 +122,32 @@ async function loadPenalties(){
   try{
     const r = await fetch("penalties/penalties.json", { cache: "no-store" });
     if(!r.ok) return;
-    const data = await r.json();
-    State.penalties = Array.isArray(data) ? data : (data.penalties || data.items || []);
+    const j = await r.json();
+    let arr = [];
+    if (Array.isArray(j)) arr = j;
+    else if (Array.isArray(j.penalties)) arr = j.penalties;
+    else if (Array.isArray(j.items)) arr = j.items;
+    else if (Array.isArray(j.list)) arr = j.list;
+    else if (Array.isArray(j.data)) arr = j.data;
+    State.penalties = arr;
   }catch{}
 }
 async function loadMarkup(){
   try{
     const r = await fetch("markup/markup.json", { cache: "no-store" });
     if(!r.ok) return;
-    const data = await r.json();
-    const list = Array.isArray(data) ? data : (data.items || data.markup || []);
-    State.markup = list.map((x,i)=>({ id:x.id??i+1, title:x.title||x.name||x.caption||`Элемент ${i+1}`, image:x.image||x.src||x.path||"" }));
+    const j = await r.json();
+    let arr = [];
+    if (Array.isArray(j)) arr = j;
+    else if (Array.isArray(j.markup)) arr = j.markup;
+    else if (Array.isArray(j.items)) arr = j.items;
+    else if (Array.isArray(j.list)) arr = j.list;
+    else if (Array.isArray(j.data)) arr = j.data;
+    State.markup = arr.map((x,i)=>({
+      id: x.id ?? i+1,
+      title: x.title || x.name || x.caption || `Элемент ${i+1}`,
+      image: x.image || x.src || x.path || ""
+    }));
   }catch{}
 }
 
@@ -155,7 +176,10 @@ function normalizeQuestions(raw){
 ======================= */
 function uiTopics(){
   const list = [...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
-  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`); return; }
+  if(!list.length){
+    setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`);
+    return;
+  }
   setView(`
     <div class="card"><h3>Темы</h3></div>
     <div class="card">
@@ -169,18 +193,48 @@ function uiTopics(){
 
 function uiTickets(){
   const ids = [...new Set(State.pool.map(q=>q.ticket).filter(v=>v!=null))].sort((a,b)=>a-b);
-  if(!ids.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`); return; }
+  if(!ids.length){
+    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`);
+    return;
+  }
   setView(`
     <div class="card"><h3>Билеты</h3></div>
-    <div class="card"><div class="grid auto">
-      ${ids.map(n=>`<div class="answer" data-n="${n}">Билет ${n}</div>`).join("")}
-    </div></div>
+    <div class="card">
+      <div class="grid auto">
+        ${ids.map(n=>`<div class="answer" data-n="${n}">Билет ${n}</div>`).join("")}
+      </div>
+    </div>
   `);
+  // ВАЖНО: теперь у нас ЕСТЬ startTicket
   qsa("[data-n]").forEach(el=>el.onclick=()=>startTicket(+el.dataset.n));
 }
 
+function startTicket(n){
+  const arr = State.byTicket.get(n) || [];
+  if(!arr.length){
+    setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Вопросы не найдены</p></div>`);
+    return;
+  }
+  State.duel = { mode:"ticket", topic:null, i:0, me:0, ai:0, q: arr.slice(0,20) };
+  renderQuestion();
+}
+
 function uiMarkup(){
-  if(!State.markup||!State.markup.length){ setView(`<div class="card"><h3>Разметка</h3><p>⚠️ Разметка не найдена</p></div>`); return; }
+  if(!State.markup){
+    setView(`<div class="card"><h3>Разметка</h3><p>⏳ Загружаем…</p></div>`);
+    loadMarkup().then(()=>uiMarkup());
+    return;
+  }
+  if(!State.markup.length){
+    setView(`
+      <div class="card"><h3>Разметка</h3></div>
+      <div class="card"><p>⚠️ Разметка не найдена</p>
+        <button class="btn" id="retryMarkup">🔄 Перезагрузить</button>
+      </div>
+    `);
+    qs("#retryMarkup").onclick = ()=>{ State.markup=null; uiMarkup(); };
+    return;
+  }
   setView(`
     <div class="card"><h3>Дорожная разметка</h3></div>
     <div class="card">
@@ -189,8 +243,10 @@ function uiMarkup(){
           <div class="row">
             <div style="display:flex;gap:10px;align-items:center">
               ${it.image?`<img src="${imgMarkup(it.image)}" alt="" style="width:84px;height:54px;object-fit:contain;background:#0b1021;border-radius:10px;border:1px solid rgba(255,255,255,.06)"/>`:""}
-              <div><div style="font-weight:800">${esc(it.title)}</div>
-              <div style="font-size:12px;color:var(--muted)">ID: ${esc(it.id)}</div></div>
+              <div>
+                <div style="font-weight:800">${esc(it.title)}</div>
+                <div style="font-size:12px;color:var(--muted)">ID: ${esc(it.id)}</div>
+              </div>
             </div>
           </div>`).join("")}
       </div>
@@ -199,7 +255,21 @@ function uiMarkup(){
 }
 
 function uiPenalties(){
-  if(!State.penalties||!State.penalties.length){ setView(`<div class="card"><h3>Штрафы</h3><p>⚠️ Штрафы не найдены</p></div>`); return; }
+  if(!State.penalties){
+    setView(`<div class="card"><h3>Штрафы</h3><p>⏳ Загружаем…</p></div>`);
+    loadPenalties().then(()=>uiPenalties());
+    return;
+  }
+  if(!State.penalties.length){
+    setView(`
+      <div class="card"><h3>Штрафы</h3></div>
+      <div class="card"><p>⚠️ Штрафы не найдены</p>
+        <button class="btn" id="retryPen">🔄 Перезагрузить</button>
+      </div>
+    `);
+    qs("#retryPen").onclick = ()=>{ State.penalties=null; uiPenalties(); };
+    return;
+  }
   setView(`
     <div class="card"><h3>Штрафы</h3></div>
     <div class="card">
@@ -221,6 +291,25 @@ function uiPenalties(){
       </div>`).join("");
   };
   draw(""); qs("#penq").oninput=e=>draw(e.target.value);
+}
+
+function uiStats(){
+  if (inTG()){
+    const tg = Telegram.WebApp.initDataUnsafe?.user;
+    const userLine = tg ? `${tg.first_name||""} ${tg.last_name||""} ${tg.username?`(@${tg.username})`:""}`.trim() : "Профиль Telegram";
+    setView(`
+      <div class="card"><h3>Статистика</h3></div>
+      <div class="card">
+        <p>👤 ${esc(userLine || "Профиль Telegram")}</p>
+        <p style="color:var(--muted)">Здесь можно будет сохранить результаты дуэлей и графики побед.</p>
+      </div>
+    `);
+  } else {
+    setView(`
+      <div class="card"><h3>Статистика</h3></div>
+      <div class="card"><p>Открой в Telegram WebApp, чтобы связать результаты с профилем.</p></div>
+    `);
+  }
 }
 
 /* =======================
