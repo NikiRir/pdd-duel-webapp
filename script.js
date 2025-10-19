@@ -1,56 +1,58 @@
-/* =======================
-   ГЛОБАЛЬНОЕ СОСТОЯНИЕ
-======================= */
+/* =========================================================
+   ГЛОБАЛЬНОЕ СОСТОЯНИЕ + НАВИГАЦИЯ (экран = «view»)
+========================================================= */
 const State = {
-  pool: [],            // все вопросы
-  byTicket: new Map(), // номер билета -> вопросы
-  topics: new Map(),   // тема -> вопросы
-  penalties: null,     // штрафы
-  markup: null,        // разметка
-  duel: null
+  pool: [],
+  byTicket: new Map(),
+  topics: new Map(),
+  penalties: null,
+  markup: null,
+  duel: null,
+  currentView: null
 };
 
-/* =======================
-   СТАРТ
-======================= */
 document.addEventListener("DOMContentLoaded", () => {
   bindMenu();
-  initApp();
+  boot();
 });
 
-async function initApp() {
-  toast("📥 Загружаю билеты, темы, разметку и штрафы…");
-  await loadTicketsAndBuildTopics();    // билеты + темы из билетов
+async function boot(){
+  toast("📥 Загружаю данные…");
+  await loadTicketsAndBuildTopics();
   await Promise.all([loadPenalties(), loadMarkup()]);
-  toast(`✅ Вопросов: ${State.pool.length} • Тем: ${State.topics.size}${State.penalties ? " • Штрафов: "+State.penalties.length : ""}${State.markup ? " • Разметка: "+State.markup.length : ""}`);
+  toast(`✅ Готово! Вопросов: ${State.pool.length} • Тем: ${State.topics.size}`);
+  // стартовый экран – пустой
+  setActiveButton(null);
+  setScreen(`<div class="view"><div class="card"><h3>Выбери режим сверху</h3><p>Быстрая дуэль, Темы, Билеты, Разметка, Штрафы.</p></div></div>`);
 }
 
-/* =======================
-   ПОДКЛЮЧЕНИЕ КНОПОК
-======================= */
-function bindMenu(){
-  qs("#btnQuickDuel").onclick  = () => startDuel({mode:"quick"});
-  qs("#btnTopics").onclick     = () => uiTopics();
-  qs("#btnTickets").onclick    = () => uiTickets();
-  qs("#btnMarkup").onclick     = () => uiMarkup();
-  qs("#btnPenalties").onclick  = () => uiPenalties();
-  qs("#btnStats").onclick      = () => toast("📊 Статистика покажется при открытии через Telegram WebApp");
+/* Навигация: всегда заменяем экран ЦЕЛИКОМ, без простыни вниз */
+function setScreen(html){
+  const screen = qs("#screen");
+  // плавное скрытие старого
+  const old = screen.querySelector(".view:not(.out)");
+  if (old){ old.classList.add("out"); setTimeout(()=> old.remove(), 160); }
+  // добавляем новый
+  const wrap = document.createElement("div");
+  wrap.className = "view";
+  wrap.innerHTML = html;
+  screen.appendChild(wrap);
 }
 
-/* =======================
-   ЗАГРУЗКА ДАННЫХ
-======================= */
+/* Подсветка активной кнопки */
+function setActiveButton(id){
+  qsa(".menu .btn").forEach(b=> b.classList.remove("active"));
+  if (id) qs(`#${id}`).classList.add("active");
+}
 
-/**
- * Загружаем 40 билетов, пробуя разные варианты имён файлов:
- * - "Билет 1.json" / "Билет_1.json"
- * - "1.json"
- * - "ticket_1.json"
- * Любой найденный — парсим и добавляем.
- */
+/* =========================================================
+   ЗАГРУЗКА ДАННЫХ (локально, без CORS)
+========================================================= */
+
+/* Билеты: пробуем разные имена */
 async function loadTicketsAndBuildTopics(){
-  const questions = [];
-  for(let i=1;i<=40;i++){
+  const arr = [];
+  for (let i = 1; i <= 40; i++){
     const variants = [
       `Билет ${i}.json`,
       `Билет_${i}.json`,
@@ -59,72 +61,67 @@ async function loadTicketsAndBuildTopics(){
       `Ticket_${i}.json`
     ];
     let loaded = false;
-    for(const v of variants){
+    for (const v of variants){
       const url = `questions/A_B/tickets/${encodeURIComponent(v)}`;
       try{
-        const res = await fetch(url, { cache: "no-store" });
-        if(!res.ok) { continue; }
-        const data = await res.json();
+        const r = await fetch(url, { cache: "no-store" });
+        if (!r.ok) continue;
+        const data = await r.json();
         const list = Array.isArray(data) ? data : (data.questions || []);
-        for(const q of list){ if(q.ticket_number == null) q.ticket_number = i; }
-        questions.push(...list);
+        for (const q of list) if (q.ticket_number == null) q.ticket_number = i;
+        arr.push(...list);
         loaded = true;
-        break; // этот билет найден — не пробуем другие варианты
-      }catch{ /* пробуем следующий вариант */ }
+        break;
+      }catch{/* пробуем следующий */}
     }
-    // Просто тихо идём дальше, если файл с таким номером отсутствует
+    // тихо пропускаем отсутствующие билеты
   }
 
-  // Нормализация -> State
-  const norm = normalizeQuestions(questions);
-  for(const q of norm){
+  const norm = normalizeQuestions(arr);
+  for (const q of norm){
     State.pool.push(q);
     // билеты
-    if(q.ticket != null){
-      const arr = State.byTicket.get(q.ticket) || [];
-      arr.push(q); State.byTicket.set(q.ticket, arr);
+    if (q.ticket != null){
+      const b = State.byTicket.get(q.ticket) || [];
+      b.push(q); State.byTicket.set(q.ticket, b);
     }
-    // темы (строим из поля topic вопроса)
-    for(const t of q.topics){
-      const arr = State.topics.get(t) || [];
-      arr.push(q); State.topics.set(t, arr);
+    // темы — из поля topic
+    for (const t of q.topics){
+      const a = State.topics.get(t) || [];
+      a.push(q); State.topics.set(t, a);
     }
   }
 }
 
-/** penalties/penalties.json (если есть) */
 async function loadPenalties(){
   try{
-    const res = await fetch("penalties/penalties.json", { cache: "no-store" });
-    if(!res.ok) return;
-    const data = await res.json();
+    const r = await fetch("penalties/penalties.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
     State.penalties = Array.isArray(data) ? data : (data.penalties || data.items || []);
-  }catch{ /* отсутствие — ок */ }
+  }catch{/* ок */}
 }
 
-/** markup/markup.json (если есть) */
 async function loadMarkup(){
   try{
-    const res = await fetch("markup/markup.json", { cache: "no-store" });
-    if(!res.ok) return;
-    const data = await res.json();
-    const arr = Array.isArray(data) ? data : (data.items || data.markup || []);
-    State.markup = arr.map((x,idx)=>({
-      id: x.id ?? idx+1,
-      title: x.title || x.name || x.caption || `Элемент ${idx+1}`,
+    const r = await fetch("markup/markup.json", { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
+    const list = Array.isArray(data) ? data : (data.items || data.markup || []);
+    State.markup = list.map((x,i)=>({
+      id: x.id ?? i+1,
+      title: x.title || x.name || x.caption || `Элемент ${i+1}`,
       image: x.image || x.src || x.path || ""
     }));
-  }catch{ /* отсутствие — ок */ }
+  }catch{/* ок */}
 }
 
-/* Приводим входные форматы к единому виду */
 function normalizeQuestions(raw){
   const out = [];
-  for(const q of raw){
+  for (const q of raw){
     const answers = (q.answers || []).map(a => a.answer_text ?? a.text ?? String(a));
     const correctIndex = (q.answers || []).findIndex(a => a.is_correct === true || a.correct === true || a.isRight === true);
-    const topics = Array.isArray(q.topic) ? q.topic
-                 : (q.topic ? [q.topic] : []);
+    const topics = Array.isArray(q.topic) ? q.topic : (q.topic ? [q.topic] : []);
     out.push({
       id: q.id ?? crypto.randomUUID(),
       question: q.question ?? q.title ?? "Вопрос",
@@ -139,148 +136,127 @@ function normalizeQuestions(raw){
   return out;
 }
 
-/* =======================
-   ВИКТОРИНА / ДУЭЛЬ
-======================= */
-function startDuel({mode, topic=null}){
-  const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){ toast("⚠️ Данные не найдены"); return; }
-
-  const q = shuffle(src).slice(0, 20); // всегда 20 вопросов
-  State.duel = { mode, topic, i:0, me:0, ai:0, q, timerMs:25000 };
-  renderQuestion();
+/* =========================================================
+   МЕНЮ И ЭКРАНЫ
+========================================================= */
+function bindMenu(){
+  qs("#btnQuickDuel").onclick = () => {
+    setActiveButton("btnQuickDuel");
+    startDuel({mode:"quick"});
+  };
+  qs("#btnTopics").onclick = () => {
+    setActiveButton("btnTopics");
+    uiTopics();
+  };
+  qs("#btnTickets").onclick = () => {
+    setActiveButton("btnTickets");
+    uiTickets();
+  };
+  qs("#btnMarkup").onclick = () => {
+    setActiveButton("btnMarkup");
+    uiMarkup();
+  };
+  qs("#btnPenalties").onclick = () => {
+    setActiveButton("btnPenalties");
+    uiPenalties();
+  };
+  qs("#btnStats").onclick = () => {
+    setActiveButton("btnStats");
+    setScreen(`<div class="view"><div class="card"><h3>Статистика</h3><p>Открой через Telegram WebApp, чтобы связать очки с профилем.</p></div></div>`);
+  };
 }
 
-function renderQuestion(){
-  const d = State.duel, q = d.q[d.i];
-  const s = qs("#screen");
-  s.innerHTML = `
-    <div class="card">
-      <div class="meta">
-        <div>Вопрос ${d.i+1}/${d.q.length}${q.ticket!=null ? " • Билет "+escape(q.ticket) : ""}${d.topic ? " • Тема: "+escape(d.topic) : ""}</div>
-        <div class="badge">⏱️ 25c</div>
-      </div>
-      <h3>${escape(q.question)}</h3>
-      ${q.image ? `<img class="qimg" src="${resolveQuestionImage(q.image)}" alt=""/>` : ""}
-      <div class="grid">
-        ${q.answers.map((a,idx)=>`<div class="answer" data-i="${idx}">${escape(a)}</div>`).join("")}
-      </div>
-      ${q.tip ? `<div class="meta" style="margin-top:8px"><span class="badge">💡 Подсказка</span><span>${escape(q.tip)}</span></div>` : ""}
-      <div class="meta" style="margin-top:10px"><div>Ты: <b>${d.me}</b></div><div>ИИ: <b>${d.ai}</b></div></div>
-    </div>
-  `;
-  qsa(".answer").forEach(el => el.onclick = () => finishAnswer(+el.dataset.i));
-
-  function finishAnswer(my){
-    const correct = q.correctIndex ?? 0;
-    qsa(".answer").forEach((el, i) => {
-      el.classList.add(i===correct ? "correct" : (i===my ? "wrong" : ""));
-      el.style.pointerEvents = "none";
-    });
-    if(my === correct){ State.duel.me++; toast("✅ Верно!"); } else { toast("❌ Ошибка"); }
-
-    const ai = Math.random() < 0.88 ? correct : pickWrong(correct, q.answers.length);
-    if(ai === correct) State.duel.ai++;
-
-    setTimeout(()=> {
-      State.duel.i++;
-      if(State.duel.i < State.duel.q.length) renderQuestion(); else finishDuel();
-    }, 650);
-  }
-}
-
-function finishDuel(){
-  const d = State.duel;
-  qs("#screen").innerHTML = `
-    <div class="card">
-      <h3>${d.me>d.ai ? "🏆 Победа!" : (d.me<d.ai ? "💀 Поражение" : "🤝 Ничья")}</h3>
-      <p style="margin:6px 0 0">Ты: <b>${d.me}</b> • ИИ: <b>${d.ai}</b> • Всего: ${d.q.length}</p>
-      <div class="grid two" style="margin-top:10px">
-        <button class="btn btn-primary" id="again">Ещё раз</button>
-        <button class="btn" id="home">На главную</button>
-      </div>
-    </div>
-  `;
-  qs("#again").onclick = () => startDuel({mode:d.mode, topic:d.topic});
-  qs("#home").onclick  = () => (qs("#screen").innerHTML = "");
-}
-
-/* =======================
-   UI: ТЕМЫ / БИЛЕТЫ / РАЗМЕТКА / ШТРАФЫ
-======================= */
+/* Темы */
 function uiTopics(){
   const list = [...State.topics.keys()].sort((a,b)=> a.localeCompare(b,'ru'));
-  if(!list.length){ toast("❌ Темы не найдены"); return; }
-  qs("#screen").innerHTML = `
-    <div class="card">
-      <h3>Выбери тему</h3>
-      <div class="grid auto" style="margin-top:10px">
-        ${list.map(t=>`<div class="answer" data-t="${escape(t)}">${escape(t)}</div>`).join("")}
+  if (!list.length){ setScreen(`<div class="view"><div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div></div>`); return; }
+  setScreen(`
+    <div class="view">
+      <div class="card"><h3>Темы</h3></div>
+      <div class="card">
+        <div class="grid auto">
+          ${list.map(t=>`<div class="answer" data-t="${esc(t)}">${esc(t)}</div>`).join("")}
+        </div>
       </div>
-    </div>`;
-  qsa("[data-t]").forEach(el => el.onclick = () => startDuel({mode:"topic", topic:el.dataset.t}));
+    </div>
+  `);
+  qsa("[data-t]").forEach(el => el.onclick = () => startDuel({mode:"topic", topic: el.dataset.t}));
 }
 
+/* Билеты */
 function uiTickets(){
   const names = [...new Set(State.pool.map(q => q.ticket).filter(v=>v!=null))].sort((a,b)=>a-b);
-  if(!names.length){ toast("❌ Билеты не найдены"); return; }
-  qs("#screen").innerHTML = `
-    <div class="card">
-      <h3>Билеты</h3>
-      <div class="grid auto" style="margin-top:10px">
-        ${names.map(n=>`<div class="answer" data-n="${n}">Билет ${n}</div>`).join("")}
+  if (!names.length){ setScreen(`<div class="view"><div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div></div>`); return; }
+  setScreen(`
+    <div class="view">
+      <div class="card"><h3>Билеты</h3></div>
+      <div class="card">
+        <div class="grid auto">
+          ${names.map(n=>`<div class="answer" data-n="${n}">Билет ${n}</div>`).join("")}
+        </div>
       </div>
-    </div>`;
+    </div>
+  `);
   qsa("[data-n]").forEach(el => el.onclick = () => startTicket(+el.dataset.n));
 }
 
-function startTicket(n){
-  const arr = State.byTicket.get(n) || [];
-  if(!arr.length){ toast("Нет вопросов для билета"); return; }
-  State.duel = { mode:"ticket", topic:null, i:0, me:0, ai:0, q: shuffle(arr).slice(0,20), timerMs:25000 };
-  renderQuestion();
-}
-
+/* Разметка */
 function uiMarkup(){
-  if(!State.markup || !State.markup.length){ toast("⚠️ Разметка не найдена"); return; }
-  qs("#screen").innerHTML = `
-    <div class="card">
-      <h3>Дорожная разметка</h3>
-      <div class="grid auto" style="margin-top:10px">
-        ${State.markup.map(it=>`
-          <div class="row">
-            <div style="display:flex;gap:10px;align-items:center">
-              ${it.image ? `<img src="${resolveMarkupImage(it.image)}" alt="" style="width:64px;height:40px;object-fit:contain;background:#0b1021;border-radius:8px;border:1px solid rgba(255,255,255,.06)"/>` : ""}
-              <div>
-                <div style="font-weight:700">${escape(it.title)}</div>
-                <div style="font-size:12px;color:var(--muted)">ID: ${escape(it.id)}</div>
+  if (!State.markup || !State.markup.length){
+    setScreen(`<div class="view"><div class="card"><h3>Разметка</h3><p>⚠️ Разметка не найдена</p></div></div>`);
+    return;
+  }
+  setScreen(`
+    <div class="view">
+      <div class="card"><h3>Дорожная разметка</h3></div>
+      <div class="card">
+        <div class="grid auto">
+          ${State.markup.map(it => `
+            <div class="row">
+              <div style="display:flex;gap:10px;align-items:center">
+                ${it.image ? `<img src="${resMarkupImg(it.image)}" alt="" style="width:84px;height:54px;object-fit:contain;background:#0b1021;border-radius:10px;border:1px solid rgba(255,255,255,.06)"/>` : ""}
+                <div>
+                  <div style="font-weight:800">${esc(it.title)}</div>
+                  <div style="font-size:12px;color:var(--muted)">ID: ${esc(it.id)}</div>
+                </div>
               </div>
             </div>
-          </div>`).join("")}
+          `).join("")}
+        </div>
       </div>
     </div>
-  `;
+  `);
 }
 
+/* Штрафы */
 function uiPenalties(){
-  if(!State.penalties || !State.penalties.length){ toast("⚠️ Штрафы не найдены"); return; }
-  qs("#screen").innerHTML = `
-    <div class="card">
-      <h3>Штрафы</h3>
-      <input id="penq" placeholder="Поиск по описанию..." class="row" style="width:100%;outline:none"/>
-      <div id="penlist" class="grid" style="margin-top:10px"></div>
-    </div>`;
+  if (!State.penalties || !State.penalties.length){
+    setScreen(`<div class="view"><div class="card"><h3>Штрафы</h3><p>⚠️ Штрафы не найдены</p></div></div>`);
+    return;
+  }
+  setScreen(`
+    <div class="view">
+      <div class="card"><h3>Штрафы</h3></div>
+      <div class="card">
+        <input id="penq" placeholder="Поиск по описанию..." class="row" style="width:100%;outline:none;margin-bottom:10px"/>
+        <div id="penlist" class="grid"></div>
+      </div>
+    </div>
+  `);
   const list = qs("#penlist");
   const draw = (q="")=>{
     const f = String(q).trim().toLowerCase();
-    const items = State.penalties.filter(p=> !f || String(p.title||p.name||p.description||"").toLowerCase().includes(f));
-    list.innerHTML = items.map(p=>`
+    const items = State.penalties.filter(p=> {
+      const txt = String(p.title||p.name||p.description||"").toLowerCase();
+      return !f || txt.includes(f);
+    });
+    list.innerHTML = items.map(p => `
       <div class="row">
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-          <div style="font-weight:700">${escape(p.title||p.name||"Нарушение")}</div>
-          ${p.article ? `<div class="badge">📜 Статья: ${escape(p.article)}</div>` : ""}
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:0">
+          <div style="font-weight:800">${esc(p.title||p.name||"Нарушение")}</div>
+          ${p.article ? `<div class="badge">📜 Статья: ${esc(p.article)}</div>` : ""}
         </div>
-        <div class="badge" title="Размер штрафа">💸 ${escape(p.fine||p.amount||p.penalty||"—")}</div>
+        <div class="badge">💸 ${esc(p.fine||p.amount||p.penalty||"—")}</div>
       </div>
     `).join("");
   };
@@ -288,26 +264,114 @@ function uiPenalties(){
   qs("#penq").oninput = e => draw(e.target.value);
 }
 
-/* =======================
-   УТИЛИТЫ
-======================= */
-const qs  = s => document.querySelector(s);
-const qsa = s => [...document.querySelectorAll(s)];
-function toast(text){ const t=qs("#toast"); t.innerHTML=`<div class="toast">${escape(text)}</div>`; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1500); }
-function shuffle(a){ return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
-function pickWrong(c,n){ const arr=[...Array(n).keys()].filter(i=>i!==c); return arr[Math.floor(Math.random()*arr.length)]; }
-function escape(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+/* =========================================================
+   ДУЭЛЬ / ВИКТОРИНА
+========================================================= */
+function startDuel({mode, topic=null}){
+  const src = topic ? (State.topics.get(topic)||[]) : State.pool;
+  if (!src.length){ setScreen(`<div class="view"><div class="card"><h3>Дуэль</h3><p>⚠️ Данные не найдены</p></div></div>`); return; }
 
-/** Картинка вопроса: имя или путь; если это просто имя — берём из images/A_B/ */
-function resolveQuestionImage(img){
-  let name = String(img).replace(/^\.?\//,'');
-  if(/^images\//i.test(name)) return name;
-  if(/^A_B\//i.test(name)) return `images/${name}`;
-  return `images/A_B/${name}`;
+  const q = shuffle(src).slice(0, 20);
+  State.duel = { mode, topic, i:0, me:0, ai:0, q, showTip:false };
+  renderQuestion();
 }
 
-/** Картинка разметки: svg/png в images/markup/ */
-function resolveMarkupImage(img){
+function renderQuestion(){
+  const d = State.duel, q = d.q[d.i];
+
+  setScreen(`
+    <div class="view">
+      <div class="card">
+        <div class="meta">
+          <div>Вопрос ${d.i+1}/${d.q.length}${q.ticket!=null ? " • Билет "+esc(q.ticket) : ""}${d.topic ? " • Тема: "+esc(d.topic) : ""}</div>
+          <div class="badge">⏱️ 25с</div>
+        </div>
+        <h3>${esc(q.question)}</h3>
+        ${q.image ? `<img class="qimg" src="${resQuestionImg(q.image)}" alt=""/>` : ""}
+        <div class="grid">
+          ${q.answers.map((a,idx)=>`<div class="answer" data-i="${idx}">${esc(a)}</div>`).join("")}
+        </div>
+        <div id="tip" class="meta" style="margin-top:10px;display:none">
+          <span class="badge">💡 Подсказка</span><span>${esc(q.tip || "Подсказка недоступна")}</span>
+        </div>
+        <div class="meta" style="margin-top:10px"><div>Ты: <b>${d.me}</b></div><div>ИИ: <b>${d.ai}</b></div></div>
+      </div>
+    </div>
+  `);
+
+  qsa(".answer").forEach(el => el.onclick = () => checkAnswer(+el.dataset.i));
+  // скрываем подсказку до неверного ответа
+  if (d.showTip) qs("#tip").style.display = "flex";
+}
+
+function checkAnswer(idx){
+  const d = State.duel, q = d.q[d.i];
+  const correct = q.correctIndex ?? 0;
+
+  qsa(".answer").forEach((el,i)=>{
+    el.classList.add(i===correct ? "correct" : (i===idx ? "wrong" : ""));
+    el.style.pointerEvents = "none";
+  });
+
+  if (idx === correct){
+    d.me++; toast("✅ Верно!");
+  } else {
+    toast("❌ Ошибка");
+    // показать подсказку ТОЛЬКО после ошибки
+    d.showTip = true;
+    const tip = qs("#tip");
+    if (tip) tip.style.display = "flex";
+  }
+
+  // ИИ (85% точность)
+  const ai = Math.random() < 0.85 ? correct : pickWrong(correct, q.answers.length);
+  if (ai === correct) d.ai++;
+
+  setTimeout(()=>nextQuestion(), 650);
+}
+
+function nextQuestion(){
+  const d = State.duel;
+  d.i++; d.showTip = false;
+  if (d.i < d.q.length) renderQuestion(); else finishDuel();
+}
+
+function finishDuel(){
+  const d = State.duel;
+  setScreen(`
+    <div class="view">
+      <div class="card">
+        <h3>${d.me>d.ai ? "🏆 Победа!" : (d.me<d.ai ? "💀 Поражение" : "🤝 Ничья")}</h3>
+        <p style="margin:6px 0 0">Ты: <b>${d.me}</b> • ИИ: <b>${d.ai}</b> • Всего: ${d.q.length}</p>
+        <div class="grid two" style="margin-top:10px">
+          <button class="btn btn-primary" id="again">Ещё раз</button>
+          <button class="btn" id="home">На главную</button>
+        </div>
+      </div>
+    </div>
+  `);
+  qs("#again").onclick = () => startDuel({mode:d.mode, topic:d.topic});
+  qs("#home").onclick  = () => { setActiveButton(null); setScreen(`<div class="view"><div class="card"><h3>Выбери режим сверху</h3></div></div>`); };
+}
+
+/* =========================================================
+   УТИЛИТЫ
+========================================================= */
+const qs  = s => document.querySelector(s);
+const qsa = s => [...document.querySelectorAll(s)];
+function toast(text){ const t=qs("#toast"); t.innerHTML=`<div class="toast">${esc(text)}</div>`; t.style.opacity=1; setTimeout(()=>t.style.opacity=0,1500); }
+function shuffle(a){ return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
+function pickWrong(c,n){ const arr=[...Array(n).keys()].filter(i=>i!==c); return arr[Math.floor(Math.random()*arr.length)]; }
+function esc(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+/* Картинки */
+function resQuestionImg(img){
+  let name = String(img).replace(/^\.?\//,'');
+  if(/^images\//i.test(name)) return name;
+  if(/^A_B\//i.test(name))    return `images/${name}`;
+  return `images/A_B/${name}`;
+}
+function resMarkupImg(img){
   let name = String(img).replace(/^\.?\//,'');
   if(/^images\//i.test(name)) return name;
   if(/^markup\//i.test(name)) return `images/${name}`;
