@@ -7,11 +7,13 @@ const State = {
   topics: new Map(),
   penalties: null,
   markup: null,
-  duel: null
+  duel: null,
+  lock: false  // блок от повторных тапов во время обработки ответа
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   bindMenu();
+  bindScreenDelegation();
   boot();
 });
 
@@ -37,12 +39,12 @@ function showLoader(v){ qs("#loader").classList.toggle("hidden", !v); }
 function setLoader(p){ qs("#loaderBar").style.width = Math.max(0,Math.min(100,p))+"%"; }
 
 /* =======================
-   НАВИГАЦИЯ (экраны-страницы)
+   НАВИГАЦИЯ (экраны)
 ======================= */
 function setView(html){
   const host = qs("#screen");
-  // Удаляем старый экран сразу (без накопления DOM)
-  host.replaceChildren();
+  host.scrollTop = 0;      // всегда наверх при смене страницы
+  host.replaceChildren();  // полноценная замена контента
   const view = document.createElement("div");
   view.className = "view";
   view.innerHTML = html;
@@ -66,16 +68,55 @@ function renderHome(){
    МЕНЮ
 ======================= */
 function bindMenu(){
-  qs("#btnQuickDuel").onclick = () => { setActive("btnQuickDuel"); startDuel({mode:"quick"}); };
-  qs("#btnTopics").onclick    = () => { setActive("btnTopics");    uiTopics(); };
-  qs("#btnTickets").onclick   = () => { setActive("btnTickets");   uiTickets(); };
-  qs("#btnMarkup").onclick    = () => { setActive("btnMarkup");    uiMarkup(); };
-  qs("#btnPenalties").onclick = () => { setActive("btnPenalties"); uiPenalties(); };
-  qs("#btnStats").onclick     = () => { setActive("btnStats");     uiStats(); };
+  // меню через data-action (надёжно)
+  qsa(".menu [data-action]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      const act = e.currentTarget.dataset.action;
+      setActive(e.currentTarget.id);
+      if (act==="quick")    startDuel({mode:"quick"});
+      if (act==="topics")   uiTopics();
+      if (act==="tickets")  uiTickets();
+      if (act==="markup")   uiMarkup();
+      if (act==="penalties")uiPenalties();
+      if (act==="stats")    uiStats();
+    });
+  });
 }
 
 /* =======================
-   ЗАГРУЗКА ДАННЫХ (локально)
+   ДЕЛЕГИРОВАНИЕ КЛИКОВ ВНУТРИ #screen
+======================= */
+function bindScreenDelegation(){
+  const screen = qs("#screen");
+  screen.addEventListener("click", (e)=>{
+    const a = e.target.closest(".answer");
+    if (a && a.dataset.i != null){
+      onAnswerClickIdx(+a.dataset.i);
+      return;
+    }
+    const ticket = e.target.closest("[data-n]");
+    if (ticket && ticket.dataset.n){
+      startTicket(+ticket.dataset.n);
+      return;
+    }
+    const topic = e.target.closest("[data-t]");
+    if (topic && topic.dataset.t){
+      startDuel({mode:"topic", topic: topic.dataset.t});
+      return;
+    }
+    const again = e.target.closest("#again");
+    if (again){ startDuel({mode: State.duel?.mode || "quick", topic: State.duel?.topic || null}); return; }
+    const home = e.target.closest("#home");
+    if (home){ renderHome(); return; }
+    const retryMarkup = e.target.closest("#retryMarkup");
+    if (retryMarkup){ State.markup=null; uiMarkup(); return; }
+    const retryPen = e.target.closest("#retryPen");
+    if (retryPen){ State.penalties=null; uiPenalties(); return; }
+  }, { passive:true });
+}
+
+/* =======================
+   ЗАГРУЗКА ДАННЫХ
 ======================= */
 async function loadTicketsAndBuildTopics(onProgress){
   const TOTAL = 40; let loaded = 0;
@@ -87,7 +128,6 @@ async function loadTicketsAndBuildTopics(onProgress){
       `Билет ${i}.json`, `Билет_${i}.json`,
       `${i}.json`, `ticket_${i}.json`, `Ticket_${i}.json`
     ];
-    let found=false;
     for(const name of names){
       const url = `questions/A_B/tickets/${encodeURIComponent(name)}`;
       try{
@@ -97,8 +137,8 @@ async function loadTicketsAndBuildTopics(onProgress){
         const list = Array.isArray(data) ? data : (data.questions || data.list || data.data || []);
         for(const q of list) if(q.ticket_number==null) q.ticket_number = i;
         raw.push(...list);
-        found=true; break;
-      }catch{/* try next name */}
+        break; // нашли файл для этого номера
+      }catch{/* пробуем следующее имя */}
     }
     step();
   }
@@ -106,8 +146,14 @@ async function loadTicketsAndBuildTopics(onProgress){
   const norm = normalizeQuestions(raw);
   for(const q of norm){
     State.pool.push(q);
-    if(q.ticket!=null){ const a=State.byTicket.get(q.ticket)||[]; a.push(q); State.byTicket.set(q.ticket,a); }
-    for(const t of q.topics){ const b=State.topics.get(t)||[]; b.push(q); State.topics.set(t,b); }
+    if(q.ticket!=null){
+      const a=State.byTicket.get(q.ticket)||[];
+      a.push(q); State.byTicket.set(q.ticket,a);
+    }
+    for(const t of q.topics){
+      const b=State.topics.get(t)||[];
+      b.push(q); State.topics.set(t,b);
+    }
   }
 }
 
@@ -144,25 +190,25 @@ async function loadMarkup(){
   }catch{}
 }
 
-/* Универсальная нормализация вопросов + определение правильного ответа */
+/* Нормализация вопросов + правильный ответ */
 function normalizeQuestions(raw){
   const out=[];
   for(const q of raw){
     const answersRaw = q.answers || q.variants || q.options || [];
     const answers = answersRaw.map(a => a?.answer_text ?? a?.text ?? a?.title ?? String(a));
-    // Правильный индекс — поддерживаем кучу форматов:
+    // Правильный индекс — поддерживаем разные форматы:
     let correctIndex = -1;
     const byFlag = Array.isArray(answersRaw) ? answersRaw.findIndex(a => a?.is_correct===true || a?.correct===true || a?.isRight===true) : -1;
     if (byFlag >= 0) correctIndex = byFlag;
     else if (typeof q.correctIndex === "number") correctIndex = q.correctIndex;
     else if (typeof q.correct_index === "number") correctIndex = q.correct_index;
-    else if (typeof q.correct === "number") correctIndex = (q.correct>0 && q.correct<=answers.length) ? q.correct-1 : q.correct; // допускаем 1-based
+    else if (typeof q.correct === "number") correctIndex = (q.correct>0 && q.correct<=answers.length) ? q.correct-1 : q.correct;
     else if (typeof q.correctAnswer === "number") correctIndex = (q.correctAnswer>0 && q.correctAnswer<=answers.length) ? q.correctAnswer-1 : q.correctAnswer;
     else if (q.correct_answer != null){
       const n = parseInt(q.correct_answer,10);
       if(!Number.isNaN(n)) correctIndex = (n>0 && n<=answers.length) ? n-1 : n;
     }
-    if (!Number.isInteger(correctIndex) || correctIndex<0 || correctIndex>=answers.length) correctIndex = 0; // безопасный фолбэк
+    if (!Number.isInteger(correctIndex) || correctIndex<0 || correctIndex>=answers.length) correctIndex = 0;
 
     const topics = Array.isArray(q.topic) ? q.topic : (q.topic ? [q.topic] : []);
     out.push({
@@ -193,7 +239,6 @@ function uiTopics(){
       </div>
     </div>
   `);
-  qsa("[data-t]").forEach(el=>el.onclick=()=>startDuel({mode:"topic",topic:el.dataset.t}));
 }
 
 function uiTickets(){
@@ -207,7 +252,6 @@ function uiTickets(){
       </div>
     </div>
   `);
-  qsa("[data-n]").forEach(el=>el.onclick=()=>startTicket(+el.dataset.n));
 }
 
 function startTicket(n){
@@ -216,7 +260,6 @@ function startTicket(n){
     setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Вопросы не найдены</p></div>`);
     return;
   }
-  // Всегда 20 вопросов
   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
   State.duel = { mode:"ticket", topic:null, i:0, me:0, ai:0, q };
   renderQuestion();
@@ -235,7 +278,6 @@ function uiMarkup(){
         <button class="btn" id="retryMarkup">🔄 Перезагрузить</button>
       </div>
     `);
-    qs("#retryMarkup").onclick = ()=>{ State.markup=null; uiMarkup(); };
     return;
   }
   setView(`
@@ -270,7 +312,6 @@ function uiPenalties(){
         <button class="btn" id="retryPen">🔄 Перезагрузить</button>
       </div>
     `);
-    qs("#retryPen").onclick = ()=>{ State.penalties=null; uiPenalties(); };
     return;
   }
   setView(`
@@ -336,15 +377,16 @@ function renderQuestion(){
       <div class="meta" style="margin-top:10px"><div>Ты: <b>${d.me}</b></div><div>ИИ: <b>${d.ai}</b></div></div>
     </div>
   `);
-  // Навешиваем клики ПОСЛЕ вставки в DOM
-  qsa(".answer").forEach(el=> el.addEventListener("click", onAnswerClick, { once:true }));
 }
 
-function onAnswerClick(e){
-  const idx = +e.currentTarget.dataset.i;
-  const d=State.duel, q=d.q[d.i], correct=q.correctIndex??0;
+function onAnswerClickIdx(idx){
+  if (State.lock) return;   // игнор во время анимации/подсказки
+  const d=State.duel;
+  if (!d) return;
+  const q=d.q[d.i];
+  const correct = q.correctIndex ?? 0;
 
-  // раскрашиваем и блокируем все варианты
+  // раскрасить и заблокировать
   qsa(".answer").forEach((el,i)=>{
     el.classList.add(i===correct?"correct":(i===idx?"wrong":""));
     el.style.pointerEvents="none";
@@ -361,8 +403,8 @@ function onAnswerClick(e){
   const ai = Math.random()<0.85 ? correct : pickWrong(correct,q.answers.length);
   if(ai===correct) d.ai++;
 
-  // следующий вопрос
-  setTimeout(nextQuestion, 700);
+  State.lock = true;
+  setTimeout(()=>{ State.lock=false; nextQuestion(); }, 700);
 }
 
 function nextQuestion(){
@@ -383,8 +425,6 @@ function finishDuel(){
       </div>
     </div>
   `);
-  qs("#again").onclick=()=>startDuel({mode:d.mode,topic:d.topic});
-  qs("#home").onclick = ()=>renderHome();
 }
 
 /* =======================
