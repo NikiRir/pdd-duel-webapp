@@ -22,7 +22,7 @@ async function initApp() {
   toast("📥 Загружаю билеты, темы, разметку и штрафы…");
   await loadTicketsAndBuildTopics();    // билеты + темы из билетов
   await Promise.all([loadPenalties(), loadMarkup()]);
-  toast(`✅ Вопросов: ${State.pool.length} • Тем: ${State.topics.size}${State.penalties ? " • Штрафов: "+State.penalties.length : ""}${State.markup ? " • Элементов разметки: "+State.markup.length : ""}`);
+  toast(`✅ Вопросов: ${State.pool.length} • Тем: ${State.topics.size}${State.penalties ? " • Штрафов: "+State.penalties.length : ""}${State.markup ? " • Разметка: "+State.markup.length : ""}`);
 }
 
 /* =======================
@@ -41,24 +41,41 @@ function bindMenu(){
    ЗАГРУЗКА ДАННЫХ
 ======================= */
 
-/** Загружаем 40 билетов: questions/A_B/tickets/Билет 1.json ... Билет 40.json */
+/**
+ * Загружаем 40 билетов, пробуя разные варианты имён файлов:
+ * - "Билет 1.json" / "Билет_1.json"
+ * - "1.json"
+ * - "ticket_1.json"
+ * Любой найденный — парсим и добавляем.
+ */
 async function loadTicketsAndBuildTopics(){
   const questions = [];
   for(let i=1;i<=40;i++){
-    const file = encodeURIComponent(`Билет ${i}.json`);
-    const path = `questions/A_B/tickets/${file}`;
-    try{
-      const res = await fetch(path, { cache: "no-store" });
-      if(!res.ok) { console.warn("Билет не найден:", path); continue; }
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : (data.questions || []);
-      // проставим ticket_number, если вдруг не задан в файле
-      for(const q of list){ if(q.ticket_number == null) q.ticket_number = i; }
-      questions.push(...list);
-    }catch(e){ console.warn("Ошибка загрузки билета:", path, e); }
+    const variants = [
+      `Билет ${i}.json`,
+      `Билет_${i}.json`,
+      `${i}.json`,
+      `ticket_${i}.json`,
+      `Ticket_${i}.json`
+    ];
+    let loaded = false;
+    for(const v of variants){
+      const url = `questions/A_B/tickets/${encodeURIComponent(v)}`;
+      try{
+        const res = await fetch(url, { cache: "no-store" });
+        if(!res.ok) { continue; }
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.questions || []);
+        for(const q of list){ if(q.ticket_number == null) q.ticket_number = i; }
+        questions.push(...list);
+        loaded = true;
+        break; // этот билет найден — не пробуем другие варианты
+      }catch{ /* пробуем следующий вариант */ }
+    }
+    // Просто тихо идём дальше, если файл с таким номером отсутствует
   }
 
-  // нормализация и раскладка по билетам/темам
+  // Нормализация -> State
   const norm = normalizeQuestions(questions);
   for(const q of norm){
     State.pool.push(q);
@@ -67,7 +84,7 @@ async function loadTicketsAndBuildTopics(){
       const arr = State.byTicket.get(q.ticket) || [];
       arr.push(q); State.byTicket.set(q.ticket, arr);
     }
-    // темы (строим из поля topic самого вопроса)
+    // темы (строим из поля topic вопроса)
     for(const t of q.topics){
       const arr = State.topics.get(t) || [];
       arr.push(q); State.topics.set(t, arr);
@@ -75,48 +92,44 @@ async function loadTicketsAndBuildTopics(){
   }
 }
 
-/** penalties/penalties.json */
+/** penalties/penalties.json (если есть) */
 async function loadPenalties(){
   try{
     const res = await fetch("penalties/penalties.json", { cache: "no-store" });
     if(!res.ok) return;
     const data = await res.json();
-    // ожидаем массив объектов со штрафами; если структура иная — подстроимся
     State.penalties = Array.isArray(data) ? data : (data.penalties || data.items || []);
-  }catch(e){ /* отсутствие — ок */ }
+  }catch{ /* отсутствие — ок */ }
 }
 
-/** markup/markup.json */
+/** markup/markup.json (если есть) */
 async function loadMarkup(){
   try{
     const res = await fetch("markup/markup.json", { cache: "no-store" });
     if(!res.ok) return;
     const data = await res.json();
     const arr = Array.isArray(data) ? data : (data.items || data.markup || []);
-    // нормализуем минимально: {id, title, image}
     State.markup = arr.map((x,idx)=>({
       id: x.id ?? idx+1,
       title: x.title || x.name || x.caption || `Элемент ${idx+1}`,
       image: x.image || x.src || x.path || ""
     }));
-  }catch(e){ /* отсутствие — ок */ }
+  }catch{ /* отсутствие — ок */ }
 }
 
 /* Приводим входные форматы к единому виду */
 function normalizeQuestions(raw){
   const out = [];
   for(const q of raw){
-    // ответы/правильный вариант
     const answers = (q.answers || []).map(a => a.answer_text ?? a.text ?? String(a));
     const correctIndex = (q.answers || []).findIndex(a => a.is_correct === true || a.correct === true || a.isRight === true);
-    // тема (одна или массив)
     const topics = Array.isArray(q.topic) ? q.topic
                  : (q.topic ? [q.topic] : []);
     out.push({
       id: q.id ?? crypto.randomUUID(),
       question: q.question ?? q.title ?? "Вопрос",
       answers: answers.length ? answers : ["Да","Нет","Не знаю"],
-      correctIndex: correctIndex >= 0 ? correctIndex : 0,
+      correctIndex: Number.isInteger(correctIndex) && correctIndex >= 0 ? correctIndex : 0,
       ticket: q.ticket_number ?? q.ticket ?? null,
       topics,
       image: q.image ?? q.img ?? null,
@@ -156,8 +169,6 @@ function renderQuestion(){
       <div class="meta" style="margin-top:10px"><div>Ты: <b>${d.me}</b></div><div>ИИ: <b>${d.ai}</b></div></div>
     </div>
   `;
-
-  // обработка кликов
   qsa(".answer").forEach(el => el.onclick = () => finishAnswer(+el.dataset.i));
 
   function finishAnswer(my){
@@ -168,7 +179,6 @@ function renderQuestion(){
     });
     if(my === correct){ State.duel.me++; toast("✅ Верно!"); } else { toast("❌ Ошибка"); }
 
-    // ИИ отвечает с 88% точностью
     const ai = Math.random() < 0.88 ? correct : pickWrong(correct, q.answers.length);
     if(ai === correct) State.duel.ai++;
 
@@ -288,12 +298,11 @@ function shuffle(a){ return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).m
 function pickWrong(c,n){ const arr=[...Array(n).keys()].filter(i=>i!==c); return arr[Math.floor(Math.random()*arr.length)]; }
 function escape(s){ return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
 
-/** Картинка вопроса: ожидается имя файла; берём из images/A_B/ */
+/** Картинка вопроса: имя или путь; если это просто имя — берём из images/A_B/ */
 function resolveQuestionImage(img){
   let name = String(img).replace(/^\.?\//,'');
-  // если уже указан путь images/..., оставляем как есть
   if(/^images\//i.test(name)) return name;
-  // иначе считаем, что файл лежит в images/A_B/
+  if(/^A_B\//i.test(name)) return `images/${name}`;
   return `images/A_B/${name}`;
 }
 
@@ -301,5 +310,6 @@ function resolveQuestionImage(img){
 function resolveMarkupImage(img){
   let name = String(img).replace(/^\.?\//,'');
   if(/^images\//i.test(name)) return name;
+  if(/^markup\//i.test(name)) return `images/${name}`;
   return `images/markup/${name}`;
 }
