@@ -37,12 +37,12 @@ function showLoader(v){ qs("#loader").classList.toggle("hidden", !v); }
 function setLoader(p){ qs("#loaderBar").style.width = Math.max(0,Math.min(100,p))+"%"; }
 
 /* =======================
-   НАВИГАЦИЯ (стрницы)
+   НАВИГАЦИЯ (экраны-страницы)
 ======================= */
 function setView(html){
   const host = qs("#screen");
-  const old = host.firstElementChild;
-  if (old){ old.classList.add("fadeout"); setTimeout(()=>old.remove(), 160); }
+  // Удаляем старый экран сразу (без накопления DOM)
+  host.replaceChildren();
   const view = document.createElement("div");
   view.className = "view";
   view.innerHTML = html;
@@ -75,15 +75,7 @@ function bindMenu(){
 }
 
 /* =======================
-   ОПРЕДЕЛЕНИЕ TELEGRAM
-======================= */
-function inTG(){
-  try{ return typeof Telegram!=="undefined" && Telegram.WebApp && Telegram.WebApp.initDataUnsafe; }
-  catch{ return false; }
-}
-
-/* =======================
-   ЗАГРУЗКА ДАННЫХ
+   ЗАГРУЗКА ДАННЫХ (локально)
 ======================= */
 async function loadTicketsAndBuildTopics(onProgress){
   const TOTAL = 40; let loaded = 0;
@@ -95,6 +87,7 @@ async function loadTicketsAndBuildTopics(onProgress){
       `Билет ${i}.json`, `Билет_${i}.json`,
       `${i}.json`, `ticket_${i}.json`, `Ticket_${i}.json`
     ];
+    let found=false;
     for(const name of names){
       const url = `questions/A_B/tickets/${encodeURIComponent(name)}`;
       try{
@@ -104,8 +97,8 @@ async function loadTicketsAndBuildTopics(onProgress){
         const list = Array.isArray(data) ? data : (data.questions || data.list || data.data || []);
         for(const q of list) if(q.ticket_number==null) q.ticket_number = i;
         raw.push(...list);
-        break;
-      }catch{/* next name */}
+        found=true; break;
+      }catch{/* try next name */}
     }
     step();
   }
@@ -151,17 +144,32 @@ async function loadMarkup(){
   }catch{}
 }
 
+/* Универсальная нормализация вопросов + определение правильного ответа */
 function normalizeQuestions(raw){
   const out=[];
   for(const q of raw){
-    const answers = (q.answers||[]).map(a=>a.answer_text??a.text??String(a));
-    const correctIndex = (q.answers||[]).findIndex(a=>a.is_correct===true||a.correct===true||a.isRight===true);
+    const answersRaw = q.answers || q.variants || q.options || [];
+    const answers = answersRaw.map(a => a?.answer_text ?? a?.text ?? a?.title ?? String(a));
+    // Правильный индекс — поддерживаем кучу форматов:
+    let correctIndex = -1;
+    const byFlag = Array.isArray(answersRaw) ? answersRaw.findIndex(a => a?.is_correct===true || a?.correct===true || a?.isRight===true) : -1;
+    if (byFlag >= 0) correctIndex = byFlag;
+    else if (typeof q.correctIndex === "number") correctIndex = q.correctIndex;
+    else if (typeof q.correct_index === "number") correctIndex = q.correct_index;
+    else if (typeof q.correct === "number") correctIndex = (q.correct>0 && q.correct<=answers.length) ? q.correct-1 : q.correct; // допускаем 1-based
+    else if (typeof q.correctAnswer === "number") correctIndex = (q.correctAnswer>0 && q.correctAnswer<=answers.length) ? q.correctAnswer-1 : q.correctAnswer;
+    else if (q.correct_answer != null){
+      const n = parseInt(q.correct_answer,10);
+      if(!Number.isNaN(n)) correctIndex = (n>0 && n<=answers.length) ? n-1 : n;
+    }
+    if (!Number.isInteger(correctIndex) || correctIndex<0 || correctIndex>=answers.length) correctIndex = 0; // безопасный фолбэк
+
     const topics = Array.isArray(q.topic) ? q.topic : (q.topic ? [q.topic] : []);
     out.push({
       id: q.id ?? crypto.randomUUID(),
       question: q.question ?? q.title ?? "Вопрос",
       answers: answers.length ? answers : ["Да","Нет","Не знаю"],
-      correctIndex: Number.isInteger(correctIndex)&&correctIndex>=0 ? correctIndex : 0,
+      correctIndex,
       ticket: q.ticket_number ?? q.ticket ?? null,
       topics,
       image: q.image ?? q.img ?? null,
@@ -176,10 +184,7 @@ function normalizeQuestions(raw){
 ======================= */
 function uiTopics(){
   const list = [...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
-  if(!list.length){
-    setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`);
-    return;
-  }
+  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`); return; }
   setView(`
     <div class="card"><h3>Темы</h3></div>
     <div class="card">
@@ -193,10 +198,7 @@ function uiTopics(){
 
 function uiTickets(){
   const ids = [...new Set(State.pool.map(q=>q.ticket).filter(v=>v!=null))].sort((a,b)=>a-b);
-  if(!ids.length){
-    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`);
-    return;
-  }
+  if(!ids.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`); return; }
   setView(`
     <div class="card"><h3>Билеты</h3></div>
     <div class="card">
@@ -205,7 +207,6 @@ function uiTickets(){
       </div>
     </div>
   `);
-  // ВАЖНО: теперь у нас ЕСТЬ startTicket
   qsa("[data-n]").forEach(el=>el.onclick=()=>startTicket(+el.dataset.n));
 }
 
@@ -215,7 +216,9 @@ function startTicket(n){
     setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Вопросы не найдены</p></div>`);
     return;
   }
-  State.duel = { mode:"ticket", topic:null, i:0, me:0, ai:0, q: arr.slice(0,20) };
+  // Всегда 20 вопросов
+  const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
+  State.duel = { mode:"ticket", topic:null, i:0, me:0, ai:0, q };
   renderQuestion();
 }
 
@@ -294,22 +297,12 @@ function uiPenalties(){
 }
 
 function uiStats(){
-  if (inTG()){
-    const tg = Telegram.WebApp.initDataUnsafe?.user;
-    const userLine = tg ? `${tg.first_name||""} ${tg.last_name||""} ${tg.username?`(@${tg.username})`:""}`.trim() : "Профиль Telegram";
-    setView(`
-      <div class="card"><h3>Статистика</h3></div>
-      <div class="card">
-        <p>👤 ${esc(userLine || "Профиль Telegram")}</p>
-        <p style="color:var(--muted)">Здесь можно будет сохранить результаты дуэлей и графики побед.</p>
-      </div>
-    `);
-  } else {
-    setView(`
-      <div class="card"><h3>Статистика</h3></div>
-      <div class="card"><p>Открой в Telegram WebApp, чтобы связать результаты с профилем.</p></div>
-    `);
-  }
+  setView(`
+    <div class="card"><h3>Статистика</h3></div>
+    <div class="card">
+      <p>Скоро: сохранение результатов дуэлей, побед/поражений и прогресс по темам.</p>
+    </div>
+  `);
 }
 
 /* =======================
@@ -343,24 +336,33 @@ function renderQuestion(){
       <div class="meta" style="margin-top:10px"><div>Ты: <b>${d.me}</b></div><div>ИИ: <b>${d.ai}</b></div></div>
     </div>
   `);
-  qsa(".answer").forEach(el=>el.onclick=()=>onAnswer(+el.dataset.i));
+  // Навешиваем клики ПОСЛЕ вставки в DOM
+  qsa(".answer").forEach(el=> el.addEventListener("click", onAnswerClick, { once:true }));
 }
 
-function onAnswer(idx){
+function onAnswerClick(e){
+  const idx = +e.currentTarget.dataset.i;
   const d=State.duel, q=d.q[d.i], correct=q.correctIndex??0;
 
+  // раскрашиваем и блокируем все варианты
   qsa(".answer").forEach((el,i)=>{
     el.classList.add(i===correct?"correct":(i===idx?"wrong":""));
     el.style.pointerEvents="none";
   });
 
-  if(idx===correct){ d.me++; toast("✅ Верно!"); }
-  else{ toast("❌ Ошибка"); const tip=qs("#tip"); if(tip) tip.style.display="flex"; }
+  if(idx===correct){
+    d.me++; toast("✅ Верно!");
+  } else {
+    toast("❌ Ошибка");
+    const tip=qs("#tip"); if(tip) tip.style.display="flex";
+  }
 
+  // «ИИ» отвечает
   const ai = Math.random()<0.85 ? correct : pickWrong(correct,q.answers.length);
   if(ai===correct) d.ai++;
 
-  setTimeout(()=>nextQuestion(),650);
+  // следующий вопрос
+  setTimeout(nextQuestion, 700);
 }
 
 function nextQuestion(){
