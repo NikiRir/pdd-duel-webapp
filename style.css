@@ -105,7 +105,7 @@ body{
   background:rgba(0,0,0,.15);margin:8px 0
 }
 
-/* Ответы как <button> — железобетонные клики в Telegram */
+/* Ответы как <button> — стабильные клики в Telegram */
 .answer{
   display:block;width:100%;
   padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
