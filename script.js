@@ -1,91 +1,63 @@
 /*
   Источник данных: etspring/pdd_russia
-  — README: структура папок questions/, signs/, markup/, penalties/
-  — Мы не можем читать список файлов из папки на фронте, поэтому перечислим явные пути.
-  — При необходимости дополняйте DATA_SOURCES (смотрите репозиторий на GitHub).
+  — вопросы/темы: questions/*.json
+  — справочники: signs/signs.json, markup/markup.json
+  — изображения: img/**/*
 */
 
 const RAW = (path) => `https://raw.githubusercontent.com/etspring/pdd_russia/master/${path}`;
 
-// Возможные файлы с вопросами (по билетам и по темам). Отредактируйте под актуальную структуру.
+// JSON-источники (при необходимости расширь)
 const DATA_SOURCES = {
   tickets: [
-    // В некоторых вариантах встречается единый файл с билетами
     'questions/tickets.json',
-    // Либо разбиение на категории прав
     'questions/tickets_A_B.json',
-    'questions/tickets_C_D.json',
-    // Либо папка tickets/*.json — если так, перечислите явные файлы здесь
+    'questions/tickets_C_D.json'
   ],
   topics: [
-    'questions/topic.json', // сводный по темам
-    // либо набор файлов по разделам — добавьте сюда пути
+    'questions/topic.json'
   ],
-  signs: [ 'signs/signs.json' ],
-  markup: [ 'markup/markup.json' ],
-  penalties: [ 'penalties/penalties.json' ]
+  signs: ['signs/signs.json'],
+  markup: ['markup/markup.json'],
+  penalties: ['penalties/penalties.json']
 };
 
-// Простая утилита загрузки JSON с fallback по списку путей
-async function loadFirstAvailable(paths){
-  for(const p of paths){
-    try{
-      const res = await fetch(RAW(p));
-      if(res.ok){ return await res.json(); }
-    }catch(e){ /* ignore and try next */ }
-  }
-  throw new Error('Не удалось загрузить данные. Проверьте пути в DATA_SOURCES.');
-}
-
-// Нормализация вопросов в общий формат {id, question, answers[], correctIndex, ticket, topics[], image, tip}
-function normalizeQuestions(raw){
-  // etspring/pdd_russia формат примера (см. README репозитория):
-  // {
-  //  title, ticket_number, ticket_category, image, question,
-  //  answers: [{answer_text, is_correct}], correct_answer, answer_tip, topic:[...], id
-  // }
-  const out = [];
-  for(const q of raw){
-    const answers = (q.answers||[]).map(a=>a.answer_text);
-    const correctIndex = (q.answers||[]).findIndex(a=>a.is_correct === true);
-    out.push({
-      id: q.id || crypto.randomUUID(),
-      question: q.question || q.title || 'Вопрос',
-      answers: answers.length? answers : ['Да','Нет','Не знаю'],
-      correctIndex: correctIndex >= 0 ? correctIndex : 0,
-      ticket: q.ticket_number || null,
-      topics: Array.isArray(q.topic) ? q.topic : (q.topic ? [q.topic] : []),
-      image: q.image || null,
-      tip: q.answer_tip || null,
-      category: q.ticket_category || null
-    });
-  }
-  return out;
-}
-
-// Глобальное состояние
+/* =========================
+   ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+   ========================= */
 const State = {
-  user: null,            // из Telegram initData (по желанию)
-  pool: [],              // общий пул вопросов
-  topics: new Map(),     // topicName -> вопросы
-  byTicket: new Map(),   // ticketName -> вопросы
-  duel: null             // текущая дуэль
+  user: null,
+  pool: [],
+  topics: new Map(),   // topic -> вопросы
+  byTicket: new Map(), // ticket -> вопросы
+  signs: {},
+  markup: {},
+  duel: null
 };
 
-// Инициализация приложения
-(async function init(){
+/* =========================
+   БЕЗОПАСНЫЙ СТАРТ ПРИ ГОТОВОМ DOM
+   ========================= */
+document.addEventListener('DOMContentLoaded', () => {
+  initApp().catch(err => {
+    console.error('init error', err);
+    showToast('Ошибка инициализации');
+  });
+});
+
+async function initApp(){
   revealHero();
   await loadAllData();
   mountHome();
-  tryInitTelegram();
-})();
-
-function revealHero(){
-  gsap.from('#hero', { opacity:0, y:30, duration:0.6, ease:'power2.out' });
+  tryInitTelegram();   // необязательно: кнопки работают и без него
 }
 
+/* =========================
+   ЗАГРУЗКА ДАННЫХ
+   ========================= */
 async function loadAllData(){
   showToast('Загружаю данные ПДД...');
+
   // Вопросы по билетам
   try{
     const ticketsRaw = await loadFirstAvailable(DATA_SOURCES.tickets);
@@ -103,33 +75,78 @@ async function loadAllData(){
     }
   }catch(e){ console.warn('tickets load failed', e); }
 
-  // Вопросы по темам (если есть отдельный файл) — дополняем пул
+  // Вопросы по темам (добавляем в пул)
   try{
     const topicsRaw = await loadFirstAvailable(DATA_SOURCES.topics);
     const normalized = normalizeQuestions(Array.isArray(topicsRaw) ? topicsRaw : topicsRaw?.topic || topicsRaw?.data || []);
     for(const q of normalized){
-      // если такого id ещё нет — добавим
-      if(!State.pool.find(x=>x.id===q.id)){
-        State.pool.push(q);
-      }
+      if(!State.pool.find(x => x.id === q.id)) State.pool.push(q);
       for(const t of q.topics){
         const arr = State.topics.get(t) || [];
-        if(!arr.find(x=>x.id===q.id)) arr.push(q);
+        if(!arr.find(x => x.id === q.id)) arr.push(q);
         State.topics.set(t, arr);
       }
     }
   }catch(e){ console.info('topics load skipped', e.message); }
 
-  // Доп. справочники — знаки/разметка (для обучающего раздела)
+  // Справочники
   try{ State.signs = await loadFirstAvailable(DATA_SOURCES.signs); }catch{ State.signs = {}; }
   try{ State.markup = await loadFirstAvailable(DATA_SOURCES.markup); }catch{ State.markup = {}; }
 
   showToast(`Готово! Вопросов: ${State.pool.length}`);
 }
 
-/* ---------- UI helpers ---------- */
+async function loadFirstAvailable(paths){
+  for(const p of paths){
+    try{
+      const res = await fetch(RAW(p), { cache: 'no-store' });
+      if(res.ok) return await res.json();
+    }catch(e){ /* пробуем следующий */ }
+  }
+  throw new Error('Не удалось загрузить данные. Проверьте пути в DATA_SOURCES.');
+}
+
+/* Приводим вопросы к единому формату */
+function normalizeQuestions(raw){
+  const out = [];
+  for(const q of raw){
+    const answers = (q.answers || []).map(a => a.answer_text);
+    const correctIndex = (q.answers || []).findIndex(a => a.is_correct === true);
+    out.push({
+      id: q.id || crypto.randomUUID(),
+      question: q.question || q.title || 'Вопрос',
+      answers: answers.length ? answers : ['Да','Нет','Не знаю'],
+      correctIndex: correctIndex >= 0 ? correctIndex : 0,
+      ticket: q.ticket_number || null,
+      topics: Array.isArray(q.topic) ? q.topic : (q.topic ? [q.topic] : []),
+      image: q.image || null,
+      tip: q.answer_tip || null,
+      category: q.ticket_category || null
+    });
+  }
+  return out;
+}
+
+/* Нормализация пути к картинкам */
+function normalizeImagePath(path){
+  if(!path) return null;
+  // убираем возможные префиксы './' или '/'
+  const clean = String(path).replace(/^\.\//, '').replace(/^\//, '');
+  return RAW(clean);
+}
+
+/* =========================
+   UI: Дом, Дуэли, Темы, Билеты, Знаки
+   ========================= */
+
 const $ = (sel) => document.querySelector(sel);
 const screen = $('#screen');
+
+function revealHero(){
+  if (window.gsap) {
+    gsap.from('#hero', { opacity:0, y:30, duration:0.6, ease:'power2.out' });
+  }
+}
 
 function mountHome(){
   screen.innerHTML = `
@@ -141,12 +158,12 @@ function mountHome(){
       </div>
       <div class="card card-hover">
         <h3 class="text-xl font-semibold mb-2">Дуэль по теме</h3>
-        <p class="text-slate-300/90 mb-3">Выбери тему ПДД и сыграй 1×1 (ИИ или игрок).</p>
+        <p class="text-slate-300/90 mb-3">Выбери тему ПДД и сыграй 1×1 (20 вопросов).</p>
         <button class="btn-secondary" id="chooseTopic">Выбрать тему</button>
       </div>
       <div class="card card-hover">
         <h3 class="text-xl font-semibold mb-2">Билеты 1–40</h3>
-        <p class="text-slate-300/90 mb-3">Тренируйся по билетам. Режим без рейтинга.</p>
+        <p class="text-slate-300/90 mb-3">Тренируйся по билетам (20 вопросов).</p>
         <button class="btn-secondary" id="openTickets">Открыть</button>
       </div>
       <div class="card card-hover">
@@ -156,22 +173,27 @@ function mountHome(){
       </div>
     </div>
   `;
+  // обработчики (работают и в браузере)
   $('#startQuick').onclick = () => startDuel({ mode:'quick' });
   $('#chooseTopic').onclick = () => pickTopic();
   $('#openTickets').onclick = () => listTickets();
   $('#openSigns').onclick = () => openSigns();
-  gsap.from('.card', { opacity:0, y:20, stagger:0.05, duration:0.35, ease:'power2.out' });
+
+  if (window.gsap) {
+    gsap.from('.card', { opacity:0, y:20, stagger:0.05, duration:0.35, ease:'power2.out' });
+  }
 }
 
-/* ---------- Duel core ---------- */
+/* ---- Дуэль ---- */
 function startDuel({mode, topic=null}){
   const source = topic ? (State.topics.get(topic) || []) : State.pool;
-  const questions = shuffle(source).slice(0,5);
+  const count = mode === 'quick' ? 5 : 20;
+  const questions = shuffle(source).slice(0, count);
   State.duel = {
     id: crypto.randomUUID(),
     mode, topic,
-    me: { score:0, answers:[] },
-    ai: { score:0, answers:[] },
+    me: { score:0 },
+    ai: { score:0 },
     q: questions,
     i: 0,
     timerMs: 25000
@@ -186,58 +208,53 @@ function renderQuestion(){
     <div class="card">
       <div class="flex items-center justify-between mb-3">
         <div>
-          <div class="text-sm opacity-70">Вопрос ${d.i+1} / ${d.q.length}${d.topic? ' • Тема: '+d.topic:''}</div>
-          ${q.ticket? `<div class="text-xs opacity-60">${q.ticket}</div>`:''}
+          <div class="text-sm opacity-70">Вопрос ${d.i+1}/${d.q.length}${d.topic? ' • Тема: '+escapeHtml(d.topic):''}</div>
+          ${q.ticket? `<div class="text-xs opacity-60">${escapeHtml(q.ticket)}</div>`:''}
         </div>
         <div class="timer w-40"><div id="tbar"></div></div>
       </div>
       <h3 class="text-xl font-semibold mb-3">${escapeHtml(q.question)}</h3>
-      ${q.image? `<img src="${RAW(q.image.replace('./',''))}" class="rounded-xl border border-white/10 mb-3 max-h-64 object-contain mx-auto"/>`:''}
+      ${q.image? `<img src="${normalizeImagePath(q.image)}" class="rounded-xl border border-white/10 mb-3 max-h-64 object-contain mx-auto"/>`:''}
       <div class="grid gap-3">
         ${q.answers.map((a,idx)=>`<div class="answer" data-idx="${idx}">${escapeHtml(a)}</div>`).join('')}
       </div>
       ${q.tip? `<p class="mt-4 text-sm text-slate-300/80">Подсказка: ${escapeHtml(q.tip)}</p>`:''}
       <div class="mt-4 flex items-center justify-between text-sm">
-        <div>Твой счёт: <b>${d.me.score}</b></div>
+        <div>Ты: <b>${d.me.score}</b></div>
         <div>ИИ: <b>${d.ai.score}</b></div>
       </div>
     </div>
   `;
 
-  // анимация появления
-  gsap.from('.answer', { opacity:0, y:6, stagger:0.05, duration:0.25 });
+  if (window.gsap) gsap.from('.answer', { opacity:0, y:6, stagger:0.05, duration:0.25 });
 
-  // таймер
   let left = d.timerMs;
   const step = 50;
   const bar = $('#tbar');
   const timer = setInterval(()=>{
-    left -= step; const x = Math.max(0,left/d.timerMs);
+    left -= step;
+    const x = Math.max(0, left/d.timerMs);
     bar.style.width = (x*100).toFixed(1)+'%';
     if(left<=0){ clearInterval(timer); lockAndScore(-1); }
   }, step);
 
-  // выбор ответа
   for(const el of document.querySelectorAll('.answer')){
     el.onclick = () => { clearInterval(timer); lockAndScore(parseInt(el.dataset.idx,10)); };
   }
 
   function lockAndScore(my){
-    // Подсветка
     const correct = q.correctIndex;
     document.querySelectorAll('.answer').forEach((el,i)=>{
       el.classList.add(i===correct?'correct': (i===my ? 'wrong' : ''));
       el.style.pointerEvents = 'none';
     });
 
-    // Очки
-    if(my===correct) State.me.score++, showToast('Верно!'); else showToast('Увы :(');
+    if(my===correct) d.me.score++, showToast('Верно!'); else showToast('Увы :(');
 
-    // Ответ ИИ (90%)
+    // AI (90% точности)
     const ai = (Math.random()<0.9)? correct : pickWrong(correct, q.answers.length);
-    if(ai===correct) State.ai.score++;
+    if(ai===correct) d.ai.score++;
 
-    // Следующий вопрос
     setTimeout(()=>{
       d.i++;
       if(d.i<d.q.length) renderQuestion(); else finishDuel();
@@ -261,7 +278,7 @@ function finishDuel(){
   $('#again').onclick = ()=> startDuel({mode:d.mode, topic:d.topic});
   $('#home').onclick = mountHome;
 
-  // Отправка результатов в бота (через WebApp)
+  // Отправка результатов в бота (если открыт через Telegram)
   trySendToBot({
     type: 'duel_result',
     payload: {
@@ -275,7 +292,7 @@ function finishDuel(){
   });
 }
 
-/* ---------- Topics & Tickets ---------- */
+/* ---- Темы ---- */
 function pickTopic(){
   const topics = [...State.topics.keys()].sort();
   screen.innerHTML = `
@@ -291,6 +308,7 @@ function pickTopic(){
   $('#back').onclick = mountHome;
 }
 
+/* ---- Билеты ---- */
 function listTickets(){
   const names = [...State.byTicket.keys()];
   screen.innerHTML = `
@@ -316,7 +334,7 @@ function trainTicket(name){
       <div class="card">
         <div class="mb-2 text-sm opacity-70">${escapeHtml(name)} • ${i+1}/${arr.length}</div>
         <h3 class="text-xl font-semibold mb-3">${escapeHtml(q.question)}</h3>
-        ${q.image? `<img src="${RAW(q.image.replace('./',''))}" class="rounded-xl border border-white/10 mb-3 max-h-64 object-contain mx-auto"/>`:''}
+        ${q.image? `<img src="${normalizeImagePath(q.image)}" class="rounded-xl border border-white/10 mb-3 max-h-64 object-contain mx-auto"/>`:''}
         <div class="grid gap-3">${q.answers.map((a,idx)=>`<div class="answer" data-idx="${idx}">${escapeHtml(a)}</div>`).join('')}</div>
         <div class="mt-4 flex items-center justify-between text-sm">
           <div>Счёт: <b>${score}</b></div>
@@ -333,6 +351,7 @@ function trainTicket(name){
   }
 }
 
+/* ---- Знаки ---- */
 function openSigns(){
   const signs = State.signs || {};
   const cats = Object.keys(signs);
@@ -352,7 +371,7 @@ function openSigns(){
         if(filter && !String(it.title||'').toLowerCase().includes(filter.toLowerCase())) continue;
         html += `
           <div class="answer">
-            <img src="${RAW((it.image||'').replace('./',''))}" class="w-full h-32 object-contain mb-2"/>
+            <img src="${normalizeImagePath(it.image)}" class="w-full h-32 object-contain mb-2"/>
             <div class="text-sm font-medium">${escapeHtml(it.number||'')}</div>
             <div class="text-sm opacity-80">${escapeHtml(it.title||'')}</div>
           </div>`;
@@ -365,22 +384,33 @@ function openSigns(){
   $('#back').onclick = mountHome;
 }
 
-/* ---------- Telegram Integration ---------- */
+/* =========================
+   TELEGRAM WEBAPP (опционально)
+   ========================= */
 function tryInitTelegram(){
-  if(window.Telegram && window.Telegram.WebApp){
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    State.user = tg.initDataUnsafe?.user || null;
-    // Кнопка в хедере
-    document.getElementById('btnStats').onclick = ()=>{
-      trySendToBot({ type:'stats_request' });
-      showToast('Запросил статистику у бота');
-    };
-    // Быстрые кнопки героя
-    document.getElementById('btnQuickDuel').onclick = ()=> startDuel({mode:'quick'});
-    document.getElementById('btnTopics').onclick = pickTopic;
-    document.getElementById('btnTickets').onclick = listTickets;
-    document.getElementById('btnSigns').onclick = openSigns;
+  try{
+    if(window.Telegram && window.Telegram.WebApp){
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      State.user = tg.initDataUnsafe?.user || null;
+
+      // Эти кнопки также назначены в браузере — дублирование не страшно
+      document.getElementById('btnStats').onclick = ()=>{
+        trySendToBot({ type:'stats_request' });
+        showToast('Запросил статистику у бота');
+      };
+      document.getElementById('btnQuickDuel').onclick = ()=> startDuel({mode:'quick'});
+      document.getElementById('btnTopics').onclick = pickTopic;
+      document.getElementById('btnTickets').onclick = listTickets;
+      document.getElementById('btnSigns').onclick = openSigns;
+    } else {
+      // Браузерный режим
+      if(document.getElementById('btnStats')){
+        document.getElementById('btnStats').onclick = ()=> showToast('Открой через Telegram для синхронизации статистики');
+      }
+    }
+  }catch(e){
+    console.warn('Telegram init failed', e);
   }
 }
 
@@ -392,7 +422,9 @@ function trySendToBot(message){
   }catch(e){ console.warn('sendData failed', e); }
 }
 
-/* ---------- Utils ---------- */
+/* =========================
+   УТИЛИТЫ
+   ========================= */
 function shuffle(a){ return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]); }
 function pickWrong(correct, n){ const opts = [...Array(n).keys()].filter(i=>i!==correct); return opts[Math.floor(Math.random()*opts.length)] }
 function showToast(text){
@@ -401,12 +433,3 @@ function showToast(text){
   el.style.opacity = 1; setTimeout(()=> el.style.opacity=0, 1400);
 }
 function escapeHtml(s){ return String(s).replace(/[&<>\"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
-
-// Header buttons (also work без Telegram)
-if(document.getElementById('btnStats')){
-  document.getElementById('btnStats').onclick = ()=> showToast('Откройте через Telegram для синхронизации статистики');
-  document.getElementById('btnQuickDuel').onclick = ()=> startDuel({mode:'quick'});
-  document.getElementById('btnTopics').onclick = pickTopic;
-  document.getElementById('btnTickets').onclick = listTickets;
-  document.getElementById('btnSigns').onclick = openSigns;
-}
