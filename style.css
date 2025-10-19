@@ -1,107 +1,93 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
-
-body {
-  margin: 0;
-  font-family: 'Poppins', sans-serif;
-  background: radial-gradient(circle at top, #1e1b4b 0%, #0f172a 70%);
-  color: #e2e8f0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
+/* ===== БАЗА ===== */
+:root{
+  --bg-1:#0f172a;  /* slate-900 */
+  --bg-2:#1e1b4b;  /* indigo-950 */
+  --bg-3:#312e81;  /* indigo-900 */
+  --text:#e2e8f0;  /* slate-200 */
+  --muted:#cbd5e1; /* slate-300 */
+  --brand:#6366f1; /* indigo-500 */
+  --brand-2:#818cf8; /* indigo-400 */
+  --ok:#10b981;    /* emerald-500 */
+  --bad:#f43f5e;   /* rose-500 */
 }
 
-.wrapper {
-  width: 100%;
-  max-width: 600px;
-  text-align: center;
-  padding: 20px;
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
+  color:var(--text);
+  background: radial-gradient(1200px 600px at 20% 0%, rgba(99,102,241,.25), transparent 60%),
+              radial-gradient(900px 500px at 90% -10%, rgba(16,185,129,.18), transparent 60%),
+              linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 55%, var(--bg-3) 100%);
 }
 
-/* Заголовок */
-.title {
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  margin-bottom: 10px;
-  background: linear-gradient(90deg, #818cf8, #60a5fa, #a78bfa);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: glow 3s infinite alternate;
-}
-.title span {
-  color: #818cf8;
-}
-.subtitle {
-  font-size: 16px;
-  color: #cbd5e1;
-  margin-bottom: 30px;
-  opacity: 0;
-  animation: fadeInUp 1.2s ease forwards;
-}
+.app{max-width:780px;margin:0 auto;padding:24px}
 
-/* Кнопки */
-.menu {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  opacity: 0;
-  animation: fadeInUp 1.6s ease forwards;
+/* ===== ХЕДЕР ===== */
+.hdr{display:flex;flex-direction:column;align-items:center;text-align:center;margin-top:6px}
+.pill{
+  width:56px;height:56px;border-radius:999px;
+  background: radial-gradient(circle at 30% 30%, #a78bfa 0%, #4f46e5 45%, #1d1b4a 70%);
+  box-shadow: 0 0 30px rgba(129,140,248,.55), inset 0 12px 32px rgba(255,255,255,.08);
+  animation: pop 1s ease-out both;
 }
-.btn {
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-weight: 600;
-  border: none;
-  background: rgba(255,255,255,0.1);
-  color: #e2e8f0;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 16px;
+.hdr-title{
+  margin:14px 0 6px; font-size:44px; font-weight:800; letter-spacing:.6px;
+  background: linear-gradient(90deg, #a5b4fc, #60a5fa, #c4b5fd);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+  text-shadow: 0 0 22px rgba(129,140,248,.55);
+  animation: fadeUp .9s .05s ease-out both;
 }
-.btn:hover {
-  background: rgba(255,255,255,0.2);
-  transform: scale(1.05);
-}
-.btn:active {
-  transform: scale(0.97);
-}
-.btn.primary {
-  background: linear-gradient(90deg, #4f46e5, #6366f1);
-  color: #fff;
-  box-shadow: 0 0 25px rgba(99,102,241,0.6);
-}
+.hdr-sub{margin:0; color:var(--muted); animation: fadeUp .9s .15s ease-out both}
 
-/* Экран */
-.screen {
-  margin-top: 25px;
-  min-height: 120px;
+/* ===== МЕНЮ ===== */
+.menu{display:flex;flex-direction:column;gap:14px;margin:26px auto 14px;max-width:520px;animation:fadeUp .9s .25s ease-out both}
+.btn{
+  width:100%; padding:14px 18px; border-radius:16px; border:1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06); color:var(--text); font-weight:700; font-size:16px;
+  cursor:pointer; transition:.18s transform ease, .18s box-shadow ease, .18s background ease;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
 }
+.btn:hover{transform: translateY(-1px); background: rgba(255,255,255,.1)}
+.btn:active{transform: translateY(0)}
+.btn-primary{
+  background: linear-gradient(90deg, #4f46e5, #6366f1); color:#fff;
+  box-shadow: 0 18px 40px rgba(99,102,241,.35);
+}
+.btn-primary:hover{background: linear-gradient(90deg, #6366f1, #818cf8)}
 
-/* Toast */
-.toast-container {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  opacity: 0;
-  transition: opacity .3s;
+/* ===== ЭКРАН/КАРТОЧКИ ===== */
+.screen{margin-top:22px;min-height:150px}
+.card{
+  border:1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.06);
+  border-radius:18px; padding:16px; box-shadow: 0 24px 70px rgba(0,0,0,.4);
+  animation: fadeUp .25s ease-out both;
 }
-.toast {
-  background: rgba(15,23,42,.9);
-  padding: 10px 18px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,.1);
-  color: #f1f5f9;
-  box-shadow: 0 10px 40px rgba(0,0,0,.4);
-}
+.card h3{margin:0 0 8px}
+.grid{display:grid;gap:10px}
+.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.auto{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
 
-/* Анимации */
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(40px); }
-  to { opacity: 1; transform: translateY(0); }
+/* ответы/варианты */
+.answer{
+  padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.06); cursor:pointer; transition:.16s ease;
 }
-@keyframes glow {
-  from { text-shadow: 0 0 20px rgba(129,140,248,0.4); }
-  to { text-shadow: 0 0 40px rgba(129,140,248,0.9); }
-}
+.answer:hover{background: rgba(255,255,255,.12)}
+.answer.correct{border-color: var(--ok); background: rgba(16,185,129,.12)}
+.answer.wrong{border-color: var(--bad); background: rgba(244,63,94,.12)}
+
+.meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:13px;margin-bottom:8px}
+.qimg{width:100%;max-height:300px;object-fit:contain;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.15);margin:8px 0}
+.timer{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;width:180px}
+.tbar{height:100%;width:100%;background:var(--brand);transition:width .05s linear}
+
+/* тосты */
+.toast-wrap{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;opacity:0;transition:opacity .25s}
+.toast{background:rgba(15,23,42,.94);border:1px solid rgba(255,255,255,.08);color:#f1f5f9;border-radius:12px;padding:10px 16px;box-shadow:0 18px 60px rgba(0,0,0,.45)}
+
+/* ===== анимации ===== */
+@keyframes pop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}
+@keyframes fadeUp{0%{opacity:0;transform:translateY(18px)}100%{opacity:1;transform:translateY(0)}}
