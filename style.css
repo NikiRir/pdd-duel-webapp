@@ -1,93 +1,85 @@
-/* базовый фон и текст */
+/* общие настройки */
 body {
   margin: 0;
-  font-family: "Inter", system-ui, sans-serif;
+  padding: 0;
+  font-family: "Poppins", "Inter", system-ui, sans-serif;
   color: #e2e8f0;
-  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #312e81 100%);
+  background: radial-gradient(circle at top, #1e1b4b 0%, #0f172a 70%);
   min-height: 100vh;
-}
-
-/* header */
-.header {
-  position: sticky;
-  top: 0;
-  backdrop-filter: blur(8px);
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-.header-container {
-  max-width: 900px;
-  margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  justify-content: center;
 }
-.logo { width: 32px; height: 32px; opacity: .9; }
-.title { font-size: 18px; font-weight: 600; }
-.subtitle { font-size: 12px; color: #cbd5e1; }
-.nav { margin-left: auto; display: flex; gap: 12px; }
 
-/* hero */
-.main { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
-.hero {
-  position: relative;
-  border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.05);
-  border-radius: 24px;
-  padding: 24px;
-  overflow: hidden;
+.app {
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+  padding: 20px;
 }
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 10% 10%, rgba(99,102,241,.25), transparent 70%),
-              radial-gradient(circle at 90% 10%, rgba(16,185,129,.2), transparent 70%);
-}
-.hero-content { position: relative; z-index: 2; }
-.hero-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
-.accent { color: #818cf8; }
-.hero-desc { color: #cbd5e1; margin-bottom: 16px; }
-.buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* кнопки */
-.btn-primary, .btn-secondary, .btn-ghost {
-  border-radius: 10px;
-  padding: 8px 16px;
-  font-weight: 500;
-  cursor: pointer;
+/* ===== Заголовок ===== */
+.hero-header {
+  animation: fadeInUp 1s ease forwards;
+}
+.glow-title {
+  font-size: 40px;
+  font-weight: 800;
+  background: linear-gradient(90deg, #60a5fa, #818cf8, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(129,140,248,0.6);
+  animation: pulseGlow 3s infinite alternate;
+}
+.glow-title span {
+  color: #818cf8;
+}
+.hero-sub {
+  font-size: 16px;
+  color: #cbd5e1;
+  margin-top: 6px;
+  animation: fadeInUp 1.3s ease forwards;
+}
+
+/* ===== Кнопки ===== */
+.menu {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: fadeInUp 1.6s ease forwards;
+}
+
+.menu-btn {
   border: none;
-  transition: 0.2s;
-}
-.btn-primary {
-  background: #4f46e5;
-  color: white;
-  box-shadow: 0 8px 25px rgba(79,70,229,.3);
-}
-.btn-primary:hover { background: #6366f1; }
-.btn-secondary {
-  background: rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 600;
   color: #e2e8f0;
+  background: rgba(255,255,255,0.08);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 25px rgba(0,0,0,.3);
 }
-.btn-secondary:hover { background: rgba(255,255,255,.12); }
-.btn-ghost {
-  background: transparent;
-  border: 1px solid rgba(255,255,255,.1);
-  color: #e2e8f0;
+.menu-btn:hover {
+  transform: scale(1.04);
+  background: rgba(255,255,255,0.15);
 }
-.btn-ghost:hover { background: rgba(255,255,255,.08); }
-
-/* карточки, экран */
-.screen { margin-top: 24px; }
-.card {
-  border-radius: 16px;
-  padding: 16px;
-  border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.05);
-  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+.menu-btn:active {
+  transform: scale(0.98);
+}
+.primary {
+  background: linear-gradient(90deg, #4f46e5, #6366f1);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(99,102,241,.4);
+}
+.primary:hover {
+  background: linear-gradient(90deg, #6366f1, #818cf8);
 }
 
-/* уведомления */
+/* экран, всплывающие уведомления */
+.screen { margin-top: 20px; min-height: 120px; }
 .toast-container {
   position: fixed;
   bottom: 20px;
@@ -103,4 +95,14 @@ body {
   border: 1px solid rgba(255,255,255,.1);
   color: #f1f5f9;
   box-shadow: 0 10px 40px rgba(0,0,0,.4);
+}
+
+/* ===== Анимации ===== */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulseGlow {
+  from { text-shadow: 0 0 15px rgba(129,140,248,0.6); }
+  to { text-shadow: 0 0 40px rgba(129,140,248,0.9); }
 }
