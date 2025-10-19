@@ -1,276 +1,39 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ПДД Дуэли</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org https://nikirir.github.io; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org;">
-    <meta name="referrer" content="no-referrer">
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ПДД Дуэли — РФ</title>
+  <meta name="description" content="Дуэли по ПДД с билетами, темами, знаками и разметкой. Источник данных: etspring/pdd_russia." />
+
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- GSAP for animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-    <div class="background-animation">
-        <div class="floating-shape shape-1"></div>
-        <div class="floating-shape shape-2"></div>
-        <div class="floating-shape shape-3"></div>
-        <div class="floating-shape shape-4"></div>
-        <div class="floating-shape shape-5"></div>
+<body class="min-h-screen bg-gradient-to-br from-gray-950 via-slate-900 to-indigo-950 text-slate-100">
+  <header class="sticky top-0 z-30 backdrop-blur bg-white/5 border-b border-white/10">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+      <img src="logo.svg" alt="logo" class="w-8 h-8 opacity-90" />
+      <div>
+        <h1 class="text-lg font-semibold tracking-wide">ПДД Дуэли</h1>
+        <p class="text-xs text-slate-300/80">Учись, соревнуйся, побеждай</p>
+      </div>
+      <div class="ml-auto flex items-center gap-3 text-sm">
+        <button id="btnStats" class="btn-ghost">Моя статистика</button>
+        <a href="https://github.com/etspring/pdd_russia" target="_blank" class="btn-ghost">Источник данных</a>
+      </div>
     </div>
+  </header>
 
-    <div class="particles-container" id="particles"></div>
-
-    <div class="container">
-        <!-- Главный экран -->
-        <div id="mainScreen" class="screen active">
-            <div class="main-header">
-                <div class="logo-container">
-                    <div class="logo-icon">🚗</div>
-                    <div class="title-wrapper">
-                        <h1 class="main-title">ДУЭЛИ</h1>
-                        <h2 class="sub-title">ПРАВИЛА ДОРОЖНОГО ДВИЖЕНИЯ</h2>
-                    </div>
-                </div>
-                <div class="tagline">Реальные билеты • Рейтинговая система • ИИ-бот</div>
-            </div>
-
-            <div class="menu-buttons">
-                <button class="btn-duel" onclick="showDuelModes()">
-                    <span class="btn-icon">⚔️</span>
-                    <span class="btn-text">ДУЭЛИ</span>
-                    <span class="btn-glow"></span>
-                    <span class="btn-particles"></span>
-                </button>
-                
-                <button class="btn-topics" onclick="showTopics()">
-                    <span class="btn-icon">📚</span>
-                    <span class="btn-text">ТЕМЫ</span>
-                    <span class="btn-glow"></span>
-                    <span class="btn-particles"></span>
-                </button>
-
-                <div class="secondary-buttons">
-                    <button class="btn-quick" onclick="startQuickDuel()">
-                        <span class="btn-icon">🎯</span>
-                        <span>БЫСТРАЯ ДУЭЛЬ</span>
-                    </button>
-                    <button class="btn-stats" onclick="showStats()">
-                        <span class="btn-icon">📊</span>
-                        <span>СТАТИСТИКА</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="creator-credit">
-                Создатель бота <span class="creator-tag">@wlknek</span>
-            </div>
-        </div>
-
-        <!-- Экран выбора дуэли -->
-        <div id="duelModeScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">⚔️ Выбор дуэли</h2>
-                <button class="btn-back" onclick="backToMain()">← Назад</button>
-            </div>
-            <div class="menu-buttons">
-                <button class="btn-mode" onclick="showTicketSelection()">
-                    <span class="btn-icon">🎫</span>
-                    <span class="btn-text">ПО БИЛЕТАМ (1-40)</span>
-                </button>
-                <button class="btn-mode" onclick="showTopicSelection()">
-                    <span class="btn-icon">📖</span>
-                    <span class="btn-text">ПО ТЕМАМ</span>
-                </button>
-                <button class="btn-mode" onclick="startAIDuel()">
-                    <span class="btn-icon">🤖</span>
-                    <span class="btn-text">ПРОТИВ ИИ-БОТА</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Экран выбора билета -->
-        <div id="ticketScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">🎫 Выбор билета</h2>
-                <button class="btn-back" onclick="backToDuelModes()">← Назад</button>
-            </div>
-            <div class="ticket-grid" id="ticketGrid"></div>
-        </div>
-
-        <!-- Экран выбора темы -->
-        <div id="topicsScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">📚 Темы для изучения</h2>
-                <button class="btn-back" onclick="backToMain()">← Назад</button>
-            </div>
-            <div class="topics-container" id="topicsContainer"></div>
-        </div>
-
-        <!-- Экран темы -->
-        <div id="topicScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title" id="topicTitle">📖 Тема</h2>
-                <button class="btn-back" onclick="backToTopics()">← Назад</button>
-            </div>
-            <div class="topic-content">
-                <div class="topic-description" id="topicDescription"></div>
-                <div class="topic-stats">
-                    <div class="stat-badge">
-                        <span class="stat-number" id="topicQuestionsCount">0</span>
-                        <span class="stat-label">вопросов</span>
-                    </div>
-                </div>
-                <div class="topic-actions">
-                    <button class="btn-topic-action" onclick="startTopicPractice()">
-                        <span class="btn-icon">🎮</span>
-                        ТРЕНИРОВКА
-                    </button>
-                    <button class="btn-topic-action" onclick="startTopicDuel()">
-                        <span class="btn-icon">⚔️</span>
-                        ДУЭЛЬ ПО ТЕМЕ
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Экран поиска соперника -->
-        <div id="matchmakingScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">🔍 Поиск соперника</h2>
-            </div>
-            <div class="matchmaking-content">
-                <div class="search-animation">
-                    <div class="search-dots">
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                        <div class="dot"></div>
-                    </div>
-                    <div class="search-text" id="searchStatus">Ищем живого соперника...</div>
-                </div>
-                
-                <div class="matchmaking-info">
-                    <div class="info-card">
-                        <div class="info-icon">🎯</div>
-                        <div class="info-text">Ищем соперника с похожим рейтингом</div>
-                    </div>
-                    <div class="info-card">
-                        <div class="info-icon">🤖</div>
-                        <div class="info-text">Если не найдем - сыграешь с ИИ-ботом</div>
-                    </div>
-                </div>
-
-                <div class="matchmaking-buttons">
-                    <button class="btn-cancel-search" onclick="cancelMatchmaking()">
-                        <span class="btn-icon">❌</span>
-                        ОТМЕНИТЬ ПОИСК
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Экран дуэли с ИИ -->
-        <div id="aiDuelScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">🤖 Дуэль с ИИ-ботом</h2>
-            </div>
-            <div class="ai-duel-content">
-                <div class="ai-avatar">
-                    <div class="ai-icon">🤖</div>
-                    <div class="ai-name">ИИ-бот ПДД</div>
-                    <div class="ai-difficulty">Уровень: 90% правильных ответов</div>
-                </div>
-                
-                <div class="duel-settings">
-                    <div class="setting-item">
-                        <label>Количество вопросов:</label>
-                        <select id="questionCount">
-                            <option value="5">5 вопросов</option>
-                            <option value="10" selected>10 вопросов</option>
-                            <option value="15">15 вопросов</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label>Сложность:</label>
-                        <select id="aiDifficulty">
-                            <option value="0.7">Легкая (70%)</option>
-                            <option value="0.9" selected>Средняя (90%)</option>
-                            <option value="0.95">Сложная (95%)</option>
-                        </select>
-                    </div>
-                </div>
-
-                <button class="btn-start-ai-duel" onclick="startAIDuelGame()">
-                    <span class="btn-icon">🎮</span>
-                    НАЧАТЬ ДУЭЛЬ
-                </button>
-            </div>
-        </div>
-
-        <!-- Экран вопроса -->
-        <div id="questionScreen" class="screen">
-            <div class="question-header">
-                <div class="progress-container">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
-                    </div>
-                    <div class="progress-info">
-                        <span id="questionNumber">1/10</span>
-                        <span id="timer">30s</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="question-content">
-                <div class="question-text" id="questionText"></div>
-                <div class="options" id="optionsContainer"></div>
-            </div>
-        </div>
-
-        <!-- Экран результатов -->
-        <div id="resultsScreen" class="screen">
-            <div class="header">
-                <h2 class="screen-title">🎯 Результаты</h2>
-            </div>
-            <div class="results-content">
-                <div class="score-board">
-                    <div class="player-score">
-                        <div class="score-label">Вы</div>
-                        <div class="score-value" id="playerScore">0</div>
-                    </div>
-                    <div class="vs-badge">VS</div>
-                    <div class="player-score">
-                        <div class="score-label" id="opponentName">Соперник</div>
-                        <div class="score-value" id="opponentScore">0</div>
-                    </div>
-                </div>
-                <div class="result-message" id="resultMessage"></div>
-                
-                <div class="results-stats">
-                    <div class="stat-item">
-                        <span class="stat-label">Правильных ответов:</span>
-                        <span class="stat-value" id="correctAnswers">0/0</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Изменение рейтинга:</span>
-                        <span class="stat-value" id="ratingChange">+0</span>
-                    </div>
-                </div>
-
-                <div class="results-actions">
-                    <button class="btn-again" onclick="playAgain()">
-                        <span class="btn-icon">🔄</span>
-                        ИГРАТЬ СНОВА
-                    </button>
-                    <button class="btn-home" onclick="backToMain()">
-                        <span class="btn-icon">🏠</span>
-                        ГЛАВНОЕ МЕНЮ
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
-</body>
-</html>
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    <section id="hero" class="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-xl p-6 md:p-10">
+      <div class="absolute inset-0 bg-[radial-gradient(60%_50%_at_10%_10%,rgba(99,102,241,0.25),transparent_70%),radial-gradient(30%_30%_at_90%_10%,rgba(16,185,129,0.2),transparent_70%)]"></div>
+      <div class="relative z-10 grid md:grid-cols-2 gap-6 items-center">
+        <div>
+          <h2 class="text-2xl md:text-4xl font-bold mb-3 leading-tight">Экзаменационные вопросы РФ + <span class="text-indigo-400">дуэли</span> по темам</h2>
+          <p class="text-slate-300/90">Билеты 1–
