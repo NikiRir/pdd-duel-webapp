@@ -59,20 +59,26 @@ body{
 .btn-primary:hover{background:linear-gradient(90deg,#6366f1,#818cf8)}
 .btn.active{border-color:var(--brand2);box-shadow:0 0 0 2px rgba(129,140,248,.35) inset}
 
-/* Экран (страницы без прокрутки) */
+/* Экран (страницы) — фиксированная рамка со СКРОЛЛОМ ВНУТРИ */
 .screen{
   position:relative;
-  height:clamp(420px,62vh,640px); /* фикс: нет пустой простыни */
-  overflow:hidden;
+  height:clamp(460px,65vh,680px);
+  overflow:auto; /* <- скролл тут */
   border-radius:20px;border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.04);
   box-shadow:0 24px 70px rgba(0,0,0,.4);
 }
 .view{
-  position:absolute;inset:0;padding:clamp(12px,2vw,16px);
+  min-height:100%;
+  padding:clamp(12px,2vw,16px);
   opacity:0;transform:translateY(8px);animation:viewIn .22s ease forwards;
 }
 .view.fadeout{animation:viewOut .18s ease forwards}
+
+/* Стили скроллбара (эстетично) */
+.screen::-webkit-scrollbar{width:10px}
+.screen::-webkit-scrollbar-track{background:transparent}
+.screen::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#4f46e5,#818cf8);border-radius:999px}
 
 /* Контент */
 .card{
