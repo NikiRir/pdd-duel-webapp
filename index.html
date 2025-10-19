@@ -4,8 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ПДД ДУЭЛИ</title>
-  <meta name="description" content="Реальные билеты ПДД РФ с дуэлями: темы, билеты, знаки. Источник: etspring/pdd_russia." />
+  <meta name="description" content="Реальные билеты ПДД РФ: дуэли, темы, разметка и штрафы." />
   <link rel="stylesheet" href="style.css" />
+  <!-- Telegram SDK не обязателен для сайта, но не мешает -->
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
 </head>
 
@@ -17,12 +18,14 @@
       <p class="hdr-sub">Учись, соревнуйся, побеждай!</p>
     </header>
 
-    <main class="menu">
+    <nav class="menu">
       <button id="btnQuickDuel" class="btn btn-primary">⚡ Быстрая дуэль</button>
       <button id="btnTopics" class="btn">📚 Темы</button>
       <button id="btnTickets" class="btn">🎟️ Билеты</button>
+      <button id="btnMarkup" class="btn">📏 Разметка</button>
+      <button id="btnPenalties" class="btn">💸 Штрафы</button>
       <button id="btnStats" class="btn">📊 Статистика</button>
-    </main>
+    </nav>
 
     <section id="screen" class="screen"></section>
   </div>
