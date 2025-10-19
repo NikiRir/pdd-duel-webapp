@@ -105,13 +105,16 @@ body{
   background:rgba(0,0,0,.15);margin:8px 0
 }
 
+/* Ответы как <button> — железобетонные клики в Telegram */
 .answer{
+  display:block;width:100%;
   padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
   background:rgba(255,255,255,.06);cursor:pointer;transition:.16s ease;
-  font-size:clamp(14px,2.6vw,16px);
-  position:relative;z-index:1; /* клики точно попадают */
+  font-size:clamp(14px,2.6vw,16px);text-align:left;
+  position:relative;z-index:1;-webkit-tap-highlight-color:transparent;
 }
 .answer:hover{background:rgba(255,255,255,.12)}
+.answer:disabled{opacity:.85;cursor:default}
 .answer.correct{border-color:var(--ok);background:rgba(16,185,129,.12)}
 .answer.wrong{border-color:var(--bad);background:rgba(244,63,94,.12)}
 
