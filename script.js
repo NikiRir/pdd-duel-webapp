@@ -45,7 +45,15 @@ function setLoader(p){ qs("#loaderBar").style.width = Math.max(0,Math.min(100,p)
 /* =======================
    Навигация
 ======================= */
-function setView(html){
+function toggleSubpage(isSub){
+  const appRoot = qs(".app");
+  appRoot?.classList.toggle("app--subpage", !!isSub);
+  setActive(null);
+  document.querySelector("#screen")?.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function setView(html, { subpage = true } = {}){
+  toggleSubpage(subpage);
   const host = qs("#screen");
   host.scrollTop = 0;
   host.innerHTML = `<div class="view">${html}</div>`;
@@ -57,7 +65,7 @@ function renderHome(){
       <h3>Выбери режим сверху</h3>
       <p style="margin:.35rem 0 0;color:var(--muted)">⚡ Быстрая дуэль, 📚 Темы, 🎟️ Билеты</p>
     </div>
-  `);
+  `, { subpage: false });
 }
 function setActive(id){
   qsa("[data-action]").forEach(b=>b.classList.remove("active"));
@@ -191,28 +199,28 @@ function normalizeQuestions(raw){
 ======================= */
 function uiTopics(){
   const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
-  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`); return; }
+  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true }); return; }
   setView(`
     <div class="card"><h3>Темы</h3></div>
     <div class="card"><div class="grid auto">
       ${list.map(t=>`<button type="button" class="answer" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
     </div></div>
-  `);
+  `, { subpage: true });
 }
 
 function uiTickets(){
   const ids=[...State.byTicket.keys()].sort((a,b)=>a-b);
-  if(!ids.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`); return; }
+  if(!ids.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true }); return; }
   setView(`
     <div class="card"><h3>Билеты</h3></div>
     <div class="card"><div class="grid auto">
       ${ids.map(n=>`<button type="button" class="answer" data-n="${n}">Билет ${n}</button>`).join("")}
     </div></div>
-  `);
+  `, { subpage: true });
 }
 
 function uiStats(){
-  setView(`<div class="card"><h3>Статистика</h3><p>Скоро здесь будет прогресс дуэлей.</p></div>`);
+  setView(`<div class="card"><h3>Статистика</h3><p>Скоро здесь будет прогресс дуэлей.</p></div>`, { subpage: true });
 }
 
 /* =======================
@@ -220,14 +228,14 @@ function uiStats(){
 ======================= */
 function startDuel({mode,topic=null}){
   const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`); return; }
+  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true }); return; }
   const q = shuffle(src).slice(0,20);
   State.duel = { mode, topic, i:0, me:0, q };
   renderQuestion();
 }
 function startTicket(n){
   const arr = State.byTicket.get(n) || [];
-  if(!arr.length){ setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Нет вопросов</p></div>`); return; }
+  if(!arr.length){ setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true }); return; }
   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
   State.duel = { mode:"ticket", topic:null, i:0, me:0, q };
   renderQuestion();
@@ -243,7 +251,7 @@ function renderQuestion(){
       <div class="grid">${q.answers.map((a,i)=>`<button class="answer" data-i="${i}">${esc(a)}</button>`).join("")}</div>
       <div id="tip" class="meta" style="display:none;margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
     </div>
-  `);
+  `, { subpage: true });
   State.lock = false;
 }
 
@@ -282,7 +290,7 @@ function finishDuel(){
         <button class="btn" id="home">На главную</button>
       </div>
     </div>
-  `);
+  `, { subpage: true });
 }
 
 /* =======================
@@ -293,7 +301,7 @@ const qsa=s=>[...document.querySelectorAll(s)];
 function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
 function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
-function esc(s){return String(s??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
 function updateStatsCounters(){
   setStat("statQuestions", State.pool.length);
   setStat("statTopics", State.topics.size);
