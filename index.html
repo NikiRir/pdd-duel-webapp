@@ -1,8 +1,8 @@
 diff --git a/index.html b/index.html
-index 5db51faddcb9b9759f73f76c7a8b762ae6c96189..2fde3c3ee47a821553536300d5f5e9d6befd4425 100644
+index 5db51faddcb9b9759f73f76c7a8b762ae6c96189..7736a2d8ab0902fce6609e82ef0ec16a1b28430b 100644
 --- a/index.html
 +++ b/index.html
-@@ -1,49 +1,104 @@
+@@ -1,49 +1,125 @@
  <!doctype html>
  <html lang="ru">
  <head>
@@ -43,23 +43,32 @@ index 5db51faddcb9b9759f73f76c7a8b762ae6c96189..2fde3c3ee47a821553536300d5f5e9d6
 +        </div>
 +      </div>
 +      <aside class="hero__aside" aria-label="Преимущества приложения">
-+        <div class="hero-card">
-+          <div class="hero-card__header">
-+            <div class="hero-card__score">
-+              <span class="hero-card__value">98%</span>
-+              <span class="hero-card__hint">средний результат PRO</span>
++        <div class="hero-highlights">
++          <article class="highlight-card">
++            <span class="highlight-card__icon" aria-hidden="true">🥇</span>
++            <div class="highlight-card__body">
++              <h3>Дуэль дня</h3>
++              <p>Собери серию побед и удерживай рейтинг среди друзей.</p>
 +            </div>
-+            <span class="hero-card__tag">Соревнуйся</span>
-+          </div>
-+          <ul class="hero-card__list">
-+            <li>Актуальные билеты и темы ГИБДД.</li>
-+            <li>Моментальная проверка ответов.</li>
-+            <li>Работает прямо в Telegram.</li>
-+          </ul>
++          </article>
++          <article class="highlight-card">
++            <span class="highlight-card__icon" aria-hidden="true">🧠</span>
++            <div class="highlight-card__body">
++              <h3>Умные темы</h3>
++              <p>Алгоритм сам предложит темы, где нужны повторения.</p>
++            </div>
++          </article>
++          <article class="highlight-card">
++            <span class="highlight-card__icon" aria-hidden="true">⚙️</span>
++            <div class="highlight-card__body">
++              <h3>Синхронизация</h3>
++              <p>Прогресс сохраняется в Telegram — продолжай на любом устройстве.</p>
++            </div>
++          </article>
 +        </div>
-+        <div class="hero-note">
-+          <strong>Совет дня:</strong>
-+          <span>Начни с быстрого раунда — так проще войти в поток.</span>
++        <div class="hero-note" role="note">
++          <div class="hero-note__title">Совет дня</div>
++          <p>Начни с быстрого раунда, а затем переходи к темам, которые вызывает алгоритм.</p>
 +        </div>
 +      </aside>
      </header>
@@ -72,16 +81,25 @@ index 5db51faddcb9b9759f73f76c7a8b762ae6c96189..2fde3c3ee47a821553536300d5f5e9d6
 -      <button id="btnMarkup"    class="btn" data-action="markup">📏 Разметка</button>
 +    <section class="stats" aria-live="polite">
 +      <article class="stat">
-+        <div class="stat-value" id="statQuestions">—</div>
-+        <div class="stat-label">Вопросов в базе</div>
++        <div class="stat__icon" aria-hidden="true">❓</div>
++        <div class="stat__body">
++          <div class="stat-value" id="statQuestions">—</div>
++          <div class="stat-label">Вопросов в базе</div>
++        </div>
 +      </article>
 +      <article class="stat">
-+        <div class="stat-value" id="statTopics">—</div>
-+        <div class="stat-label">Тем для отработки</div>
++        <div class="stat__icon" aria-hidden="true">🗂️</div>
++        <div class="stat__body">
++          <div class="stat-value" id="statTopics">—</div>
++          <div class="stat-label">Тем для отработки</div>
++        </div>
 +      </article>
 +      <article class="stat">
-+        <div class="stat-value" id="statTickets">—</div>
-+        <div class="stat-label">Официальных билетов</div>
++        <div class="stat__icon" aria-hidden="true">🎟️</div>
++        <div class="stat__body">
++          <div class="stat-value" id="statTickets">—</div>
++          <div class="stat-label">Официальных билетов</div>
++        </div>
 +      </article>
 +    </section>
 +
@@ -101,16 +119,19 @@ index 5db51faddcb9b9759f73f76c7a8b762ae6c96189..2fde3c3ee47a821553536300d5f5e9d6
 +
 +    <section class="promo">
 +      <article class="promo-card">
++        <div class="promo-card__icon" aria-hidden="true">🎯</div>
 +        <h2>Экзамен как игра</h2>
 +        <p>Соревнуйся в дуэлях и получай мгновенные подсказки по каждой ошибке.</p>
 +      </article>
 +      <article class="promo-card">
++        <div class="promo-card__icon" aria-hidden="true">🔄</div>
 +        <h2>Обновления автоматически</h2>
 +        <p>Мы подгружаем актуальные билеты ГИБДД и освежаем справочники.</p>
 +      </article>
 +      <article class="promo-card">
++        <div class="promo-card__icon" aria-hidden="true">💬</div>
 +        <h2>Учись в Telegram</h2>
-+        <p>Приложение оптимизировано под Telegram Web App: быстро, удобно, нативно.</p>
++        <p>Оптимизированный интерфейс для Telegram Web App — быстро, удобно, нативно.</p>
 +      </article>
 +    </section>
    </div>
