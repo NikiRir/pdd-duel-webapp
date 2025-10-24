@@ -1,49 +1,131 @@
-<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>ПДД ДУЭЛИ</title>
-  <meta name="description" content="Реальные билеты ПДД РФ: дуэли, темы, разметка и штрафы." />
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
-</head>
-
-<body>
-  <!-- Фуллскрин лоадер -->
-  <div id="loader" class="loader">
-    <div class="loader-bg"></div>
-    <div class="loader-core">
-      <div class="orb"></div>
-      <div class="orb-ring"></div>
-      <div class="loader-title">ПДД ДУЭЛИ</div>
-      <div class="loader-sub">загружаем билеты, медиа и справочники…</div>
-      <div class="progress"><div id="loaderBar" class="bar"></div></div>
-    </div>
-  </div>
-
-  <div class="app">
-    <header class="hdr">
-      <div class="pill"></div>
-      <h1 class="hdr-title">ПДД ДУЭЛИ</h1>
-      <p class="hdr-sub">Учись, соревнуйся, побеждай!</p>
-    </header>
-
-    <!-- Игровое меню -->
-    <nav class="menu">
-      <button id="btnQuickDuel" class="btn btn-primary" data-action="quick">⚡ Быстрая дуэль</button>
-      <button id="btnTopics"    class="btn" data-action="topics">📚 Темы</button>
-      <button id="btnTickets"   class="btn" data-action="tickets">🎟️ Билеты</button>
-      <button id="btnMarkup"    class="btn" data-action="markup">📏 Разметка</button>
-      <button id="btnPenalties" class="btn" data-action="penalties">💸 Штрафы</button>
-      <button id="btnStats"     class="btn" data-action="stats">📊 Статистика</button>
-    </nav>
-
-    <!-- Один экран. Всегда заменяется. Скролл только внутри. -->
-    <section id="screen" class="screen"></section>
-  </div>
-
-  <div id="toast" class="toast-wrap"></div>
-  <script src="script.js"></script>
-</body>
-</html>
+diff --git a/index.html b/index.html
+index 5db51faddcb9b9759f73f76c7a8b762ae6c96189..e29096d86044074fc3b27f62a10bdc5397368d70 100644
+--- a/index.html
++++ b/index.html
+@@ -1,49 +1,114 @@
+ <!doctype html>
+ <html lang="ru">
+ <head>
+   <meta charset="utf-8" />
+   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+   <title>ПДД ДУЭЛИ</title>
+   <meta name="description" content="Реальные билеты ПДД РФ: дуэли, темы, разметка и штрафы." />
+   <link rel="stylesheet" href="style.css" />
+   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+ </head>
+ 
+ <body>
+   <!-- Фуллскрин лоадер -->
+   <div id="loader" class="loader">
+     <div class="loader-bg"></div>
+     <div class="loader-core">
+       <div class="orb"></div>
+       <div class="orb-ring"></div>
+       <div class="loader-title">ПДД ДУЭЛИ</div>
+       <div class="loader-sub">загружаем билеты, медиа и справочники…</div>
+       <div class="progress"><div id="loaderBar" class="bar"></div></div>
+     </div>
+   </div>
+ 
+   <div class="app">
+-    <header class="hdr">
+-      <div class="pill"></div>
+-      <h1 class="hdr-title">ПДД ДУЭЛИ</h1>
+-      <p class="hdr-sub">Учись, соревнуйся, побеждай!</p>
++    <header class="hero">
++      <div class="hero__content">
++        <span class="hero__badge">2024 — свежие правила</span>
++        <h1 class="hero__title">ПДД ДУЭЛИ</h1>
++        <p class="hero__lead">Прокачай знания и выиграй у друзей в экзамене по правилам дорожного движения.</p>
++        <div class="hero__cta">
++          <button id="btnQuickDuel" class="btn btn-primary" data-action="quick">⚡ Быстрая дуэль</button>
++          <button id="btnTickets" class="btn ghost" data-action="tickets">🎟️ Билеты</button>
++        </div>
++      </div>
++      <div class="hero__art" aria-hidden="true">
++        <svg viewBox="0 0 280 220" role="presentation">
++          <defs>
++            <linearGradient id="grad-sun" x1="0%" y1="0%" x2="100%" y2="100%">
++              <stop offset="0%" stop-color="#fcd34d" />
++              <stop offset="100%" stop-color="#f97316" />
++            </linearGradient>
++            <linearGradient id="grad-city" x1="0%" y1="0%" x2="0%" y2="100%">
++              <stop offset="0%" stop-color="#6366f1" stop-opacity=".95" />
++              <stop offset="100%" stop-color="#312e81" stop-opacity=".95" />
++            </linearGradient>
++          </defs>
++          <rect x="12" y="40" width="256" height="140" rx="26" fill="url(#grad-city)" opacity=".92" />
++          <circle cx="70" cy="60" r="26" fill="url(#grad-sun)" opacity=".82" />
++          <g fill="#eef2ff">
++            <rect x="60" y="86" width="18" height="60" rx="6" />
++            <rect x="118" y="70" width="16" height="76" rx="6" />
++            <rect x="148" y="90" width="14" height="56" rx="6" />
++            <rect x="188" y="72" width="20" height="74" rx="8" />
++            <rect x="214" y="96" width="14" height="48" rx="6" />
++          </g>
++          <path d="M36 168h208" stroke="#c7d2fe" stroke-width="6" stroke-linecap="round" />
++          <g transform="translate(70,148)">
++            <rect x="-24" y="-28" width="48" height="56" rx="14" fill="#eef2ff" />
++            <circle cx="0" cy="-10" r="10" fill="#4338ca" />
++            <rect x="-12" y="8" width="24" height="8" rx="4" fill="#312e81" />
++          </g>
++          <path d="M26 186c36-18 66-18 102 0s66 18 102 0" stroke="#312e81" stroke-width="6" stroke-linecap="round" fill="none" opacity=".35" />
++        </svg>
++      </div>
+     </header>
+ 
+-    <!-- Игровое меню -->
+-    <nav class="menu">
+-      <button id="btnQuickDuel" class="btn btn-primary" data-action="quick">⚡ Быстрая дуэль</button>
+-      <button id="btnTopics"    class="btn" data-action="topics">📚 Темы</button>
+-      <button id="btnTickets"   class="btn" data-action="tickets">🎟️ Билеты</button>
+-      <button id="btnMarkup"    class="btn" data-action="markup">📏 Разметка</button>
++    <section class="stats" aria-live="polite">
++      <article class="stat">
++        <div class="stat-value" id="statQuestions">—</div>
++        <div class="stat-label">Вопросов в базе</div>
++      </article>
++      <article class="stat">
++        <div class="stat-value" id="statTopics">—</div>
++        <div class="stat-label">Тем для отработки</div>
++      </article>
++      <article class="stat">
++        <div class="stat-value" id="statTickets">—</div>
++        <div class="stat-label">Официальных билетов</div>
++      </article>
++    </section>
++
++    <nav class="menu main-menu" aria-label="Основные режимы">
++      <button id="btnTopics" class="btn" data-action="topics">📚 Темы</button>
++      <button id="btnStats" class="btn" data-action="stats">📊 Статистика</button>
++      <button id="btnMarkup" class="btn" data-action="markup">📏 Разметка</button>
+       <button id="btnPenalties" class="btn" data-action="penalties">💸 Штрафы</button>
+-      <button id="btnStats"     class="btn" data-action="stats">📊 Статистика</button>
++      <button id="btnFavorites" class="btn" data-action="favorites" disabled>⭐ Избранное</button>
++      <button id="btnMarathon" class="btn" data-action="marathon" disabled>🏁 Марафон</button>
+     </nav>
+ 
+     <!-- Один экран. Всегда заменяется. Скролл только внутри. -->
+-    <section id="screen" class="screen"></section>
++    <section id="screen" class="screen" aria-live="polite"></section>
++
++    <section class="promo">
++      <article class="promo-card">
++        <h2>Экзамен как игра</h2>
++        <p>Соревнуйся в дуэлях и получай мгновенные подсказки по каждой ошибке.</p>
++      </article>
++      <article class="promo-card">
++        <h2>Обновления автоматически</h2>
++        <p>Мы подгружаем актуальные билеты ГИБДД и освежаем справочники.</p>
++      </article>
++      <article class="promo-card">
++        <h2>Учись в Telegram</h2>
++        <p>Приложение оптимизировано под Telegram Web App: быстро, удобно, нативно.</p>
++      </article>
++    </section>
+   </div>
+ 
+   <div id="toast" class="toast-wrap"></div>
+   <script src="script.js"></script>
+ </body>
+ </html>
