@@ -48,6 +48,17 @@ body {
   gap: clamp(18px, 4vw, 28px);
 }
 
+.app.app--subpage .hero,
+.app.app--subpage .stats,
+.app.app--subpage .promo {
+  display: none;
+}
+
+.app.app--subpage .screen {
+  height: auto;
+  min-height: 100vh;
+}
+
 /* Hero */
 .hero {
   position: relative;
