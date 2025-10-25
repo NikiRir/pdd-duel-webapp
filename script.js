@@ -165,8 +165,10 @@ function toggleSubpage(isSub){
 function setView(html, { subpage = true, title = "" } = {}){
   toggleSubpage(subpage);
   const host = qs("#screen");
+  if(!host) return;
   host.scrollTop = 0;
-  if(subpage){
+
+  if (subpage) {
     const content = wrapSubpage(title, html);
     host.classList.remove("screen--hidden");
     host.innerHTML = `<div class="view">${content}</div>`;
@@ -371,6 +373,8 @@ async function loadTickets(onProgress){
 
   const raw = [];
   let loaded = 0;
+  let successes = 0;
+  let failures = 0;
   const total = ticketFiles.length;
 
   for(const file of ticketFiles){
@@ -388,8 +392,15 @@ async function loadTickets(onProgress){
         if(!item.__bucket) item.__bucket = ticketLabel;
       }
       raw.push(...list);
+      successes += list.length;
     } catch (err){
       console.error(`Не удалось загрузить ${file}:`, err);
+      failures += 1;
+      const failureThreshold = Math.min(5, ticketFiles.length);
+      if(successes === 0 && failures >= failureThreshold){
+        console.warn("⚠️ Слишком много ошибок при загрузке билетов, переключаемся на встроенный набор");
+        break;
+      }
     }
 
     loaded += 1;
@@ -441,6 +452,152 @@ function hydrateFallback(){
     }
   }
   return State.pool;
+}
+
+async function loadMarkup(){
+  if (Array.isArray(State.markup)) return State.markup;
+  const response = await fetch(MARKUP_URL, { cache:"no-store" });
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  const groups = Object.entries(payload || {}).map(([title, data])=>{
+    const items = Object.values(data || {}).map(item=>({
+      number: item.number || "",
+      description: item.description || "",
+      image: normalizeImagePath(item.image)
+    })).sort((a,b)=>a.number.localeCompare(b.number,'ru',{numeric:true,sensitivity:'base'}));
+    return { title, items };
+  }).sort((a,b)=>a.title.localeCompare(b.title,'ru',{sensitivity:'base'}));
+  State.markup = groups;
+  return groups;
+}
+
+async function loadPenalties(){
+  if (Array.isArray(State.penalties)) return State.penalties;
+  const response = await fetch(PENALTIES_URL, { cache:"no-store" });
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  const text = await response.text();
+  const lines = text.split(/\n+/).map(line=>line.trim()).filter(Boolean);
+  const items = [];
+  for(const line of lines){
+    try {
+      const obj = JSON.parse(line);
+      items.push({
+        articlePart: obj.article_part || obj.articlePart || "—",
+        text: obj.text || "",
+        penalty: obj.penalty || ""
+      });
+    } catch(err){
+      console.error("Не удалось разобрать штраф:", err, line);
+    }
+  }
+  items.sort((a,b)=>a.articlePart.localeCompare(b.articlePart,'ru',{numeric:true,sensitivity:'base'}));
+  State.penalties = items;
+  return items;
+}
+
+/* =======================
+   Нормализация данных
+======================= */
+function normalizeQuestions(raw){
+  const out=[];
+  for(const q of raw){
+    const answersRaw = q.answers || q.variants || q.options || [];
+    const answers = answersRaw.map(a => a?.answer_text ?? a?.text ?? a?.title ?? String(a));
+
+    let correctIndex = answersRaw.findIndex(a => a?.is_correct===true);
+    if (correctIndex < 0 && typeof q.correct_answer === "string"){
+      const m = q.correct_answer.match(/\d+/);
+      if (m) correctIndex = parseInt(m[0]) - 1;
+    }
+    if (correctIndex < 0) correctIndex = 0;
+
+    const ticketLabel = deriveTicketLabel(q);
+    const ticketNumber = deriveTicketNumber(ticketLabel);
+    const ticketKey = ticketLabel || (ticketNumber ? `Билет ${ticketNumber}` : `ticket-${out.length}`);
+
+    const image = normalizeImagePath(q.image);
+
+    out.push({
+      question: q.question || q.title || "Вопрос",
+      answers,
+      correctIndex,
+      tip: q.answer_tip || q.tip || "",
+      ticketNumber,
+      ticketLabel,
+      ticketKey,
+      topics: Array.isArray(q.topic) ? q.topic : q.topic ? [q.topic] : [],
+      image
+    });
+  }
+  return out;
+}
+
+function deriveTicketLabel(q){
+  if (typeof q.ticket_number === "string" && q.ticket_number.trim()) return q.ticket_number.trim();
+  if (typeof q.ticket === "string" && q.ticket.trim()) return q.ticket.trim();
+  if (typeof q.__bucket === "string" && q.__bucket.trim()) return q.__bucket.trim();
+  if (typeof q.ticket === "number" && Number.isFinite(q.ticket)) return `Билет ${q.ticket}`;
+  return "Билет";
+}
+
+function deriveTicketNumber(label){
+  if (typeof label !== "string") return undefined;
+  const match = label.match(/\d+/);
+  if (!match) return undefined;
+  const value = parseInt(match[0], 10);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function deduplicate(raw){
+  const seen = new Set();
+  const out = [];
+  for(const item of raw){
+    const key = item.id || `${item.ticket_number||"?"}:${item.question}`;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function uniqueStrings(list){
+  const seen = new Set();
+  const out = [];
+  for(const item of list){
+    if (typeof item !== "string" || !item.trim()) continue;
+    const normalized = item.trim();
+    if(seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function encodePath(path){
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function extractTicketLabel(path){
+  const fileName = path.split("/").pop() || "";
+  const plain = fileName.replace(/\.json$/i, "");
+  return plain.replace(/_/g, " ") || "Билет";
+}
+
+async function fetchJson(url){
+  const response = await fetch(url, { cache:"no-store" });
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+function normalizeImagePath(path){
+  const raw = (path ?? "").toString().trim();
+  if(!raw) return "";
+  const withoutDots = raw.replace(/^\.\//, "").replace(/^\/+/, "");
+  if(/^https?:/i.test(raw)) return raw;
+  if(/^https?:/i.test(withoutDots)) return withoutDots;
+  if(!withoutDots) return "";
+  if(withoutDots.startsWith("images/")) return withoutDots;
+  return `images/${withoutDots}`;
 }
 
 /* =======================
@@ -627,7 +784,10 @@ function onAnswer(i){
   const currentIndex = d.i;
   const correct = q.correctIndex;
   const prev = d.answers[d.i];
-  if(prev?.status) return;
+  if(prev?.status){
+    State.lock = false;
+    return;
+  }
 
   const isCorrect = (i === correct);
   if(isCorrect) d.me++;
@@ -690,6 +850,13 @@ function formatNumber(value){
   return Number.isFinite(value) ? value.toLocaleString("ru-RU") : "0";
 }
 
+function clearAdvanceTimer(){
+  if(State.advanceTimer){
+    clearTimeout(State.advanceTimer);
+    State.advanceTimer = null;
+  }
+}
+
 function notifyDataIssue(){
   if (State.pool.length) return;
   toast("⚠️ Не удалось загрузить билеты. Проверьте соединение и обновите страницу.");
@@ -745,6 +912,7 @@ function renderQuestionControls(isAnswered){
 function goToQuestion(index){
   const d = State.duel;
   if(!d) return;
+  clearAdvanceTimer();
   const target = Math.max(0, Math.min(index, d.q.length - 1));
   if(target > d.furthest) return;
   renderQuestion(target);
@@ -753,6 +921,7 @@ function goToQuestion(index){
 function nextQuestion(){
   const d = State.duel;
   if(!d) return;
+  clearAdvanceTimer();
   if(d.i >= d.q.length - 1){
     if(d.answers[d.i]?.status){
       finishDuel();
@@ -767,13 +936,7 @@ function nextQuestion(){
 function previousQuestion(){
   const d = State.duel;
   if(!d) return;
+  clearAdvanceTimer();
   if(d.i <= 0) return;
   renderQuestion(d.i - 1);
-}
-
-function clearAdvanceTimer(){
-  if(State.advanceTimer){
-    clearTimeout(State.advanceTimer);
-    State.advanceTimer = null;
-  }
 }
