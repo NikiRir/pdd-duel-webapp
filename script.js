@@ -85,24 +85,27 @@ async function boot(){
   showLoader(true);
   const baseProgress = 5;
   setLoader(baseProgress);
+  let success = false;
   try {
-    await loadTickets(progress => {
-      if (typeof progress === "number" && !Number.isNaN(progress)) {
-        const clamped = Math.max(0, Math.min(1, progress));
-        setLoader(baseProgress + Math.round(clamped * 85));
-      }
-    });
+    await Promise.race([
+      loadTickets(progress => {
+        if (typeof progress === "number" && !Number.isNaN(progress)) {
+          const clamped = Math.max(0, Math.min(1, progress));
+          setLoader(baseProgress + Math.round(clamped * 85));
+        }
+      }),
+      new Promise((_, reject)=>setTimeout(()=>reject(new Error("timeout")), 5000))
+    ]);
+    success = true;
   } catch(e) {
-    console.error("Ошибка загрузки билетов:", e);
-  } finally {
-    if(!State.pool.length){ hydrateFallback(); }
-    const hasQuestions = State.pool.length > 0;
-    setLoader(100);
-    renderHome();
-    updateStatsCounters();
-    setTimeout(()=>showLoader(false), 250);
-    if(!hasQuestions) setTimeout(()=>notifyDataIssue(), 350);
+    console.warn("Ошибка загрузки билетов:", e);
   }
+  if(!State.pool.length){ hydrateFallback(); }
+  setLoader(100);
+  renderHome();
+  updateStatsCounters();
+  setTimeout(()=>showLoader(false), 400);
+  if(!success && !State.pool.length) setTimeout(()=>notifyDataIssue(), 700);
 }
 
 /* =======================
