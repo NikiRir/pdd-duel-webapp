@@ -40,10 +40,13 @@
     --toast-bg: rgba(6, 11, 24, 0.92);
   }
 }
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
-html, body {
+html,
+body {
   height: 100%;
 }
 body {
@@ -651,7 +654,7 @@ button {
 
 .subpage-header {
   display: flex;
-  alignments: center;
+  align-items: center;
   gap: 16px;
   margin-bottom: 10px;
   padding-bottom: 14px;
@@ -702,19 +705,19 @@ button {
 .back-btn__icon::before {
   transform: translateY(-50%) rotate(35deg);
 }
-back-btn__icon::after {
+.back-btn__icon::after {
   transform: translateY(-50%) rotate(-35deg);
 }
-back-btn:hover,
-back-btn:focus-visible {
+.back-btn:hover,
+.back-btn:focus-visible {
   transform: translateX(-2px);
   background: rgba(47, 108, 198, 0.2);
   box-shadow: 0 12px 24px rgba(31, 60, 110, 0.18);
 }
-back-btn:hover .back-btn__icon::before,
-back-btn:hover .back-btn__icon::after,
-back-btn:focus-visible .back-btn__icon::before,
-back-btn:focus-visible .back-btn__icon::after {
+.back-btn:hover .back-btn__icon::before,
+.back-btn:hover .back-btn__icon::after,
+.back-btn:focus-visible .back-btn__icon::before,
+.back-btn:focus-visible .back-btn__icon::after {
   transform: translateY(-50%) rotate(0deg);
 }
 .hidden {
