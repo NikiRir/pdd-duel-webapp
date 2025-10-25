@@ -362,6 +362,88 @@ button {
 .grid.two {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
+.question-tracker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 6px;
+}
+.tracker-dot {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(47, 108, 198, 0.18);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 18px rgba(25, 44, 85, 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-weight: 600;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+.tracker-dot span {
+  font-size: 0.95rem;
+}
+.tracker-dot:hover:not(:disabled),
+.tracker-dot:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px rgba(25, 44, 85, 0.18);
+}
+.tracker-dot.is-current {
+  border-color: transparent;
+  background: linear-gradient(140deg, rgba(47, 108, 198, 0.8), rgba(95, 146, 224, 0.85));
+  color: #fff;
+}
+.tracker-dot.is-current.is-correct {
+  background: rgba(34, 197, 94, 0.22);
+  color: #166534;
+  border-color: rgba(34, 197, 94, 0.34);
+}
+.tracker-dot.is-current.is-wrong {
+  background: rgba(239, 68, 68, 0.24);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.36);
+}
+.tracker-dot.is-correct {
+  background: rgba(34, 197, 94, 0.16);
+  color: #166534;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.tracker-dot.is-wrong {
+  background: rgba(239, 68, 68, 0.18);
+  color: #b91c1c;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.tracker-dot:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.question-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px 0;
+}
+.nav-btn {
+  min-width: 140px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
 .markup-category {
   display: flex;
   flex-direction: column;
@@ -414,7 +496,7 @@ button {
 }
 .penalty {
   padding: 18px 20px;
-  border-bottom: 1px солид var(--border);
+  border-bottom: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 8px;
