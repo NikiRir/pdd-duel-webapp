@@ -13,6 +13,52 @@ const State = {
   lastTouchTs: 0,
 };
 
+const MANIFEST_URL = "questions/index.json";
+const FALLBACK_MANIFEST = {
+  tickets: [
+    "A_B/tickets/Билет 1.json",
+    "A_B/tickets/Билет 2.json",
+    "A_B/tickets/Билет 3.json",
+    "A_B/tickets/Билет 4.json",
+    "A_B/tickets/Билет 5.json",
+    "A_B/tickets/Билет 6.json",
+    "A_B/tickets/Билет 7.json",
+    "A_B/tickets/Билет 8.json",
+    "A_B/tickets/Билет 9.json",
+    "A_B/tickets/Билет 10.json",
+    "A_B/tickets/Билет 11.json",
+    "A_B/tickets/Билет 12.json",
+    "A_B/tickets/Билет 13.json",
+    "A_B/tickets/Билет 14.json",
+    "A_B/tickets/Билет 15.json",
+    "A_B/tickets/Билет 16.json",
+    "A_B/tickets/Билет 17.json",
+    "A_B/tickets/Билет 18.json",
+    "A_B/tickets/Билет 19.json",
+    "A_B/tickets/Билет 20.json",
+    "A_B/tickets/Билет 21.json",
+    "A_B/tickets/Билет 22.json",
+    "A_B/tickets/Билет 23.json",
+    "A_B/tickets/Билет 24.json",
+    "A_B/tickets/Билет 25.json",
+    "A_B/tickets/Билет 26.json",
+    "A_B/tickets/Билет 27.json",
+    "A_B/tickets/Билет 28.json",
+    "A_B/tickets/Билет 29.json",
+    "A_B/tickets/Билет 30.json",
+    "A_B/tickets/Билет 31.json",
+    "A_B/tickets/Билет 32.json",
+    "A_B/tickets/Билет 33.json",
+    "A_B/tickets/Билет 34.json",
+    "A_B/tickets/Билет 35.json",
+    "A_B/tickets/Билет 36.json",
+    "A_B/tickets/Билет 37.json",
+    "A_B/tickets/Билет 38.json",
+    "A_B/tickets/Билет 39.json",
+    "A_B/tickets/Билет 40.json"
+  ]
+};
+
 /* =======================
    Запуск
 ======================= */
@@ -113,8 +159,8 @@ function handleTap(e){
 
   const ans = e.target.closest("button.answer");
   if (ans && ans.dataset.i != null){ e.preventDefault(); onAnswer(+ans.dataset.i); return; }
-  const ticket = e.target.closest("[data-n]");
-  if (ticket){ e.preventDefault(); startTicket(+ticket.dataset.n); return; }
+  const ticket = e.target.closest("[data-ticket]");
+  if (ticket){ e.preventDefault(); startTicket(ticket.dataset.ticket); return; }
   const topic = e.target.closest("[data-t]");
   if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
   if (e.target.id === "again"){ e.preventDefault(); startDuel(State.duel?.topic?{mode:"topic",topic:State.duel.topic}:{mode:"quick"}); return; }
@@ -127,10 +173,19 @@ function handleTap(e){
 async function loadTickets(onProgress){
   if(State.pool.length) return State.pool;
 
-  const manifest = await fetchJson("questions/index.json");
-  const ticketFiles = Array.isArray(manifest?.tickets) ? manifest.tickets : [];
+  let manifest = null;
+  try {
+    manifest = await fetchJson(MANIFEST_URL);
+  } catch(err){
+    console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
+  }
+
+  const ticketFiles = uniqueStrings([
+    ...(manifest?.tickets || []),
+    ...FALLBACK_MANIFEST.tickets
+  ]);
   if(!ticketFiles.length){
-    console.warn("⚠️ В index.json нет списка билетов");
+    console.warn("⚠️ Нет списка билетов для загрузки");
     return [];
   }
 
@@ -150,6 +205,7 @@ async function loadTickets(onProgress){
       for(const item of list){
         if(!item.ticket_number) item.ticket_number = ticketLabel;
         if(!item.ticket_category) item.ticket_category = "A,B";
+        if(!item.__bucket) item.__bucket = ticketLabel;
       }
       raw.push(...list);
     } catch (err){
@@ -165,8 +221,13 @@ async function loadTickets(onProgress){
   const norm = normalizeQuestions(unique);
   for(const q of norm){
     State.pool.push(q);
-    if (!State.byTicket.has(q.ticket)) State.byTicket.set(q.ticket, []);
-    State.byTicket.get(q.ticket).push(q);
+    const bucketKey = q.ticketKey;
+    if (!State.byTicket.has(bucketKey)){
+      State.byTicket.set(bucketKey, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
+    }
+    const bucket = State.byTicket.get(bucketKey);
+    bucket.order = Math.min(bucket.order, Number.isFinite(q.ticketNumber) ? q.ticketNumber : Number.MAX_SAFE_INTEGER);
+    bucket.questions.push(q);
 
     for(const t of q.topics){
       if (!State.topics.has(t)) State.topics.set(t, []);
@@ -194,8 +255,9 @@ function normalizeQuestions(raw){
     }
     if (correctIndex < 0) correctIndex = 0;
 
-    let ticket = 0; const m2 = String(q.ticket_number||"").match(/\d+/);
-    if (m2) ticket = parseInt(m2[0]);
+    const ticketLabel = deriveTicketLabel(q);
+    const ticketNumber = deriveTicketNumber(ticketLabel);
+    const ticketKey = ticketLabel || (ticketNumber ? `Билет ${ticketNumber}` : `ticket-${out.length}`);
 
     let image = (q.image || "").replace(/^\.\//,"");
     if (image && !image.startsWith("images/")) image = "images/" + image;
@@ -205,7 +267,9 @@ function normalizeQuestions(raw){
       answers,
       correctIndex,
       tip: q.answer_tip || q.tip || "",
-      ticket,
+      ticketNumber,
+      ticketLabel,
+      ticketKey,
       topics: Array.isArray(q.topic) ? q.topic : q.topic ? [q.topic] : [],
       image
     });
@@ -213,14 +277,43 @@ function normalizeQuestions(raw){
   return out;
 }
 
+function deriveTicketLabel(q){
+  if (typeof q.ticket_number === "string" && q.ticket_number.trim()) return q.ticket_number.trim();
+  if (typeof q.ticket === "string" && q.ticket.trim()) return q.ticket.trim();
+  if (typeof q.__bucket === "string" && q.__bucket.trim()) return q.__bucket.trim();
+  if (typeof q.ticket === "number" && Number.isFinite(q.ticket)) return `Билет ${q.ticket}`;
+  return "Билет";
+}
+
+function deriveTicketNumber(label){
+  if (typeof label !== "string") return undefined;
+  const match = label.match(/\d+/);
+  if (!match) return undefined;
+  const value = parseInt(match[0], 10);
+  return Number.isFinite(value) ? value : undefined;
+}
+
 function deduplicate(raw){
   const seen = new Set();
   const out = [];
   for(const item of raw){
-    const key = item.id || `${item.ticket_number||"?"}:${item.question}`;
+    const key = item.id || `${item.ticket_number||"?")}:${item.question}`;
     if(seen.has(key)) continue;
     seen.add(key);
     out.push(item);
+  }
+  return out;
+}
+
+function uniqueStrings(list){
+  const seen = new Set();
+  const out = [];
+  for(const item of list){
+    if (typeof item !== "string" || !item.trim()) continue;
+    const normalized = item.trim();
+    if(seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
   }
   return out;
 }
@@ -256,12 +349,17 @@ function uiTopics(){
 }
 
 function uiTickets(){
-  const ids=[...State.byTicket.keys()].sort((a,b)=>a-b);
-  if(!ids.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true }); return; }
+  const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
+    key,
+    label: meta.label || key,
+    order: Number.isFinite(meta.order) ? meta.order : Number.MAX_SAFE_INTEGER,
+    questions: meta.questions
+  })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
+  if(!tickets.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true }); return; }
   setView(`
     <div class="card"><h3>Билеты</h3></div>
     <div class="card"><div class="grid auto">
-      ${ids.map(n=>`<button type="button" class="answer" data-n="${n}">Билет ${n}</button>`).join("")}
+      ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
     </div></div>
   `, { subpage: true });
 }
@@ -280,19 +378,21 @@ function startDuel({mode,topic=null}){
   State.duel = { mode, topic, i:0, me:0, q };
   renderQuestion();
 }
-function startTicket(n){
-  const arr = State.byTicket.get(n) || [];
-  if(!arr.length){ setView(`<div class="card"><h3>Билет ${n}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true }); return; }
+function startTicket(key){
+  const bucket = State.byTicket.get(key);
+  const arr = bucket?.questions || [];
+  if(!arr.length){ setView(`<div class="card"><h3>${esc(bucket?.label || key)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true }); return; }
   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
-  State.duel = { mode:"ticket", topic:null, i:0, me:0, q };
+  State.duel = { mode:"ticket", topic:null, i:0, me:0, q, ticketLabel: bucket?.label || key };
   renderQuestion();
 }
 
 function renderQuestion(){
   const d = State.duel, q = d.q[d.i];
+  const ticketInfo = q.ticketLabel || (State.duel?.ticketLabel) || (q.ticketNumber ? `Билет ${q.ticketNumber}` : "Билет");
   setView(`
     <div class="card">
-      <div class="meta">Вопрос ${d.i+1}/${d.q.length} • Билет ${q.ticket}</div>
+      <div class="meta">Вопрос ${d.i+1}/${d.q.length} • ${esc(ticketInfo)}</div>
       <h3>${esc(q.question)}</h3>
       ${q.image?`<img src="${q.image}" class="qimg" onerror="this.style.display='none'"/>`:""}
       <div class="grid">${q.answers.map((a,i)=>`<button class="answer" data-i="${i}">${esc(a)}</button>`).join("")}</div>
