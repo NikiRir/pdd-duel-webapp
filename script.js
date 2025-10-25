@@ -110,11 +110,12 @@ function toggleSubpage(isSub){
   screen?.scrollIntoView({ block: "start", behavior: "smooth" });
 }
 
-function setView(html, { subpage = true } = {}){
+function setView(html, { subpage = true, title = "" } = {}){
   toggleSubpage(subpage);
   const host = qs("#screen");
   host.scrollTop = 0;
-  host.innerHTML = `<div class="view">${html}</div>`;
+  const content = subpage ? wrapSubpage(title, html) : html;
+  host.innerHTML = `<div class="view">${content}</div>`;
 }
 function renderHome(){
   setActive(null);
@@ -124,6 +125,20 @@ function renderHome(){
       <p style="margin:.35rem 0 0;color:var(--muted)">⚡ Быстрая дуэль, 📚 Темы, 🎟️ Билеты</p>
     </div>
   `, { subpage: false });
+}
+
+function wrapSubpage(title, html){
+  const safe = esc((title || "ПДД ДУЭЛИ").trim());
+  return `
+    <header class="subpage-header">
+      <button type="button" class="back-btn" data-back aria-label="Назад">
+        <span class="back-btn__icon" aria-hidden="true"></span>
+        <span class="back-btn__label">Назад</span>
+      </button>
+      <h2 class="subpage-title">${safe}</h2>
+    </header>
+    ${html}
+  `;
 }
 function setActive(id){
   qsa("[data-action]").forEach(b=>b.classList.remove("active"));
@@ -169,6 +184,8 @@ function handleTap(e){
   if (ticket){ e.preventDefault(); startTicket(ticket.dataset.ticket); return; }
   const topic = e.target.closest("[data-t]");
   if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
+  const back = e.target.closest("[data-back]");
+  if (back){ e.preventDefault(); renderHome(); return; }
   if (e.target.id === "again"){ e.preventDefault(); startDuel(State.duel?.topic?{mode:"topic",topic:State.duel.topic}:{mode:"quick"}); return; }
   if (e.target.id === "home"){ e.preventDefault(); renderHome(); return; }
 }
@@ -383,7 +400,7 @@ async function fetchJson(url){
 function normalizeImagePath(path){
   const raw = (path ?? "").toString().trim();
   if(!raw) return "";
-  const withoutDots = raw.replace(/^\.\/+/, "").replace(/^\/+/, "");
+  const withoutDots = raw.replace(/^\.\//, "").replace(/^\/+/, "");
   if(/^https?:/i.test(raw)) return raw;
   if(/^https?:/i.test(withoutDots)) return withoutDots;
   if(!withoutDots) return "";
@@ -396,13 +413,13 @@ function normalizeImagePath(path){
 ======================= */
 function uiTopics(){
   const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
-  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true }); return; }
+  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
   setView(`
     <div class="card"><h3>Темы</h3></div>
     <div class="card"><div class="grid auto">
       ${list.map(t=>`<button type="button" class="answer" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
     </div></div>
-  `, { subpage: true });
+  `, { subpage: true, title: "Темы" });
 }
 
 function uiTickets(){
@@ -413,7 +430,7 @@ function uiTickets(){
     questions: meta.questions
   })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
   if(!tickets.length){
-    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true });
+    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
     return;
   }
   setView(`
@@ -421,15 +438,15 @@ function uiTickets(){
     <div class="card"><div class="grid auto">
       ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
     </div></div>
-  `, { subpage: true });
+  `, { subpage: true, title: "Билеты" });
 }
 
 async function uiMarkup(){
-  setView(`<div class="card"><h3>Дорожная разметка</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true });
+  setView(`<div class="card"><h3>Дорожная разметка</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true, title: "Разметка" });
   try {
     const groups = await loadMarkup();
     if(!groups.length){
-      setView(`<div class="card"><h3>Дорожная разметка</h3><p>❌ Данные не найдены</p></div>`, { subpage: true });
+      setView(`<div class="card"><h3>Дорожная разметка</h3><p>❌ Данные не найдены</p></div>`, { subpage: true, title: "Разметка" });
       return;
     }
     const total = groups.reduce((acc,g)=>acc + g.items.length, 0);
@@ -454,19 +471,19 @@ async function uiMarkup(){
           </div>
         </section>
       `).join("")}
-    `, { subpage: true });
+    `, { subpage: true, title: "Разметка" });
   } catch(err){
     console.error("Не удалось загрузить разметку:", err);
-    setView(`<div class="card"><h3>Дорожная разметка</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true });
+    setView(`<div class="card"><h3>Дорожная разметка</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Разметка" });
   }
 }
 
 async function uiPenalties(){
-  setView(`<div class="card"><h3>Штрафы</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true });
+  setView(`<div class="card"><h3>Штрафы</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true, title: "Штрафы" });
   try {
     const list = await loadPenalties();
     if(!list.length){
-      setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные не найдены</p></div>`, { subpage: true });
+      setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные не найдены</p></div>`, { subpage: true, title: "Штрафы" });
       return;
     }
     setView(`
@@ -485,15 +502,15 @@ async function uiPenalties(){
           `).join("")}
         </div>
       </div>
-    `, { subpage: true });
+    `, { subpage: true, title: "Штрафы" });
   } catch(err){
     console.error("Не удалось загрузить штрафы:", err);
-    setView(`<div class="card"><h3>Штрафы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true });
+    setView(`<div class="card"><h3>Штрафы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Штрафы" });
   }
 }
 
 function uiStats(){
-  setView(`<div class="card"><h3>Статистика</h3><p>Скоро здесь будет прогресс дуэлей.</p></div>`, { subpage: true });
+  setView(`<div class="card"><h3>Статистика</h3><p>Скоро здесь будет прогресс дуэлей.</p></div>`, { subpage: true, title: "Статистика" });
 }
 
 /* =======================
@@ -501,7 +518,7 @@ function uiStats(){
 ======================= */
 function startDuel({mode,topic=null}){
   const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true }); return; }
+  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
   const q = shuffle(src).slice(0,20);
   State.duel = { mode, topic, i:0, me:0, q };
   renderQuestion();
@@ -509,7 +526,7 @@ function startDuel({mode,topic=null}){
 function startTicket(key){
   const bucket = State.byTicket.get(key);
   const arr = bucket?.questions || [];
-  if(!arr.length){ setView(`<div class="card"><h3>${esc(bucket?.label || key)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true }); return; }
+  if(!arr.length){ setView(`<div class="card"><h3>${esc(bucket?.label || key)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true, title: bucket?.label || "Билет" }); return; }
   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
   State.duel = { mode:"ticket", topic:null, i:0, me:0, q, ticketLabel: bucket?.label || key };
   renderQuestion();
@@ -518,6 +535,7 @@ function startTicket(key){
 function renderQuestion(){
   const d = State.duel, q = d.q[d.i];
   const ticketInfo = q.ticketLabel || (State.duel?.ticketLabel) || (q.ticketNumber ? `Билет ${q.ticketNumber}` : "Билет");
+  const headerTitle = d.mode === "topic" && d.topic ? d.topic : (d.mode === "ticket" ? (State.duel?.ticketLabel || ticketInfo) : "Дуэль");
   setView(`
     <div class="card">
       <div class="meta">Вопрос ${d.i+1}/${d.q.length} • ${esc(ticketInfo)}</div>
@@ -526,7 +544,7 @@ function renderQuestion(){
       <div class="grid">${q.answers.map((a,i)=>`<button class="answer" data-i="${i}">${esc(a)}</button>`).join("")}</div>
       <div id="tip" class="meta" style="display:none;margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
     </div>
-  `, { subpage: true });
+  `, { subpage: true, title: headerTitle });
   State.lock = false;
 }
 
@@ -556,6 +574,7 @@ function onAnswer(i){
 
 function finishDuel(){
   const d=State.duel;
+  const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : "Дуэль");
   setView(`
     <div class="card">
       <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
@@ -565,7 +584,7 @@ function finishDuel(){
         <button class="btn" id="home">На главную</button>
       </div>
     </div>
-  `, { subpage: true });
+  `, { subpage: true, title: headerTitle });
 }
 
 /* =======================
