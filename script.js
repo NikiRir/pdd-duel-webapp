@@ -9,6 +9,8 @@ const State = {
   byTicket: new Map(),
   topics: new Map(),
   duel: null,
+  ticketsPromise: null,
+  ticketProgressListeners: new Set(),
   lock: false,
   lastTouchTs: 0,
   markup: null,
@@ -345,97 +347,137 @@ function getActionTarget(el){
 /* =======================
    Загрузка билетов
 ======================= */
+function safeInvoke(fn, value){
+  if (typeof fn !== "function") return;
+  try {
+    fn(value);
+  } catch(err){
+    console.error("Ошибка обработчика прогресса:", err);
+  }
+}
+
+function emitTicketProgress(value){
+  State.ticketProgressListeners.forEach(listener=>safeInvoke(listener, value));
+}
+
+function subscribeTicketProgress(listener){
+  if (typeof listener !== "function") return ()=>{};
+  State.ticketProgressListeners.add(listener);
+  return ()=>State.ticketProgressListeners.delete(listener);
+}
+
 async function loadTickets(onProgress){
   if(State.pool.length) {
-    onProgress && onProgress(1);
+    safeInvoke(onProgress, 1);
     return State.pool;
   }
 
-  onProgress && onProgress(0);
+  const unsubscribe = subscribeTicketProgress(onProgress);
+  if(!State.pool.length) safeInvoke(onProgress, 0);
 
-  let manifest = null;
+  if(!State.ticketsPromise){
+    State.ticketsPromise = (async ()=>{
+      emitTicketProgress(0);
+      let manifest = null;
+      try {
+        manifest = await fetchJson(MANIFEST_URL);
+      } catch(err){
+        console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
+      }
+
+      const ticketFiles = uniqueStrings([
+        ...(manifest?.tickets || []),
+        ...FALLBACK_MANIFEST.tickets
+      ]);
+      if(!ticketFiles.length){
+        console.warn("⚠️ Нет списка билетов для загрузки");
+        return hydrateFallback();
+      }
+
+      const raw = [];
+      let loaded = 0;
+      let successes = 0;
+      let failures = 0;
+      const total = ticketFiles.length;
+
+      for(const file of ticketFiles){
+        const url = `questions/${encodePath(file)}`;
+        try {
+          const response = await fetch(url, { cache:"no-store" });
+          if(!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const payload = await response.json();
+          const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
+          const ticketLabel = extractTicketLabel(file);
+          for(const item of list){
+            if(!item.ticket_number) item.ticket_number = ticketLabel;
+            if(!item.ticket_category) item.ticket_category = "A,B";
+            if(!item.__bucket) item.__bucket = ticketLabel;
+          }
+          raw.push(...list);
+          successes += list.length;
+        } catch (err){
+          console.error(`Не удалось загрузить ${file}:`, err);
+          failures += 1;
+          const failureThreshold = Math.min(5, ticketFiles.length);
+          if(successes === 0 && failures >= failureThreshold){
+            console.warn("⚠️ Слишком много ошибок при загрузке билетов, переключаемся на встроенный набор");
+            break;
+          }
+        }
+
+        loaded += 1;
+        emitTicketProgress(total ? loaded / total : 1);
+        await delay(12);
+      }
+
+      if(!raw.length){
+        console.warn("⚠️ Файлы билетов не загружены, используем встроенные вопросы");
+        raw.push(...FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
+      }
+
+      const unique = deduplicate(raw);
+      const norm = normalizeQuestions(unique);
+      for(const q of norm){
+        State.pool.push(q);
+        const bucketKey = q.ticketKey;
+        if (!State.byTicket.has(bucketKey)){
+          State.byTicket.set(bucketKey, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
+        }
+        const bucket = State.byTicket.get(bucketKey);
+        bucket.order = Math.min(bucket.order, Number.isFinite(q.ticketNumber) ? q.ticketNumber : Number.MAX_SAFE_INTEGER);
+        bucket.questions.push(q);
+
+        for(const t of q.topics){
+          if (!State.topics.has(t)) State.topics.set(t, []);
+          State.topics.get(t).push(q);
+        }
+      }
+
+      console.log(`✅ Загружено ${State.pool.length} вопросов`);
+      return State.pool;
+    })();
+
+    State.ticketsPromise = State.ticketsPromise.then(result=>{
+      emitTicketProgress(1);
+      State.ticketProgressListeners.clear();
+      return result;
+    }).catch(err=>{
+      emitTicketProgress(1);
+      State.ticketProgressListeners.clear();
+      State.ticketsPromise = null;
+      throw err;
+    });
+  }
+
   try {
-    manifest = await fetchJson(MANIFEST_URL);
-  } catch(err){
-    console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
+    const result = await State.ticketsPromise;
+    safeInvoke(onProgress, 1);
+    return result;
+  } finally {
+    unsubscribe();
   }
-
-  const ticketFiles = uniqueStrings([
-    ...(manifest?.tickets || []),
-    ...FALLBACK_MANIFEST.tickets
-  ]);
-  if(!ticketFiles.length){
-    console.warn("⚠️ Нет списка билетов для загрузки");
-    const fallback = hydrateFallback();
-    onProgress && onProgress(1);
-    return fallback;
-  }
-
-  const raw = [];
-  let loaded = 0;
-  let successes = 0;
-  let failures = 0;
-  const total = ticketFiles.length;
-
-  for(const file of ticketFiles){
-    const url = `questions/${encodePath(file)}`;
-    try {
-      const response = await fetch(url, { cache:"no-store" });
-      if(!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const payload = await response.json();
-      const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
-      const ticketLabel = extractTicketLabel(file);
-      for(const item of list){
-        if(!item.ticket_number) item.ticket_number = ticketLabel;
-        if(!item.ticket_category) item.ticket_category = "A,B";
-        if(!item.__bucket) item.__bucket = ticketLabel;
-      }
-      raw.push(...list);
-      successes += list.length;
-    } catch (err){
-      console.error(`Не удалось загрузить ${file}:`, err);
-      failures += 1;
-      const failureThreshold = Math.min(5, ticketFiles.length);
-      if(successes === 0 && failures >= failureThreshold){
-        console.warn("⚠️ Слишком много ошибок при загрузке билетов, переключаемся на встроенный набор");
-        break;
-      }
-    }
-
-    loaded += 1;
-    onProgress && onProgress(total ? loaded / total : 1);
-    await delay(12);
-  }
-
-  if(!raw.length){
-    console.warn("⚠️ Файлы билетов не загружены, используем встроенные вопросы");
-    raw.push(...FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
-  }
-
-  const unique = deduplicate(raw);
-  const norm = normalizeQuestions(unique);
-  for(const q of norm){
-    State.pool.push(q);
-    const bucketKey = q.ticketKey;
-    if (!State.byTicket.has(bucketKey)){
-      State.byTicket.set(bucketKey, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
-    }
-    const bucket = State.byTicket.get(bucketKey);
-    bucket.order = Math.min(bucket.order, Number.isFinite(q.ticketNumber) ? q.ticketNumber : Number.MAX_SAFE_INTEGER);
-    bucket.questions.push(q);
-
-    for(const t of q.topics){
-      if (!State.topics.has(t)) State.topics.set(t, []);
-      State.topics.get(t).push(q);
-    }
-  }
-
-  console.log(`✅ Загружено ${State.pool.length} вопросов`);
-  onProgress && onProgress(1);
-  return State.pool;
 }
-
 function hydrateFallback(){
   if(State.pool.length) return State.pool;
   const norm = normalizeQuestions(FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
@@ -603,7 +645,18 @@ function normalizeImagePath(path){
 /* =======================
    Экраны
 ======================= */
-function uiTopics(){
+async function uiTopics(){
+  if(!State.topics.size){
+    setView(`<div class="card"><h3>Темы</h3><p class="meta">Загружаем темы…</p></div>`, { subpage: true, title: "Темы" });
+    try {
+      await loadTickets();
+      updateStatsCounters();
+    } catch(err){
+      console.error("Ошибка загрузки тем:", err);
+      setView(`<div class="card"><h3>Темы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Темы" });
+      return;
+    }
+  }
   const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
   if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
   setView(`
@@ -614,7 +667,18 @@ function uiTopics(){
   `, { subpage: true, title: "Темы" });
 }
 
-function uiTickets(){
+async function uiTickets(){
+  if(!State.byTicket.size){
+    setView(`<div class="card"><h3>Билеты</h3><p class="meta">Загружаем билеты…</p></div>`, { subpage: true, title: "Билеты" });
+    try {
+      await loadTickets();
+      updateStatsCounters();
+    } catch(err){
+      console.error("Ошибка загрузки билетов:", err);
+      setView(`<div class="card"><h3>Билеты</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Билеты" });
+      return;
+    }
+  }
   const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
     key,
     label: meta.label || key,
@@ -708,10 +772,28 @@ function uiStats(){
 /* =======================
    Викторина
 ======================= */
-function startDuel({mode,topic=null}){
+async function startDuel({mode,topic=null}){
   clearAdvanceTimer();
+  const title = topic || "Дуэль";
+
+  if(!State.pool.length){
+    setView(`<div class="card"><h3>${esc(title)}</h3><p class="meta">Загружаем вопросы…</p></div>`, { subpage: true, title });
+    try {
+      await loadTickets();
+      updateStatsCounters();
+    } catch(err){
+      console.error("Ошибка загрузки вопросов для дуэли:", err);
+      setView(`<div class="card"><h3>${esc(title)}</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title });
+      return;
+    }
+  }
+
   const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
+  if(!src.length){
+    setView(`<div class="card"><h3>${esc(title)}</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title });
+    return;
+  }
+
   const q = shuffle(src).slice(0,20);
   State.duel = {
     mode,
