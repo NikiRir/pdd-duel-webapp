@@ -11,9 +11,13 @@ const State = {
   duel: null,
   lock: false,
   lastTouchTs: 0,
+  markup: null,
+  penalties: null,
 };
 
 const MANIFEST_URL = "questions/index.json";
+const MARKUP_URL = "markup/markup.json";
+const PENALTIES_URL = "penalties/penalties.json";
 const FALLBACK_MANIFEST = {
   tickets: [
     "A_B/tickets/Билет 1.json",
@@ -137,6 +141,8 @@ function bindMenu(){
       if (act==="quick")    startDuel({mode:"quick"});
       if (act==="topics")   uiTopics();
       if (act==="tickets")  uiTickets();
+      if (act==="markup")   uiMarkup();
+      if (act==="penalties")uiPenalties();
       if (act==="stats")    uiStats();
     }, { passive:true });
   });
@@ -239,6 +245,47 @@ async function loadTickets(onProgress){
   return State.pool;
 }
 
+async function loadMarkup(){
+  if (Array.isArray(State.markup)) return State.markup;
+  const response = await fetch(MARKUP_URL, { cache:"no-store" });
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  const groups = Object.entries(payload || {}).map(([title, data])=>{
+    const items = Object.values(data || {}).map(item=>({
+      number: item.number || "",
+      description: item.description || "",
+      image: normalizeImagePath(item.image)
+    })).sort((a,b)=>a.number.localeCompare(b.number,'ru',{numeric:true,sensitivity:'base'}));
+    return { title, items };
+  }).sort((a,b)=>a.title.localeCompare(b.title,'ru',{sensitivity:'base'}));
+  State.markup = groups;
+  return groups;
+}
+
+async function loadPenalties(){
+  if (Array.isArray(State.penalties)) return State.penalties;
+  const response = await fetch(PENALTIES_URL, { cache:"no-store" });
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  const text = await response.text();
+  const lines = text.split(/\n+/).map(line=>line.trim()).filter(Boolean);
+  const items = [];
+  for(const line of lines){
+    try {
+      const obj = JSON.parse(line);
+      items.push({
+        articlePart: obj.article_part || obj.articlePart || "—",
+        text: obj.text || "",
+        penalty: obj.penalty || ""
+      });
+    } catch(err){
+      console.error("Не удалось разобрать штраф:", err, line);
+    }
+  }
+  items.sort((a,b)=>a.articlePart.localeCompare(b.articlePart,'ru',{numeric:true,sensitivity:'base'}));
+  State.penalties = items;
+  return items;
+}
+
 /* =======================
    Нормализация данных
 ======================= */
@@ -259,8 +306,7 @@ function normalizeQuestions(raw){
     const ticketNumber = deriveTicketNumber(ticketLabel);
     const ticketKey = ticketLabel || (ticketNumber ? `Билет ${ticketNumber}` : `ticket-${out.length}`);
 
-    let image = (q.image || "").replace(/^\.\//,"");
-    if (image && !image.startsWith("images/")) image = "images/" + image;
+    const image = normalizeImagePath(q.image);
 
     out.push({
       question: q.question || q.title || "Вопрос",
@@ -297,7 +343,7 @@ function deduplicate(raw){
   const seen = new Set();
   const out = [];
   for(const item of raw){
-    const key = item.id || `${item.ticket_number||"?")}:${item.question}`;
+    const key = item.id || `${item.ticket_number||"?"}:${item.question}`;
     if(seen.has(key)) continue;
     seen.add(key);
     out.push(item);
@@ -334,6 +380,17 @@ async function fetchJson(url){
   return response.json();
 }
 
+function normalizeImagePath(path){
+  const raw = (path ?? "").toString().trim();
+  if(!raw) return "";
+  const withoutDots = raw.replace(/^\.\/+/, "").replace(/^\/+/, "");
+  if(/^https?:/i.test(raw)) return raw;
+  if(/^https?:/i.test(withoutDots)) return withoutDots;
+  if(!withoutDots) return "";
+  if(withoutDots.startsWith("images/")) return withoutDots;
+  return `images/${withoutDots}`;
+}
+
 /* =======================
    Экраны
 ======================= */
@@ -355,13 +412,84 @@ function uiTickets(){
     order: Number.isFinite(meta.order) ? meta.order : Number.MAX_SAFE_INTEGER,
     questions: meta.questions
   })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
-  if(!tickets.length){ setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true }); return; }
+  if(!tickets.length){
+    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true });
+    return;
+  }
   setView(`
     <div class="card"><h3>Билеты</h3></div>
     <div class="card"><div class="grid auto">
       ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
     </div></div>
   `, { subpage: true });
+}
+
+async function uiMarkup(){
+  setView(`<div class="card"><h3>Дорожная разметка</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true });
+  try {
+    const groups = await loadMarkup();
+    if(!groups.length){
+      setView(`<div class="card"><h3>Дорожная разметка</h3><p>❌ Данные не найдены</p></div>`, { subpage: true });
+      return;
+    }
+    const total = groups.reduce((acc,g)=>acc + g.items.length, 0);
+    setView(`
+      <div class="card">
+        <h3>Дорожная разметка</h3>
+        <p class="meta">Типов: ${formatNumber(total)} в ${formatNumber(groups.length)} разделах</p>
+      </div>
+      ${groups.map(group=>`
+        <section class="card markup-category">
+          <h3>${esc(group.title)}</h3>
+          <div class="markup-list">
+            ${group.items.map(item=>`
+              <article class="markup-item">
+                <header class="markup-item__head">
+                  <span class="markup-item__badge">${esc(item.number)}</span>
+                </header>
+                ${item.image ? `<img src="${item.image}" alt="Разметка ${esc(item.number)}" loading="lazy" class="markup-item__image" />` : ""}
+                <p>${esc(item.description)}</p>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+      `).join("")}
+    `, { subpage: true });
+  } catch(err){
+    console.error("Не удалось загрузить разметку:", err);
+    setView(`<div class="card"><h3>Дорожная разметка</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true });
+  }
+}
+
+async function uiPenalties(){
+  setView(`<div class="card"><h3>Штрафы</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true });
+  try {
+    const list = await loadPenalties();
+    if(!list.length){
+      setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные не найдены</p></div>`, { subpage: true });
+      return;
+    }
+    setView(`
+      <div class="card">
+        <h3>Штрафы</h3>
+        <p class="meta">Записей: ${formatNumber(list.length)}</p>
+      </div>
+      <div class="card penalties-card">
+        <div class="penalties-grid">
+          ${list.map(item=>`
+            <article class="penalty">
+              <h4>${esc(item.articlePart)}</h4>
+              <p>${esc(item.text)}</p>
+              <p class="penalty__fine">${esc(item.penalty)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </div>
+    `, { subpage: true });
+  } catch(err){
+    console.error("Не удалось загрузить штрафы:", err);
+    setView(`<div class="card"><h3>Штрафы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true });
+  }
 }
 
 function uiStats(){
@@ -448,7 +576,7 @@ const qsa=s=>[...document.querySelectorAll(s)];
 function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
 function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
-function esc(s){return String(s??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
 function updateStatsCounters(){
   setStat("statQuestions", State.pool.length);
   setStat("statTopics", State.topics.size);
@@ -458,4 +586,7 @@ function setStat(id, value){
   const el = qs(`#${id}`);
   if(!el) return;
   el.textContent = value ? value.toLocaleString("ru-RU") : "0";
+}
+function formatNumber(value){
+  return Number.isFinite(value) ? value.toLocaleString("ru-RU") : "0";
 }
