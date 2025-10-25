@@ -9,8 +9,6 @@ const State = {
   byTicket: new Map(),
   topics: new Map(),
   duel: null,
-  ticketsPromise: null,
-  ticketProgressListeners: new Set(),
   lock: false,
   lastTouchTs: 0,
   markup: null,
@@ -18,6 +16,7 @@ const State = {
   tap: null,
   ignoreClickUntil: 0,
   advanceTimer: null,
+  usedFallback: false,
 };
 
 let delegationBound = false;
@@ -74,26 +73,268 @@ const FALLBACK_MANIFEST = {
 
 const FALLBACK_QUESTION_BANK = [
   {
+    ticket_number: "Демо билет 1",
+    topic: "Общие положения",
     question: "Какой сигнал светофора разрешает движение?",
     answers: [
       { answer_text: "Зелёный", is_correct: true },
       { answer_text: "Жёлтый" },
-      { answer_text: "Красный" }
+      { answer_text: "Красный" },
+      { answer_text: "Мигающий белый" }
     ],
-    tip: "Зелёный сигнал разрешает движение, жёлтый предупреждает, красный запрещает.",
-    ticket_number: "Демо билет",
-    topic: "Общие положения"
+    tip: "Зелёный сигнал разрешает движение водителям и пешеходам."
   },
   {
-    question: "Нужно ли пропускать пешехода на нерегулируемом переходе?",
+    ticket_number: "Демо билет 1",
+    topic: "Общие положения",
+    question: "Когда водитель обязан уступить дорогу пешеходу на нерегулируемом переходе?",
     answers: [
-      { answer_text: "Да, всегда", is_correct: true },
+      { answer_text: "Всегда", is_correct: true },
       { answer_text: "Только ночью" },
-      { answer_text: "Нет" }
+      { answer_text: "Только когда нет других машин" },
+      { answer_text: "Только в ясную погоду" }
     ],
-    tip: "Водитель обязан уступить дорогу пешеходам на нерегулируемом переходе.",
-    ticket_number: "Демо билет",
-    topic: "Пешеходные переходы"
+    tip: "На нерегулируемых переходах водитель обязан уступить дорогу пешеходам."
+  },
+  {
+    ticket_number: "Демо билет 2",
+    topic: "Начало движения, маневрирование",
+    question: "Перед началом движения водитель должен",
+    answers: [
+      { answer_text: "Убедиться в безопасности манёвра", is_correct: true },
+      { answer_text: "Подать звуковой сигнал" },
+      { answer_text: "Включить аварийную сигнализацию" },
+      { answer_text: "Выполнить обгон" }
+    ],
+    tip: "Перед началом движения водитель обязан убедиться, что манёвр безопасен для других участников движения."
+  },
+  {
+    ticket_number: "Демо билет 2",
+    topic: "Начало движения, маневрирование",
+    question: "При изменении полосы движения необходимо",
+    answers: [
+      { answer_text: "Подать соответствующий сигнал поворота", is_correct: true },
+      { answer_text: "Снизить скорость до 20 км/ч" },
+      { answer_text: "Включить дальний свет" },
+      { answer_text: "Включить аварийную сигнализацию" }
+    ],
+    tip: "Перед перестроением водитель обязан подать сигнал указателями поворота."
+  },
+  {
+    ticket_number: "Демо билет 3",
+    topic: "Скорость движения",
+    question: "Какова максимальная разрешённая скорость в населённом пункте?",
+    answers: [
+      { answer_text: "60 км/ч", is_correct: true },
+      { answer_text: "70 км/ч" },
+      { answer_text: "80 км/ч" },
+      { answer_text: "90 км/ч" }
+    ],
+    tip: "По умолчанию в населённых пунктах разрешено ехать не быстрее 60 км/ч."
+  },
+  {
+    ticket_number: "Демо билет 3",
+    topic: "Скорость движения",
+    question: "На каком расстоянии до опасного участка устанавливают предупреждающие знаки вне населённых пунктов?",
+    answers: [
+      { answer_text: "150-300 метров", is_correct: true },
+      { answer_text: "50-100 метров" },
+      { answer_text: "400-500 метров" },
+      { answer_text: "Не ближе 20 метров" }
+    ],
+    tip: "Вне населённых пунктов предупреждающие знаки ставятся за 150-300 метров до опасного участка."
+  },
+  {
+    ticket_number: "Демо билет 4",
+    topic: "Проезд перекрестков",
+    question: "Кто имеет преимущество на нерегулируемом перекрёстке равнозначных дорог?",
+    answers: [
+      { answer_text: "Транспортное средство, находящееся справа", is_correct: true },
+      { answer_text: "Транспортное средство, находящееся слева" },
+      { answer_text: "Автомобиль с включённым ближним светом" },
+      { answer_text: "Тот, кто первым начал движение" }
+    ],
+    tip: "На перекрёстках равнозначных дорог действует правило «помехи справа»."
+  },
+  {
+    ticket_number: "Демо билет 4",
+    topic: "Проезд перекрестков",
+    question: "Как следует действовать при одновременном приближении к перекрёстку со встречным автомобилем и намерении повернуть налево?",
+    answers: [
+      { answer_text: "Уступить дорогу встречному автомобилю", is_correct: true },
+      { answer_text: "Повернуть первым" },
+      { answer_text: "Остановиться и ожидать звукового сигнала" },
+      { answer_text: "Проехать прямо" }
+    ],
+    tip: "При повороте налево водитель уступает дорогу встречному транспорту, движущемуся прямо или направо."
+  },
+  {
+    ticket_number: "Демо билет 5",
+    topic: "Обгон, опережение, встречный разъезд",
+    question: "Когда запрещён обгон?",
+    answers: [
+      { answer_text: "На перекрёстках и пешеходных переходах", is_correct: true },
+      { answer_text: "На прямых участках дороги" },
+      { answer_text: "На магистрали" },
+      { answer_text: "В светлое время суток" }
+    ],
+    tip: "Обгон запрещён на перекрёстках, пешеходных переходах и в других опасных местах."
+  },
+  {
+    ticket_number: "Демо билет 5",
+    topic: "Обгон, опережение, встречный разъезд",
+    question: "Как водитель должен поступить при встречном разъезде на узком мосту?",
+    answers: [
+      { answer_text: "Уступить дорогу автомобилю, который первым въехал на мост", is_correct: true },
+      { answer_text: "Разъехаться по обочине" },
+      { answer_text: "Подать звуковой сигнал" },
+      { answer_text: "Остановиться и выключить двигатель" }
+    ],
+    tip: "На узком мосту преимущество имеет транспортное средство, которое первым въехало на мост."
+  },
+  {
+    ticket_number: "Демо билет 6",
+    topic: "Остановка и стоянка",
+    question: "Где запрещена стоянка?",
+    answers: [
+      { answer_text: "Ближе 5 м от пешеходного перехода", is_correct: true },
+      { answer_text: "На правой обочине" },
+      { answer_text: "На стоянке с табличкой 8.2.6" },
+      { answer_text: "Перед гаражом" }
+    ],
+    tip: "Стоянка запрещена ближе 5 м от пешеходных переходов."
+  },
+  {
+    ticket_number: "Демо билет 6",
+    topic: "Остановка и стоянка",
+    question: "Разрешена ли остановка на трамвайных путях?",
+    answers: [
+      { answer_text: "Запрещена", is_correct: true },
+      { answer_text: "Разрешена на 5 минут" },
+      { answer_text: "Разрешена при включённой аварийной сигнализации" },
+      { answer_text: "Разрешена, если рядом нет трамвая" }
+    ],
+    tip: "Остановка на трамвайных путях запрещена."
+  },
+  {
+    ticket_number: "Демо билет 7",
+    topic: "Безопасность движения и техника управления автомобилем",
+    question: "При заносе задней оси автомобиля следует",
+    answers: [
+      { answer_text: "Повернуть рулевое колесо в сторону заноса", is_correct: true },
+      { answer_text: "Нажать на газ" },
+      { answer_text: "Резко нажать на тормоз" },
+      { answer_text: "Выключить фары" }
+    ],
+    tip: "Чтобы стабилизировать автомобиль, поворачивайте руль в сторону заноса."
+  },
+  {
+    ticket_number: "Демо билет 7",
+    topic: "Безопасность движения и техника управления автомобилем",
+    question: "Что нужно сделать перед началом буксировки?",
+    answers: [
+      { answer_text: "Проверить исправность сцепного устройства", is_correct: true },
+      { answer_text: "Включить дальний свет" },
+      { answer_text: "Открыть капот" },
+      { answer_text: "Снять аккумулятор" }
+    ],
+    tip: "Перед буксировкой убедитесь в надёжности соединения автомобилей."
+  },
+  {
+    ticket_number: "Демо билет 8",
+    topic: "Дорожные знаки",
+    question: "Что означает знак «Главная дорога»?",
+    answers: [
+      { answer_text: "Вы движетесь по главной дороге", is_correct: true },
+      { answer_text: "Впереди тупик" },
+      { answer_text: "Запрещено движение" },
+      { answer_text: "Впереди жилой район" }
+    ],
+    tip: "Знак подтверждает преимущество на перекрёстках."
+  },
+  {
+    ticket_number: "Демо билет 8",
+    topic: "Дорожные знаки",
+    question: "Какой знак устанавливают перед крутым поворотом?",
+    answers: [
+      { answer_text: "Предупреждающий знак «Опасный поворот»", is_correct: true },
+      { answer_text: "Запрещающий знак «Движение запрещено»" },
+      { answer_text: "Информационный знак «Парковка»" },
+      { answer_text: "Знак сервиса" }
+    ],
+    tip: "Знак «Опасный поворот» предупреждает о резком изменении направления дороги."
+  },
+  {
+    ticket_number: "Демо билет 9",
+    topic: "Дорожная разметка",
+    question: "Что означает сплошная линия разметки?",
+    answers: [
+      { answer_text: "Пересекать её запрещено", is_correct: true },
+      { answer_text: "Можно пересекать при обгоне" },
+      { answer_text: "Она обозначает парковку" },
+      { answer_text: "Указывает на место разворота" }
+    ],
+    tip: "Сплошную линию пересекать нельзя, кроме случаев объезда препятствия."
+  },
+  {
+    ticket_number: "Демо билет 9",
+    topic: "Дорожная разметка",
+    question: "Что обозначает жёлтая прерывистая линия у тротуара?",
+    answers: [
+      { answer_text: "Запрещает стоянку", is_correct: true },
+      { answer_text: "Указывает место парковки" },
+      { answer_text: "Разрешает стоянку" },
+      { answer_text: "Запрещает движение" }
+    ],
+    tip: "Жёлтая прерывистая линия запрещает стоянку, но допускает краткую остановку."
+  },
+  {
+    ticket_number: "Демо билет 10",
+    topic: "Ответственность водителя",
+    question: "К чему приводит управление автомобилем в состоянии опьянения?",
+    answers: [
+      { answer_text: "К административной или уголовной ответственности", is_correct: true },
+      { answer_text: "Никаких последствий" },
+      { answer_text: "К повышению лимита скорости" },
+      { answer_text: "К обязательному страховому возмещению" }
+    ],
+    tip: "Вождение в состоянии опьянения влечёт серьёзную ответственность и лишение прав."
+  },
+  {
+    ticket_number: "Демо билет 10",
+    topic: "Ответственность водителя",
+    question: "Что обязан сделать водитель при ДТП без пострадавших?",
+    answers: [
+      { answer_text: "Остановиться и оформить происшествие", is_correct: true },
+      { answer_text: "Продолжить движение" },
+      { answer_text: "Скрыться" },
+      { answer_text: "Перенести повреждённые части в салон" }
+    ],
+    tip: "Водитель обязан остановиться, включить аварийную сигнализацию и оформить ДТП."
+  },
+  {
+    ticket_number: "Демо билет 11",
+    topic: "Перевозка людей и грузов",
+    question: "Можно ли перевозить пассажиров на заднем сиденье мотоцикла без бокового прицепа?",
+    answers: [
+      { answer_text: "Можно при наличии соответствующей категории и мотошлемов", is_correct: true },
+      { answer_text: "Запрещено всегда" },
+      { answer_text: "Можно только детей" },
+      { answer_text: "Можно без шлемов" }
+    ],
+    tip: "Перевозка пассажира на мотоцикле допускается при наличии мотошлема и водительской категории A."
+  },
+  {
+    ticket_number: "Демо билет 11",
+    topic: "Перевозка людей и грузов",
+    question: "Как разместить груз, выступающий более чем на 1 метр за габариты автомобиля?",
+    answers: [
+      { answer_text: "Обозначить его специальными знаками или флажками", is_correct: true },
+      { answer_text: "Не обозначать" },
+      { answer_text: "Закрепить только верёвкой" },
+      { answer_text: "Перевозить только ночью" }
+    ],
+    tip: "Выступающий груз необходимо обозначить флажками или световозвращателями."
   }
 ];
 
@@ -117,21 +358,24 @@ if (document.readyState === "loading") {
 }
 
 async function boot(){
+  hydrateFallback({ reset: true });
   showLoader(true);
   const baseProgress = 5;
   setLoader(baseProgress);
-  let hasQuestions = false;
   try {
-    const pool = await loadTickets(progress => {
+    await loadTickets(progress => {
       if (typeof progress === "number" && !Number.isNaN(progress)) {
         const clamped = Math.max(0, Math.min(1, progress));
         setLoader(baseProgress + Math.round(clamped * 85));
       }
     });
-    hasQuestions = Array.isArray(pool) ? pool.length > 0 : State.pool.length > 0;
   } catch(e) {
     console.error("Ошибка загрузки билетов:", e);
   } finally {
+    if(!State.pool.length){
+      hydrateFallback();
+    }
+    const hasQuestions = State.pool.length > 0;
     setLoader(100);
     renderHome();
     updateStatsCounters();
@@ -347,151 +591,84 @@ function getActionTarget(el){
 /* =======================
    Загрузка билетов
 ======================= */
-function safeInvoke(fn, value){
-  if (typeof fn !== "function") return;
-  try {
-    fn(value);
-  } catch(err){
-    console.error("Ошибка обработчика прогресса:", err);
-  }
-}
-
-function emitTicketProgress(value){
-  State.ticketProgressListeners.forEach(listener=>safeInvoke(listener, value));
-}
-
-function subscribeTicketProgress(listener){
-  if (typeof listener !== "function") return ()=>{};
-  State.ticketProgressListeners.add(listener);
-  return ()=>State.ticketProgressListeners.delete(listener);
-}
-
 async function loadTickets(onProgress){
-  if(State.pool.length) {
-    safeInvoke(onProgress, 1);
-    return State.pool;
-  }
+  onProgress && onProgress(0);
 
-  const unsubscribe = subscribeTicketProgress(onProgress);
-  if(!State.pool.length) safeInvoke(onProgress, 0);
-
-  if(!State.ticketsPromise){
-    State.ticketsPromise = (async ()=>{
-      emitTicketProgress(0);
-      let manifest = null;
-      try {
-        manifest = await fetchJson(MANIFEST_URL);
-      } catch(err){
-        console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
-      }
-
-      const ticketFiles = uniqueStrings([
-        ...(manifest?.tickets || []),
-        ...FALLBACK_MANIFEST.tickets
-      ]);
-      if(!ticketFiles.length){
-        console.warn("⚠️ Нет списка билетов для загрузки");
-        return hydrateFallback();
-      }
-
-      const raw = [];
-      let loaded = 0;
-      let successes = 0;
-      let failures = 0;
-      const total = ticketFiles.length;
-
-      for(const file of ticketFiles){
-        const url = `questions/${encodePath(file)}`;
-        try {
-          const response = await fetch(url, { cache:"no-store" });
-          if(!response.ok) throw new Error(`HTTP ${response.status}`);
-
-          const payload = await response.json();
-          const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
-          const ticketLabel = extractTicketLabel(file);
-          for(const item of list){
-            if(!item.ticket_number) item.ticket_number = ticketLabel;
-            if(!item.ticket_category) item.ticket_category = "A,B";
-            if(!item.__bucket) item.__bucket = ticketLabel;
-          }
-          raw.push(...list);
-          successes += list.length;
-        } catch (err){
-          console.error(`Не удалось загрузить ${file}:`, err);
-          failures += 1;
-          const failureThreshold = Math.min(5, ticketFiles.length);
-          if(successes === 0 && failures >= failureThreshold){
-            console.warn("⚠️ Слишком много ошибок при загрузке билетов, переключаемся на встроенный набор");
-            break;
-          }
-        }
-
-        loaded += 1;
-        emitTicketProgress(total ? loaded / total : 1);
-        await delay(12);
-      }
-
-      if(!raw.length){
-        console.warn("⚠️ Файлы билетов не загружены, используем встроенные вопросы");
-        raw.push(...FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
-      }
-
-      const unique = deduplicate(raw);
-      const norm = normalizeQuestions(unique);
-      for(const q of norm){
-        State.pool.push(q);
-        const bucketKey = q.ticketKey;
-        if (!State.byTicket.has(bucketKey)){
-          State.byTicket.set(bucketKey, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
-        }
-        const bucket = State.byTicket.get(bucketKey);
-        bucket.order = Math.min(bucket.order, Number.isFinite(q.ticketNumber) ? q.ticketNumber : Number.MAX_SAFE_INTEGER);
-        bucket.questions.push(q);
-
-        for(const t of q.topics){
-          if (!State.topics.has(t)) State.topics.set(t, []);
-          State.topics.get(t).push(q);
-        }
-      }
-
-      console.log(`✅ Загружено ${State.pool.length} вопросов`);
-      return State.pool;
-    })();
-
-    State.ticketsPromise = State.ticketsPromise.then(result=>{
-      emitTicketProgress(1);
-      State.ticketProgressListeners.clear();
-      return result;
-    }).catch(err=>{
-      emitTicketProgress(1);
-      State.ticketProgressListeners.clear();
-      State.ticketsPromise = null;
-      throw err;
-    });
-  }
-
+  let manifest = null;
   try {
-    const result = await State.ticketsPromise;
-    safeInvoke(onProgress, 1);
-    return result;
-  } finally {
-    unsubscribe();
+    manifest = await fetchJson(MANIFEST_URL);
+  } catch(err){
+    console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
   }
+
+  const ticketFiles = uniqueStrings([
+    ...(manifest?.tickets || []),
+    ...FALLBACK_MANIFEST.tickets
+  ]);
+  if(!ticketFiles.length){
+    console.warn("⚠️ Нет списка билетов для загрузки");
+    const fallback = hydrateFallback();
+    onProgress && onProgress(1);
+    return fallback;
+  }
+
+  const raw = [];
+  let loaded = 0;
+  let successes = 0;
+  let failures = 0;
+  const total = ticketFiles.length;
+
+  for(const file of ticketFiles){
+    const url = `questions/${encodePath(file)}`;
+    try {
+      const response = await fetch(url, { cache:"no-store" });
+      if(!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const payload = await response.json();
+      const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
+      const ticketLabel = extractTicketLabel(file);
+      for(const item of list){
+        if(!item.ticket_number) item.ticket_number = ticketLabel;
+        if(!item.ticket_category) item.ticket_category = "A,B";
+        if(!item.__bucket) item.__bucket = ticketLabel;
+      }
+      raw.push(...list);
+      successes += list.length;
+    } catch (err){
+      console.error(`Не удалось загрузить ${file}:`, err);
+      failures += 1;
+      const failureThreshold = Math.min(5, ticketFiles.length);
+      if(successes === 0 && failures >= failureThreshold){
+        console.warn("⚠️ Слишком много ошибок при загрузке билетов, переключаемся на встроенный набор");
+        break;
+      }
+    }
+
+    loaded += 1;
+    onProgress && onProgress(total ? loaded / total : 1);
+    await delay(12);
+  }
+
+  if(!raw.length){
+    console.warn("⚠️ Файлы билетов не загружены, используем встроенные вопросы");
+    const fallback = hydrateFallback({ reset: !State.pool.length });
+    onProgress && onProgress(1);
+    return fallback;
+  }
+
+  applyQuestions(normalizeQuestions(deduplicate(raw)), "remote");
+
+  console.log(`✅ Загружено ${State.pool.length} вопросов`);
+  onProgress && onProgress(1);
+  return State.pool;
 }
-function hydrateFallback(){
-  if(State.pool.length) return State.pool;
-  const norm = normalizeQuestions(FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
-  for(const q of norm){
-    State.pool.push(q);
-    const key = q.ticketKey;
-    if(!State.byTicket.has(key)){
-      State.byTicket.set(key, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
-    }
-    State.byTicket.get(key).questions.push(q);
-    for(const t of q.topics){
-      if(!State.topics.has(t)) State.topics.set(t, []);
-      State.topics.get(t).push(q);
-    }
+
+function hydrateFallback({ reset = false } = {}){
+  if(reset || !State.pool.length){
+    console.warn("ℹ️ Используем встроенный демонстрационный набор вопросов");
+    applyQuestions(normalizeQuestions(FALLBACK_QUESTION_BANK.map(item=>({ ...item }))), "fallback");
+  } else {
+    State.usedFallback = true;
   }
   return State.pool;
 }
@@ -574,6 +751,36 @@ function normalizeQuestions(raw){
   return out;
 }
 
+function resetQuestionState(){
+  State.pool.length = 0;
+  State.byTicket.clear();
+  State.topics.clear();
+}
+
+function applyQuestions(norm, source = "remote"){
+  resetQuestionState();
+  ingestQuestions(norm);
+  State.usedFallback = source === "fallback";
+}
+
+function ingestQuestions(norm){
+  for(const q of norm){
+    State.pool.push(q);
+    const bucketKey = q.ticketKey;
+    if (!State.byTicket.has(bucketKey)){
+      State.byTicket.set(bucketKey, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
+    }
+    const bucket = State.byTicket.get(bucketKey);
+    bucket.order = Math.min(bucket.order, Number.isFinite(q.ticketNumber) ? q.ticketNumber : Number.MAX_SAFE_INTEGER);
+    bucket.questions.push(q);
+
+    for(const t of q.topics){
+      if (!State.topics.has(t)) State.topics.set(t, []);
+      State.topics.get(t).push(q);
+    }
+  }
+}
+
 function deriveTicketLabel(q){
   if (typeof q.ticket_number === "string" && q.ticket_number.trim()) return q.ticket_number.trim();
   if (typeof q.ticket === "string" && q.ticket.trim()) return q.ticket.trim();
@@ -645,18 +852,7 @@ function normalizeImagePath(path){
 /* =======================
    Экраны
 ======================= */
-async function uiTopics(){
-  if(!State.topics.size){
-    setView(`<div class="card"><h3>Темы</h3><p class="meta">Загружаем темы…</p></div>`, { subpage: true, title: "Темы" });
-    try {
-      await loadTickets();
-      updateStatsCounters();
-    } catch(err){
-      console.error("Ошибка загрузки тем:", err);
-      setView(`<div class="card"><h3>Темы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Темы" });
-      return;
-    }
-  }
+function uiTopics(){
   const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
   if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
   setView(`
@@ -667,18 +863,7 @@ async function uiTopics(){
   `, { subpage: true, title: "Темы" });
 }
 
-async function uiTickets(){
-  if(!State.byTicket.size){
-    setView(`<div class="card"><h3>Билеты</h3><p class="meta">Загружаем билеты…</p></div>`, { subpage: true, title: "Билеты" });
-    try {
-      await loadTickets();
-      updateStatsCounters();
-    } catch(err){
-      console.error("Ошибка загрузки билетов:", err);
-      setView(`<div class="card"><h3>Билеты</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Билеты" });
-      return;
-    }
-  }
+function uiTickets(){
   const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
     key,
     label: meta.label || key,
@@ -772,28 +957,10 @@ function uiStats(){
 /* =======================
    Викторина
 ======================= */
-async function startDuel({mode,topic=null}){
+function startDuel({mode,topic=null}){
   clearAdvanceTimer();
-  const title = topic || "Дуэль";
-
-  if(!State.pool.length){
-    setView(`<div class="card"><h3>${esc(title)}</h3><p class="meta">Загружаем вопросы…</p></div>`, { subpage: true, title });
-    try {
-      await loadTickets();
-      updateStatsCounters();
-    } catch(err){
-      console.error("Ошибка загрузки вопросов для дуэли:", err);
-      setView(`<div class="card"><h3>${esc(title)}</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title });
-      return;
-    }
-  }
-
   const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){
-    setView(`<div class="card"><h3>${esc(title)}</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title });
-    return;
-  }
-
+  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
   const q = shuffle(src).slice(0,20);
   State.duel = {
     mode,
