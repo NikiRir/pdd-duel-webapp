@@ -17,6 +17,10 @@ const State = {
   ignoreClickUntil: 0,
 };
 
+let delegationBound = false;
+let menuBound = false;
+const scheduleFrame = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (fn)=>setTimeout(fn, 16);
+
 const MANIFEST_URL = "questions/index.json";
 const MARKUP_URL = "markup/markup.json";
 const PENALTIES_URL = "penalties/penalties.json";
@@ -65,14 +69,49 @@ const FALLBACK_MANIFEST = {
   ]
 };
 
+const FALLBACK_QUESTION_BANK = [
+  {
+    question: "Какой сигнал светофора разрешает движение?",
+    answers: [
+      { answer_text: "Зелёный", is_correct: true },
+      { answer_text: "Жёлтый" },
+      { answer_text: "Красный" }
+    ],
+    tip: "Зелёный сигнал разрешает движение, жёлтый предупреждает, красный запрещает.",
+    ticket_number: "Демо билет",
+    topic: "Общие положения"
+  },
+  {
+    question: "Нужно ли пропускать пешехода на нерегулируемом переходе?",
+    answers: [
+      { answer_text: "Да, всегда", is_correct: true },
+      { answer_text: "Только ночью" },
+      { answer_text: "Нет" }
+    ],
+    tip: "Водитель обязан уступить дорогу пешеходам на нерегулируемом переходе.",
+    ticket_number: "Демо билет",
+    topic: "Пешеходные переходы"
+  }
+];
+
 /* =======================
    Запуск
 ======================= */
-document.addEventListener("DOMContentLoaded", () => {
-  bindMenu();
-  bindDelegation();
+function initApp(){
+  try {
+    bindMenu();
+    bindDelegation();
+  } catch(err){
+    console.error("Ошибка инициализации интерфейса:", err);
+  }
   boot();
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp, { once: true });
+} else {
+  setTimeout(initApp, 0);
+}
 
 async function boot(){
   showLoader(true);
@@ -156,6 +195,7 @@ function setActive(id){
    Меню
 ======================= */
 function bindMenu(){
+  if (menuBound) return;
   qsa("[data-action]").forEach(btn=>{
     btn.addEventListener("click", e=>{
       const act = e.currentTarget.dataset.action;
@@ -168,13 +208,21 @@ function bindMenu(){
       if (act==="stats")    uiStats();
     }, { passive:true });
   });
+  menuBound = true;
 }
 
 /* =======================
    Делегация событий
 ======================= */
 function bindDelegation(){
+  if (delegationBound) return;
   const screen = qs("#screen");
+  if(!screen){
+    console.warn("Элемент #screen не найден, повторная попытка привязки событий");
+    scheduleFrame(bindDelegation);
+    return;
+  }
+  delegationBound = true;
   screen.addEventListener("pointerdown", handlePointerDown, { passive:true });
   screen.addEventListener("pointermove", handlePointerMove, { passive:true });
   screen.addEventListener("pointerup", handlePointerUp, { passive:false });
@@ -308,8 +356,9 @@ async function loadTickets(onProgress){
   ]);
   if(!ticketFiles.length){
     console.warn("⚠️ Нет списка билетов для загрузки");
+    const fallback = hydrateFallback();
     onProgress && onProgress(1);
-    return [];
+    return fallback;
   }
 
   const raw = [];
@@ -340,6 +389,11 @@ async function loadTickets(onProgress){
     await delay(12);
   }
 
+  if(!raw.length){
+    console.warn("⚠️ Файлы билетов не загружены, используем встроенные вопросы");
+    raw.push(...FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
+  }
+
   const unique = deduplicate(raw);
   const norm = normalizeQuestions(unique);
   for(const q of norm){
@@ -363,463 +417,22 @@ async function loadTickets(onProgress){
   return State.pool;
 }
 
-async function loadMarkup(){
-  if (Array.isArray(State.markup)) return State.markup;
-  const response = await fetch(MARKUP_URL, { cache:"no-store" });
-  if(!response.ok) throw new Error(`HTTP ${response.status}`);
-  const payload = await response.json();
-  const groups = Object.entries(payload || {}).map(([title, data])=>{
-    const items = Object.values(data || {}).map(item=>({
-      number: item.number || "",
-      description: item.description || "",
-      image: normalizeImagePath(item.image)
-    })).sort((a,b)=>a.number.localeCompare(b.number,'ru',{numeric:true,sensitivity:'base'}));
-    return { title, items };
-  }).sort((a,b)=>a.title.localeCompare(b.title,'ru',{sensitivity:'base'}));
-  State.markup = groups;
-  return groups;
-}
-
-async function loadPenalties(){
-  if (Array.isArray(State.penalties)) return State.penalties;
-  const response = await fetch(PENALTIES_URL, { cache:"no-store" });
-  if(!response.ok) throw new Error(`HTTP ${response.status}`);
-  const text = await response.text();
-  const lines = text.split(/\n+/).map(line=>line.trim()).filter(Boolean);
-  const items = [];
-  for(const line of lines){
-    try {
-      const obj = JSON.parse(line);
-      items.push({
-        articlePart: obj.article_part || obj.articlePart || "—",
-        text: obj.text || "",
-        penalty: obj.penalty || ""
-      });
-    } catch(err){
-      console.error("Не удалось разобрать штраф:", err, line);
+function hydrateFallback(){
+  if(State.pool.length) return State.pool;
+  const norm = normalizeQuestions(FALLBACK_QUESTION_BANK.map(item=>({ ...item })));
+  for(const q of norm){
+    State.pool.push(q);
+    const key = q.ticketKey;
+    if(!State.byTicket.has(key)){
+      State.byTicket.set(key, { label: q.ticketLabel, order: q.ticketNumber ?? Number.MAX_SAFE_INTEGER, questions: [] });
+    }
+    State.byTicket.get(key).questions.push(q);
+    for(const t of q.topics){
+      if(!State.topics.has(t)) State.topics.set(t, []);
+      State.topics.get(t).push(q);
     }
   }
-  items.sort((a,b)=>a.articlePart.localeCompare(b.articlePart,'ru',{numeric:true,sensitivity:'base'}));
-  State.penalties = items;
-  return items;
+  return State.pool;
 }
 
-/* =======================
-   Нормализация данных
-======================= */
-function normalizeQuestions(raw){
-  const out=[];
-  for(const q of raw){
-    const answersRaw = q.answers || q.variants || q.options || [];
-    const answers = answersRaw.map(a => a?.answer_text ?? a?.text ?? a?.title ?? String(a));
-
-    let correctIndex = answersRaw.findIndex(a => a?.is_correct===true);
-    if (correctIndex < 0 && typeof q.correct_answer === "string"){
-      const m = q.correct_answer.match(/\d+/);
-      if (m) correctIndex = parseInt(m[0]) - 1;
-    }
-    if (correctIndex < 0) correctIndex = 0;
-
-    const ticketLabel = deriveTicketLabel(q);
-    const ticketNumber = deriveTicketNumber(ticketLabel);
-    const ticketKey = ticketLabel || (ticketNumber ? `Билет ${ticketNumber}` : `ticket-${out.length}`);
-
-    const image = normalizeImagePath(q.image);
-
-    out.push({
-      question: q.question || q.title || "Вопрос",
-      answers,
-      correctIndex,
-      tip: q.answer_tip || q.tip || "",
-      ticketNumber,
-      ticketLabel,
-      ticketKey,
-      topics: Array.isArray(q.topic) ? q.topic : q.topic ? [q.topic] : [],
-      image
-    });
-  }
-  return out;
-}
-
-function deriveTicketLabel(q){
-  if (typeof q.ticket_number === "string" && q.ticket_number.trim()) return q.ticket_number.trim();
-  if (typeof q.ticket === "string" && q.ticket.trim()) return q.ticket.trim();
-  if (typeof q.__bucket === "string" && q.__bucket.trim()) return q.__bucket.trim();
-  if (typeof q.ticket === "number" && Number.isFinite(q.ticket)) return `Билет ${q.ticket}`;
-  return "Билет";
-}
-
-function deriveTicketNumber(label){
-  if (typeof label !== "string") return undefined;
-  const match = label.match(/\d+/);
-  if (!match) return undefined;
-  const value = parseInt(match[0], 10);
-  return Number.isFinite(value) ? value : undefined;
-}
-
-function deduplicate(raw){
-  const seen = new Set();
-  const out = [];
-  for(const item of raw){
-    const key = item.id || `${item.ticket_number||"?"}:${item.question}`;
-    if(seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-  return out;
-}
-
-function uniqueStrings(list){
-  const seen = new Set();
-  const out = [];
-  for(const item of list){
-    if (typeof item !== "string" || !item.trim()) continue;
-    const normalized = item.trim();
-    if(seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push(normalized);
-  }
-  return out;
-}
-
-function encodePath(path){
-  return path.split("/").map(encodeURIComponent).join("/");
-}
-
-function extractTicketLabel(path){
-  const fileName = path.split("/").pop() || "";
-  const plain = fileName.replace(/\.json$/i, "");
-  return plain.replace(/_/g, " ") || "Билет";
-}
-
-async function fetchJson(url){
-  const response = await fetch(url, { cache:"no-store" });
-  if(!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
-function normalizeImagePath(path){
-  const raw = (path ?? "").toString().trim();
-  if(!raw) return "";
-  const withoutDots = raw.replace(/^\.\/+/, "").replace(/^\/+/, "");
-  if(/^https?:/i.test(raw)) return raw;
-  if(/^https?:/i.test(withoutDots)) return withoutDots;
-  if(!withoutDots) return "";
-  if(withoutDots.startsWith("images/")) return withoutDots;
-  return `images/${withoutDots}`;
-}
-
-/* =======================
-   Экраны
-======================= */
-function uiTopics(){
-  const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
-  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
-  setView(`
-    <div class="card"><h3>Темы</h3></div>
-    <div class="card"><div class="grid auto">
-      ${list.map(t=>`<button type="button" class="answer" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
-    </div></div>
-  `, { subpage: true, title: "Темы" });
-}
-
-function uiTickets(){
-  const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
-    key,
-    label: meta.label || key,
-    order: Number.isFinite(meta.order) ? meta.order : Number.MAX_SAFE_INTEGER,
-    questions: meta.questions
-  })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
-  if(!tickets.length){
-    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
-    return;
-  }
-  setView(`
-    <div class="card"><h3>Билеты</h3></div>
-    <div class="card"><div class="grid auto">
-      ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
-    </div></div>
-  `, { subpage: true, title: "Билеты" });
-}
-
-async function uiMarkup(){
-  setView(`<div class="card"><h3>Дорожная разметка</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true, title: "Разметка" });
-  try {
-    const groups = await loadMarkup();
-    if(!groups.length){
-      setView(`<div class="card"><h3>Дорожная разметка</h3><p>❌ Данные не найдены</p></div>`, { subpage: true, title: "Разметка" });
-      return;
-    }
-    const total = groups.reduce((acc,g)=>acc + g.items.length, 0);
-    setView(`
-      <div class="card">
-        <h3>Дорожная разметка</h3>
-        <p class="meta">Типов: ${formatNumber(total)} в ${formatNumber(groups.length)} разделах</p>
-      </div>
-      ${groups.map(group=>`
-        <section class="card markup-category">
-          <h3>${esc(group.title)}</h3>
-          <div class="markup-list">
-            ${group.items.map(item=>`
-              <article class="markup-item">
-                <header class="markup-item__head">
-                  <span class="markup-item__badge">${esc(item.number)}</span>
-                </header>
-                ${item.image ? `<img src="${item.image}" alt="Разметка ${esc(item.number)}" loading="lazy" class="markup-item__image" />` : ""}
-                <p>${esc(item.description)}</p>
-              </article>
-            `).join("")}
-          </div>
-        </section>
-      `).join("")}
-    `, { subpage: true, title: "Разметка" });
-  } catch(err){
-    console.error("Не удалось загрузить разметку:", err);
-    setView(`<div class="card"><h3>Дорожная разметка</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Разметка" });
-  }
-}
-
-async function uiPenalties(){
-  setView(`<div class="card"><h3>Штрафы</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true, title: "Штрафы" });
-  try {
-    const list = await loadPenalties();
-    if(!list.length){
-      setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные не найдены</p></div>`, { subpage: true, title: "Штрафы" });
-      return;
-    }
-    setView(`
-      <div class="card">
-        <h3>Штрафы</h3>
-        <p class="meta">Записей: ${formatNumber(list.length)}</p>
-      </div>
-      <div class="card penalties-card">
-        <div class="penalties-grid">
-          ${list.map(item=>`
-            <article class="penalty">
-              <h4>${esc(item.articlePart)}</h4>
-              <p>${esc(item.text)}</p>
-              <p class="penalty__fine">${esc(item.penalty)}</p>
-            </article>
-          `).join("")}
-        </div>
-      </div>
-    `, { subpage: true, title: "Штрафы" });
-  } catch(err){
-    console.error("Не удалось загрузить штрафы:", err);
-    setView(`<div class="card"><h3>Штрафы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Штрафы" });
-  }
-}
-
-function uiStats(){
-  setView(`<div class="card"><h3>Статистика</h3><p>Скоро здесь будет прогресс дуэлей.</p></div>`, { subpage: true, title: "Статистика" });
-}
-
-/* =======================
-   Викторина
-======================= */
-function startDuel({mode,topic=null}){
-  const src = topic ? (State.topics.get(topic)||[]) : State.pool;
-  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
-  const q = shuffle(src).slice(0,20);
-  State.duel = {
-    mode,
-    topic,
-    i:0,
-    me:0,
-    q,
-    answers: Array(q.length).fill(null),
-    furthest: 0,
-    completed: false
-  };
-  renderQuestion(0);
-}
-function startTicket(key){
-  const bucket = State.byTicket.get(key);
-  const arr = bucket?.questions || [];
-  if(!arr.length){ setView(`<div class="card"><h3>${esc(bucket?.label || key)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true, title: bucket?.label || "Билет" }); return; }
-  const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
-  State.duel = {
-    mode:"ticket",
-    topic:null,
-    i:0,
-    me:0,
-    q,
-    ticketLabel: bucket?.label || key,
-    answers: Array(q.length).fill(null),
-    furthest: 0,
-    completed: false
-  };
-  renderQuestion(0);
-}
-
-function renderQuestion(targetIndex){
-  const d = State.duel;
-  if(!d || !Array.isArray(d.q)) return;
-  if(typeof targetIndex !== "number") targetIndex = d.i;
-  if(targetIndex >= d.q.length){
-    finishDuel();
-    return;
-  }
-  d.i = Math.max(0, Math.min(targetIndex, d.q.length - 1));
-  const q = d.q[d.i];
-  const ticketInfo = q.ticketLabel || (State.duel?.ticketLabel) || (q.ticketNumber ? `Билет ${q.ticketNumber}` : "Билет");
-  const headerTitle = d.mode === "topic" && d.topic ? d.topic : (d.mode === "ticket" ? (State.duel?.ticketLabel || ticketInfo) : "Дуэль");
-  const answerState = d.answers[d.i];
-  const isAnswered = !!(answerState && answerState.status);
-  const tracker = renderTracker();
-  const controls = renderQuestionControls(isAnswered);
-
-  setView(`
-    ${tracker}
-    <div class="card">
-      <div class="meta">Вопрос ${d.i+1}/${d.q.length} • ${esc(ticketInfo)}</div>
-      <h3>${esc(q.question)}</h3>
-      ${q.image?`<img src="${q.image}" class="qimg" onerror="this.style.display='none'"/>`:""}
-      <div class="grid">${q.answers.map((a,i)=>renderAnswerButton(a, i, q, answerState)).join("")}</div>
-      <div id="tip" class="meta" style="${answerState?.status === "wrong" ? "display:block" : "display:none"};margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
-    </div>
-    ${controls}
-  `, { subpage: true, title: headerTitle });
-  State.lock = false;
-}
-
-function onAnswer(i){
-  if(State.lock) return;
-  State.lock = true;
-  const d = State.duel, q = d.q[d.i];
-  const correct = q.correctIndex;
-  const prev = d.answers[d.i];
-  if(prev?.status) return;
-
-  const isCorrect = (i === correct);
-  if(isCorrect) d.me++;
-
-  d.answers[d.i] = { status: isCorrect ? "correct" : "wrong", selected: i };
-  d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
-
-  if(isCorrect){ toast("✅ Верно!"); }
-  else { toast("❌ Ошибка"); }
-
-  renderQuestion(d.i);
-}
-
-function finishDuel(){
-  const d=State.duel;
-  if(!d || d.completed) return;
-  d.completed = true;
-  const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : "Дуэль");
-  setView(`
-    <div class="card">
-      <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
-      <p>Верных: <b>${d.me}</b> из ${d.q.length}</p>
-      <div class="grid two" style="margin-top:10px">
-        <button class="btn btn-primary" id="again">Ещё раз</button>
-        <button class="btn" id="home">На главную</button>
-      </div>
-    </div>
-  `, { subpage: true, title: headerTitle });
-}
-
-/* =======================
-   Утилиты
-======================= */
-const qs=s=>document.querySelector(s);
-const qsa=s=>[...document.querySelectorAll(s)];
-function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
-function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
-function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
-function esc(s){return String(s??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
-function updateStatsCounters(){
-  setStat("statQuestions", State.pool.length);
-  setStat("statTopics", State.topics.size);
-  setStat("statTickets", State.byTicket.size);
-}
-function setStat(id, value){
-  const el = qs(`#${id}`);
-  if(!el) return;
-  el.textContent = value ? value.toLocaleString("ru-RU") : "0";
-}
-function formatNumber(value){
-  return Number.isFinite(value) ? value.toLocaleString("ru-RU") : "0";
-}
-
-function notifyDataIssue(){
-  if (State.pool.length) return;
-  toast("⚠️ Не удалось загрузить билеты. Проверьте соединение и обновите страницу.");
-}
-
-function renderTracker(){
-  const d = State.duel;
-  if(!d) return "";
-  return `
-    <nav class="question-tracker" aria-label="Прогресс вопросов">
-      ${d.q.map((_, idx)=>{
-        const info = d.answers[idx];
-        const status = info?.status;
-        const classes = ["tracker-dot"];
-        if(idx === d.i) classes.push("is-current");
-        if(status === "correct") classes.push("is-correct");
-        if(status === "wrong") classes.push("is-wrong");
-        const disabled = idx > d.furthest ? "disabled" : "";
-        return `<button type="button" class="${classes.join(" ")}" data-question="${idx}" ${disabled}><span>${idx+1}</span></button>`;
-      }).join("")}
-    </nav>
-  `;
-}
-
-function renderAnswerButton(text, index, question, answerState){
-  const classes = ["answer"];
-  let disabled = "";
-  if(answerState?.status){
-    disabled = "disabled";
-    if(index === question.correctIndex) classes.push("correct");
-    if(answerState.status === "wrong" && index === answerState.selected) classes.push("wrong");
-  }
-  return `<button class="${classes.join(" ")}" data-i="${index}" ${disabled}>${esc(text)}</button>`;
-}
-
-function renderQuestionControls(isAnswered){
-  const d = State.duel;
-  if(!d) return "";
-  const atStart = d.i === 0;
-  const atEnd = d.i === d.q.length - 1;
-  const nextLabel = atEnd ? "Завершить" : "Следующий";
-  const nextAttr = atEnd ? "data-finish" : "data-next";
-  const prevBtn = `<button class="btn ghost nav-btn" data-prev ${atStart?"disabled":""}>⬅️ Назад</button>`;
-  const nextBtn = `<button class="btn btn-primary nav-btn" ${nextAttr} ${isAnswered?"":"disabled"}>${nextLabel} ➡️</button>`;
-  return `
-    <div class="question-controls">
-      ${prevBtn}
-      ${nextBtn}
-    </div>
-  `;
-}
-
-function goToQuestion(index){
-  const d = State.duel;
-  if(!d) return;
-  const target = Math.max(0, Math.min(index, d.q.length - 1));
-  if(target > d.furthest) return;
-  renderQuestion(target);
-}
-
-function nextQuestion(){
-  const d = State.duel;
-  if(!d) return;
-  if(d.i >= d.q.length - 1){
-    if(d.answers[d.i]?.status){
-      finishDuel();
-    }
-    return;
-  }
-  if(!d.answers[d.i]?.status) return;
-  d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
-  renderQuestion(d.i + 1);
-}
-
-function previousQuestion(){
-  const d = State.duel;
-  if(!d) return;
-  if(d.i <= 0) return;
-  renderQuestion(d.i - 1);
-}
+... (остальная часть файла)
