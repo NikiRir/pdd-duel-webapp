@@ -857,7 +857,7 @@ function uiTopics(){
   if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
   setView(`
     <div class="card"><h3>Темы</h3></div>
-    <div class="card"><div class="grid auto">
+    <div class="card"><div class="grid авто">
       ${list.map(t=>`<button type="button" class="answer" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
     </div></div>
   `, { subpage: true, title: "Темы" });
