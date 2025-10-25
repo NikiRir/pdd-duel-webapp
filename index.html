@@ -1,55 +1,135 @@
- <!doctype html>
- <html lang="ru">
- <head>
-   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ПДД Дуэли — РФ</title>
-  <meta name="description" content="Дуэли по ПДД с билетами, темами, знаками и разметкой. Источник данных: etspring/pdd_russia." />
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ПДД ДУЭЛИ</title>
+  <meta name="description" content="Реальные билеты ПДД РФ: дуэли, темы, разметка и штрафы." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preload" href="style.css?v=4" as="style" />
+  <link rel="stylesheet" href="style.css?v=4" />
+  <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
+</head>
 
-  <!-- ✅ только локальные стили -->
-   <link rel="stylesheet" href="style.css" />
+<body class="is-loading">
+  <!-- Фуллскрин лоадер -->
+  <div id="loader" class="loader">
+    <div class="loader-core" role="status" aria-live="polite">
+      <div class="orb" aria-hidden="true"></div>
+      <div class="orb-ring" aria-hidden="true"></div>
+      <div class="loader-title">ПДД ДУЭЛИ</div>
+      <div class="loader-sub">загружаем билеты, медиа и справочники…</div>
+      <div class="progress"><div id="loaderBar" class="bar"></div></div>
+    </div>
+  </div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
-   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
- </head>
- 
- <body>
-  <header class="header">
-    <div class="header-container">
-      <img src="logo.svg" alt="logo" class="logo" onerror="this.style.visibility='hidden'"/>
-      <div>
-        <h1 class="title">ПДД Дуэли</h1>
-        <p class="subtitle">Учись, соревнуйся, побеждай</p>
+  <noscript>
+    <style>
+      body.is-loading .app { filter: none; transform: none; pointer-events: auto; }
+      .loader { display: none !important; }
+      .noscript-warning {
+        margin: 16px auto;
+        max-width: 680px;
+        background: #fff6f6;
+        border: 1px solid #f5c2c2;
+        color: #9b1c1c;
+        padding: 16px 20px;
+        border-radius: 16px;
+        font: 500 16px/1.5 "Manrope", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        text-align: center;
+      }
+    </style>
+    <div class="noscript-warning">Для работы приложения нужен включённый JavaScript.</div>
+  </noscript>
+
+  <div class="app">
+    <header class="hero">
+      <div class="hero__content">
+        <span class="hero__badge">2025 — свежие правила</span>
+        <h1 class="hero__title">ПДД ДУЭЛИ</h1>
+        <p class="hero__lead">Прокачай знания и выиграй у друзей в экзамене по правилам дорожного движения.</p>
+        <div class="hero__cta">
+          <button id="btnQuickDuel" class="btn btn-primary" data-action="quick">⚡ Быстрая дуэль</button>
+          <button id="btnTickets" class="btn ghost" data-action="tickets">🎟️ Билеты</button>
+          <button id="btnTopics" class="btn ghost" data-action="topics">🧩 Темы</button>
+        </div>
       </div>
-      <div class="nav">
-        <button id="btnStats" class="btn-ghost">Моя статистика</button>
-        <a href="https://github.com/etspring/pdd_russia" target="_blank" class="btn-ghost">Источник данных</a>
-      </div>
-     </div>
-  </header>
- 
-  <main class="main">
-    <section id="hero" class="hero">
-      <div class="hero-bg"></div>
-      <div class="hero-content">
-        <div>
-          <h2 class="hero-title">
-            Экзаменационные вопросы РФ + <span class="accent">дуэли</span> по темам
-          </h2>
-          <p class="hero-desc">Билеты 1–40, темы ПДД, дорожные знаки и разметка. Сразись с ИИ или соперником.</p>
-          <div class="buttons">
-            <button id="btnQuickDuel" class="btn-primary">Быстрая дуэль</button>
-            <button id="btnTopics" class="btn-secondary">Темы</button>
-            <button id="btnTickets" class="btn-secondary">Билеты</button>
-            <button id="btnSigns" class="btn-secondary">Знаки / Разметка</button>
-          </div>
-         </div>
-       </div>
-     </section>
-    <section id="screen" class="screen"></section>
-  </main>
- 
-  <div id="toast" class="toast-container"></div>
-   <script src="script.js"></script>
- </body>
- </html>
+      <aside class="hero__aside" aria-label="Преимущества приложения">
+        <div class="hero-highlights">
+          <article class="highlight-card">
+            <span class="highlight-card__icon" aria-hidden="true">🥇</span>
+            <div class="highlight-card__body">
+              <h3>Дуэль дня</h3>
+              <p>Собери серию побед и удерживай рейтинг среди друзей.</p>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <span class="highlight-card__icon" aria-hidden="true">🧠</span>
+            <div class="highlight-card__body">
+              <h3>Умные темы</h3>
+              <p>Алгоритм сам предложит темы, где нужны повторения.</p>
+            </div>
+          </article>
+          <article class="highlight-card">
+            <span class="highlight-card__icon" aria-hidden="true">📚</span>
+            <div class="highlight-card__body">
+              <h3>Справочники</h3>
+              <p>Разметка и штрафы всегда под рукой.</p>
+            </div>
+          </article>
+        </div>
+      </aside>
+    </header>
+
+    <!-- Быстрые действия -->
+    <nav class="menu main-menu" aria-label="Быстрые действия">
+      <button class="btn" data-action="markup">🛣️ Разметка</button>
+      <button class="btn" data-action="penalties">💸 Штрафы</button>
+      <button class="btn" data-action="stats">📈 Статистика</button>
+    </nav>
+
+    <!-- Статистика -->
+    <section class="stats" aria-label="Сводка">
+      <article class="stat">
+        <div class="stat__value" id="statQuestions">0</div>
+        <div class="stat__label">вопросов</div>
+      </article>
+      <article class="stat">
+        <div class="stat__value" id="statTickets">0</div>
+        <div class="stat__label">билетов</div>
+      </article>
+      <article class="stat">
+        <div class="stat__value" id="statTopics">0</div>
+        <div class="stat__label">тем</div>
+      </article>
+    </section>
+
+    <!-- Один экран. Всегда заменяется. Скролл только внутри. -->
+    <section id="screen" class="screen" aria-live="polite"></section>
+
+    <!-- Промо-блоки -->
+    <section class="promo">
+      <article class="promo-card">
+        <div class="promo-card__icon" aria-hidden="true">🎯</div>
+        <h2>Экзамен как игра</h2>
+        <p>Соревнуйся в дуэлях и получай мгновенные подсказки по каждой ошибке.</p>
+      </article>
+      <article class="promo-card">
+        <div class="promo-card__icon" aria-hidden="true">🔄</div>
+        <h2>Обновления автоматически</h2>
+        <p>Мы подгружаем актуальные билеты ГИБДД и освежаем справочники.</p>
+      </article>
+      <article class="promo-card">
+        <div class="promo-card__icon" aria-hidden="true">💬</div>
+        <h2>Учись в Telegram</h2>
+        <p>Оптимизированный интерфейс для Telegram Web App — быстро, удобно, нативно.</p>
+      </article>
+    </section>
+  </div>
+
+  <div id="toast" class="toast-wrap" aria-live="polite"></div>
+  <script src="script.js?v=4"></script>
+</body>
+</html>
