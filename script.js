@@ -15,6 +15,7 @@ const State = {
   penalties: null,
   tap: null,
   ignoreClickUntil: 0,
+  advanceTimer: null,
 };
 
 let delegationBound = false;
@@ -165,10 +166,17 @@ function setView(html, { subpage = true, title = "" } = {}){
   toggleSubpage(subpage);
   const host = qs("#screen");
   host.scrollTop = 0;
-  const content = subpage ? wrapSubpage(title, html) : html;
-  host.innerHTML = `<div class="view">${content}</div>`;
+  if(subpage){
+    const content = wrapSubpage(title, html);
+    host.classList.remove("screen--hidden");
+    host.innerHTML = `<div class="view">${content}</div>`;
+  } else {
+    host.classList.add("screen--hidden");
+    host.innerHTML = "";
+  }
 }
 function renderHome(){
+  clearAdvanceTimer();
   setActive(null);
   setView("", { subpage: false });
 }
@@ -435,4 +443,337 @@ function hydrateFallback(){
   return State.pool;
 }
 
-... (остальная часть файла)
+/* =======================
+   Экраны
+======================= */
+function uiTopics(){
+  const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
+  if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
+  setView(`
+    <div class="card"><h3>Темы</h3></div>
+    <div class="card"><div class="grid auto">
+      ${list.map(t=>`<button type="button" class="answer" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+    </div></div>
+  `, { subpage: true, title: "Темы" });
+}
+
+function uiTickets(){
+  const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
+    key,
+    label: meta.label || key,
+    order: Number.isFinite(meta.order) ? meta.order : Number.MAX_SAFE_INTEGER,
+    questions: meta.questions
+  })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
+  if(!tickets.length){
+    setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
+    return;
+  }
+  setView(`
+    <div class="card"><h3>Билеты</h3></div>
+    <div class="card"><div class="grid auto">
+      ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
+    </div></div>
+  `, { subpage: true, title: "Билеты" });
+}
+
+async function uiMarkup(){
+  setView(`<div class="card"><h3>Дорожная разметка</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true, title: "Разметка" });
+  try {
+    const groups = await loadMarkup();
+    if(!groups.length){
+      setView(`<div class="card"><h3>Дорожная разметка</h3><p>❌ Данные не найдены</p></div>`, { subpage: true, title: "Разметка" });
+      return;
+    }
+    const total = groups.reduce((acc,g)=>acc + g.items.length, 0);
+    setView(`
+      <div class="card">
+        <h3>Дорожная разметка</h3>
+        <p class="meta">Типов: ${formatNumber(total)} в ${formatNumber(groups.length)} разделах</p>
+      </div>
+      ${groups.map(group=>`
+        <section class="card markup-category">
+          <h3>${esc(group.title)}</h3>
+          <div class="markup-list">
+            ${group.items.map(item=>`
+              <article class="markup-item">
+                <header class="markup-item__head">
+                  <span class="markup-item__badge">${esc(item.number)}</span>
+                </header>
+                ${item.image ? `<img src="${item.image}" alt="Разметка ${esc(item.number)}" loading="lazy" class="markup-item__image" />` : ""}
+                <p>${esc(item.description)}</p>
+              </article>
+            `).join("")}
+          </div>
+        </section>
+      `).join("")}
+    `, { subpage: true, title: "Разметка" });
+  } catch(err){
+    console.error("Не удалось загрузить разметку:", err);
+    setView(`<div class="card"><h3>Дорожная разметка</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Разметка" });
+  }
+}
+
+async function uiPenalties(){
+  setView(`<div class="card"><h3>Штрафы</h3><p class="meta">Загружаем данные…</p></div>`, { subpage: true, title: "Штрафы" });
+  try {
+    const list = await loadPenalties();
+    if(!list.length){
+      setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные не найдены</p></div>`, { subpage: true, title: "Штрафы" });
+      return;
+    }
+    setView(`
+      <div class="card">
+        <h3>Штрафы</h3>
+        <p class="meta">Записей: ${formatNumber(list.length)}</p>
+      </div>
+      <div class="card penalties-card">
+        <div class="penalties-grid">
+          ${list.map(item=>`
+            <article class="penalty">
+              <h4>${esc(item.articlePart)}</h4>
+              <p>${esc(item.text)}</p>
+              <p class="penalty__fine">${esc(item.penalty)}</p>
+            </article>
+          `).join("")}
+        </div>
+      </div>
+    `, { subpage: true, title: "Штрафы" });
+  } catch(err){
+    console.error("Не удалось загрузить штрафы:", err);
+    setView(`<div class="card"><h3>Штрафы</h3><p>⚠️ Ошибка загрузки данных</p></div>`, { subpage: true, title: "Штрафы" });
+  }
+}
+
+function uiStats(){
+  setView(`<div class="card"><h3>Статистика</h3><p>Скоро здесь будет прогресс дуэлей.</p></div>`, { subpage: true, title: "Статистика" });
+}
+
+/* =======================
+   Викторина
+======================= */
+function startDuel({mode,topic=null}){
+  clearAdvanceTimer();
+  const src = topic ? (State.topics.get(topic)||[]) : State.pool;
+  if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
+  const q = shuffle(src).slice(0,20);
+  State.duel = {
+    mode,
+    topic,
+    i:0,
+    me:0,
+    q,
+    answers: Array(q.length).fill(null),
+    furthest: 0,
+    completed: false
+  };
+  renderQuestion(0);
+}
+function startTicket(key){
+  clearAdvanceTimer();
+  const bucket = State.byTicket.get(key);
+  const arr = bucket?.questions || [];
+  if(!arr.length){ setView(`<div class="card"><h3>${esc(bucket?.label || key)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true, title: bucket?.label || "Билет" }); return; }
+  const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
+  State.duel = {
+    mode:"ticket",
+    topic:null,
+    i:0,
+    me:0,
+    q,
+    ticketLabel: bucket?.label || key,
+    answers: Array(q.length).fill(null),
+    furthest: 0,
+    completed: false
+  };
+  renderQuestion(0);
+}
+
+function renderQuestion(targetIndex){
+  const d = State.duel;
+  if(!d || !Array.isArray(d.q)) return;
+  clearAdvanceTimer();
+  if(typeof targetIndex !== "number") targetIndex = d.i;
+  if(targetIndex >= d.q.length){
+    finishDuel();
+    return;
+  }
+  d.i = Math.max(0, Math.min(targetIndex, d.q.length - 1));
+  const q = d.q[d.i];
+  const ticketInfo = q.ticketLabel || (State.duel?.ticketLabel) || (q.ticketNumber ? `Билет ${q.ticketNumber}` : "Билет");
+  const headerTitle = d.mode === "topic" && d.topic ? d.topic : (d.mode === "ticket" ? (State.duel?.ticketLabel || ticketInfo) : "Дуэль");
+  const answerState = d.answers[d.i];
+  const isAnswered = !!(answerState && answerState.status);
+  const tracker = renderTracker();
+  const controls = renderQuestionControls(isAnswered);
+
+  setView(`
+    ${tracker}
+    <div class="card">
+      <div class="meta">Вопрос ${d.i+1}/${d.q.length} • ${esc(ticketInfo)}</div>
+      <h3>${esc(q.question)}</h3>
+      ${q.image?`<img src="${q.image}" class="qimg" onerror="this.style.display='none'"/>`:""}
+      <div class="grid">${q.answers.map((a,i)=>renderAnswerButton(a, i, q, answerState)).join("")}</div>
+      <div id="tip" class="meta" style="${answerState?.status === "wrong" ? "display:block" : "display:none"};margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
+    </div>
+    ${controls}
+  `, { subpage: true, title: headerTitle });
+  State.lock = false;
+}
+
+function onAnswer(i){
+  if(State.lock) return;
+  State.lock = true;
+  const d = State.duel, q = d.q[d.i];
+  const currentIndex = d.i;
+  const correct = q.correctIndex;
+  const prev = d.answers[d.i];
+  if(prev?.status) return;
+
+  const isCorrect = (i === correct);
+  if(isCorrect) d.me++;
+
+  d.answers[d.i] = { status: isCorrect ? "correct" : "wrong", selected: i };
+  d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
+
+  if(isCorrect){ toast("✅ Верно!"); }
+  else { toast("❌ Ошибка"); }
+
+  renderQuestion(d.i);
+
+  if(isCorrect){
+    State.advanceTimer = setTimeout(()=>{
+      if(State.duel === d && d.i === currentIndex && d.answers[currentIndex]?.status === "correct"){
+        nextQuestion();
+      }
+    }, 650);
+  }
+}
+
+function finishDuel(){
+  const d=State.duel;
+  if(!d || d.completed) return;
+  clearAdvanceTimer();
+  d.completed = true;
+  const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : "Дуэль");
+  setView(`
+    <div class="card">
+      <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
+      <p>Верных: <b>${d.me}</b> из ${d.q.length}</p>
+      <div class="grid two" style="margin-top:10px">
+        <button class="btn btn-primary" id="again">Ещё раз</button>
+        <button class="btn" id="home">На главную</button>
+      </div>
+    </div>
+  `, { subpage: true, title: headerTitle });
+}
+
+/* =======================
+   Утилиты
+======================= */
+const qs=s=>document.querySelector(s);
+const qsa=s=>[...document.querySelectorAll(s)];
+function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
+function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
+function esc(s){return String(s??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
+function updateStatsCounters(){
+  setStat("statQuestions", State.pool.length);
+  setStat("statTopics", State.topics.size);
+  setStat("statTickets", State.byTicket.size);
+}
+function setStat(id, value){
+  const el = qs(`#${id}`);
+  if(!el) return;
+  el.textContent = value ? value.toLocaleString("ru-RU") : "0";
+}
+function formatNumber(value){
+  return Number.isFinite(value) ? value.toLocaleString("ru-RU") : "0";
+}
+
+function notifyDataIssue(){
+  if (State.pool.length) return;
+  toast("⚠️ Не удалось загрузить билеты. Проверьте соединение и обновите страницу.");
+}
+
+function renderTracker(){
+  const d = State.duel;
+  if(!d) return "";
+  return `
+    <nav class="question-tracker" aria-label="Прогресс вопросов">
+      ${d.q.map((_, idx)=>{
+        const info = d.answers[idx];
+        const status = info?.status;
+        const classes = ["tracker-dot"];
+        if(idx === d.i) classes.push("is-current");
+        if(status === "correct") classes.push("is-correct");
+        if(status === "wrong") classes.push("is-wrong");
+        const disabled = idx > d.furthest ? "disabled" : "";
+        return `<button type="button" class="${classes.join(" ")}" data-question="${idx}" ${disabled}><span>${idx+1}</span></button>`;
+      }).join("")}
+    </nav>
+  `;
+}
+
+function renderAnswerButton(text, index, question, answerState){
+  const classes = ["answer"];
+  let disabled = "";
+  if(answerState?.status){
+    disabled = "disabled";
+    if(index === question.correctIndex) classes.push("correct");
+    if(answerState.status === "wrong" && index === answerState.selected) classes.push("wrong");
+  }
+  return `<button class="${classes.join(" ")}" data-i="${index}" ${disabled}>${esc(text)}</button>`;
+}
+
+function renderQuestionControls(isAnswered){
+  const d = State.duel;
+  if(!d) return "";
+  const atStart = d.i === 0;
+  const atEnd = d.i === d.q.length - 1;
+  const nextLabel = atEnd ? "Завершить" : "Следующий";
+  const nextAttr = atEnd ? "data-finish" : "data-next";
+  const prevBtn = `<button class="btn ghost nav-btn" data-prev ${atStart?"disabled":""}>⬅️ Назад</button>`;
+  const nextBtn = `<button class="btn btn-primary nav-btn" ${nextAttr} ${isAnswered?"":"disabled"}>${nextLabel} ➡️</button>`;
+  return `
+    <div class="question-controls">
+      ${prevBtn}
+      ${nextBtn}
+    </div>
+  `;
+}
+
+function goToQuestion(index){
+  const d = State.duel;
+  if(!d) return;
+  const target = Math.max(0, Math.min(index, d.q.length - 1));
+  if(target > d.furthest) return;
+  renderQuestion(target);
+}
+
+function nextQuestion(){
+  const d = State.duel;
+  if(!d) return;
+  if(d.i >= d.q.length - 1){
+    if(d.answers[d.i]?.status){
+      finishDuel();
+    }
+    return;
+  }
+  if(!d.answers[d.i]?.status) return;
+  d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
+  renderQuestion(d.i + 1);
+}
+
+function previousQuestion(){
+  const d = State.duel;
+  if(!d) return;
+  if(d.i <= 0) return;
+  renderQuestion(d.i - 1);
+}
+
+function clearAdvanceTimer(){
+  if(State.advanceTimer){
+    clearTimeout(State.advanceTimer);
+    State.advanceTimer = null;
+  }
+}
