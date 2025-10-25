@@ -122,41 +122,123 @@ function handleTap(e){
 }
 
 /* =======================
-   Данные
+   Загрузка билетов
 ======================= */
 async function loadTickets(onProgress){
   if(State.pool.length) return State.pool;
-  const res = await fetch("questions/index.json", { cache:"no-cache" });
-  if(!res.ok) throw new Error("Не удалось загрузить index.json");
-  const manifest = await res.json();
-  const files = manifest.files || [];
 
-  const total = files.length;
-  let loaded = 0;
-
-  for(const file of files){
-    const url = `questions/${file}`;
-    const resp = await fetch(url, { cache:"no-cache" });
-    if(!resp.ok) throw new Error(`Не удалось загрузить ${url}`);
-    const chunk = await resp.json();
-    chunk.forEach(addQuestion);
-    loaded++;
-    if(onProgress) onProgress(loaded / total * 100);
+  const manifest = await fetchJson("questions/index.json");
+  const ticketFiles = Array.isArray(manifest?.tickets) ? manifest.tickets : [];
+  if(!ticketFiles.length){
+    console.warn("⚠️ В index.json нет списка билетов");
+    return [];
   }
 
+  const raw = [];
+  let loaded = 0;
+  const total = ticketFiles.length;
+
+  for(const file of ticketFiles){
+    const url = `questions/${encodePath(file)}`;
+    try {
+      const response = await fetch(url, { cache:"no-store" });
+      if(!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const payload = await response.json();
+      const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
+      const ticketLabel = extractTicketLabel(file);
+      for(const item of list){
+        if(!item.ticket_number) item.ticket_number = ticketLabel;
+        if(!item.ticket_category) item.ticket_category = "A,B";
+      }
+      raw.push(...list);
+    } catch (err){
+      console.error(`Не удалось загрузить ${file}:`, err);
+    }
+
+    loaded += 1;
+    onProgress && onProgress(loaded / total);
+    await delay(12);
+  }
+
+  const unique = deduplicate(raw);
+  const norm = normalizeQuestions(unique);
+  for(const q of norm){
+    State.pool.push(q);
+    if (!State.byTicket.has(q.ticket)) State.byTicket.set(q.ticket, []);
+    State.byTicket.get(q.ticket).push(q);
+
+    for(const t of q.topics){
+      if (!State.topics.has(t)) State.topics.set(t, []);
+      State.topics.get(t).push(q);
+    }
+  }
+
+  console.log(`✅ Загружено ${State.pool.length} вопросов`);
   return State.pool;
 }
 
-function addQuestion(q){
-  State.pool.push(q);
-  if(q.ticket){
-    if(!State.byTicket.has(q.ticket)) State.byTicket.set(q.ticket, []);
-    State.byTicket.get(q.ticket).push(q);
+/* =======================
+   Нормализация данных
+======================= */
+function normalizeQuestions(raw){
+  const out=[];
+  for(const q of raw){
+    const answersRaw = q.answers || q.variants || q.options || [];
+    const answers = answersRaw.map(a => a?.answer_text ?? a?.text ?? a?.title ?? String(a));
+
+    let correctIndex = answersRaw.findIndex(a => a?.is_correct===true);
+    if (correctIndex < 0 && typeof q.correct_answer === "string"){
+      const m = q.correct_answer.match(/\d+/);
+      if (m) correctIndex = parseInt(m[0]) - 1;
+    }
+    if (correctIndex < 0) correctIndex = 0;
+
+    let ticket = 0; const m2 = String(q.ticket_number||"").match(/\d+/);
+    if (m2) ticket = parseInt(m2[0]);
+
+    let image = (q.image || "").replace(/^\.\//,"");
+    if (image && !image.startsWith("images/")) image = "images/" + image;
+
+    out.push({
+      question: q.question || q.title || "Вопрос",
+      answers,
+      correctIndex,
+      tip: q.answer_tip || q.tip || "",
+      ticket,
+      topics: Array.isArray(q.topic) ? q.topic : q.topic ? [q.topic] : [],
+      image
+    });
   }
-  if(q.topic){
-    if(!State.topics.has(q.topic)) State.topics.set(q.topic, []);
-    State.topics.get(q.topic).push(q);
+  return out;
+}
+
+function deduplicate(raw){
+  const seen = new Set();
+  const out = [];
+  for(const item of raw){
+    const key = item.id || `${item.ticket_number||"?"}:${item.question}`;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
   }
+  return out;
+}
+
+function encodePath(path){
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
+function extractTicketLabel(path){
+  const fileName = path.split("/").pop() || "";
+  const plain = fileName.replace(/\.json$/i, "");
+  return plain.replace(/_/g, " ") || "Билет";
+}
+
+async function fetchJson(url){
+  const response = await fetch(url, { cache:"no-store" });
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
 }
 
 /* =======================
