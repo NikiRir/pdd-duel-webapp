@@ -126,6 +126,10 @@ function renderHome(){
     </div>
   `, { subpage: false });
 }
+function setActive(id){
+  qsa("[data-action]").forEach(b=>b.classList.remove("active"));
+  if(id) qs("#"+id)?.classList.add("active");
+}
 
 function wrapSubpage(title, html){
   const safe = esc((title || "ПДД ДУЭЛИ").trim());
@@ -139,10 +143,6 @@ function wrapSubpage(title, html){
     </header>
     ${html}
   `;
-}
-function setActive(id){
-  qsa("[data-action]").forEach(b=>b.classList.remove("active"));
-  if(id) qs("#"+id)?.classList.add("active");
 }
 
 /* =======================
@@ -179,13 +179,40 @@ function handleTap(e){
   if (e.type === "touchstart") State.lastTouchTs = Date.now();
 
   const ans = e.target.closest("button.answer");
-  if (ans && ans.dataset.i != null){ e.preventDefault(); onAnswer(+ans.dataset.i); return; }
+  if (ans && ans.dataset.i != null){
+    e.preventDefault();
+    if (ans.disabled) return;
+    onAnswer(+ans.dataset.i);
+    return;
+  }
   const ticket = e.target.closest("[data-ticket]");
   if (ticket){ e.preventDefault(); startTicket(ticket.dataset.ticket); return; }
   const topic = e.target.closest("[data-t]");
   if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
   const back = e.target.closest("[data-back]");
   if (back){ e.preventDefault(); renderHome(); return; }
+  const dot = e.target.closest("[data-question]");
+  if (dot){
+    e.preventDefault();
+    if (dot.disabled) return;
+    goToQuestion(+dot.dataset.question);
+    return;
+  }
+  if (e.target.closest("[data-prev]")){
+    e.preventDefault();
+    previousQuestion();
+    return;
+  }
+  if (e.target.closest("[data-next]")){
+    e.preventDefault();
+    nextQuestion();
+    return;
+  }
+  if (e.target.closest("[data-finish]")){
+    e.preventDefault();
+    finishDuel();
+    return;
+  }
   if (e.target.id === "again"){ e.preventDefault(); startDuel(State.duel?.topic?{mode:"topic",topic:State.duel.topic}:{mode:"quick"}); return; }
   if (e.target.id === "home"){ e.preventDefault(); renderHome(); return; }
 }
@@ -400,7 +427,7 @@ async function fetchJson(url){
 function normalizeImagePath(path){
   const raw = (path ?? "").toString().trim();
   if(!raw) return "";
-  const withoutDots = raw.replace(/^\.\//, "").replace(/^\/+/, "");
+  const withoutDots = raw.replace(/^\.+/, "").replace(/^\/+/, "");
   if(/^https?:/i.test(raw)) return raw;
   if(/^https?:/i.test(withoutDots)) return withoutDots;
   if(!withoutDots) return "";
@@ -520,30 +547,64 @@ function startDuel({mode,topic=null}){
   const src = topic ? (State.topics.get(topic)||[]) : State.pool;
   if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
   const q = shuffle(src).slice(0,20);
-  State.duel = { mode, topic, i:0, me:0, q };
-  renderQuestion();
+  State.duel = {
+    mode,
+    topic,
+    i:0,
+    me:0,
+    q,
+    answers: Array(q.length).fill(null),
+    furthest: 0,
+    completed: false
+  };
+  renderQuestion(0);
 }
 function startTicket(key){
   const bucket = State.byTicket.get(key);
   const arr = bucket?.questions || [];
   if(!arr.length){ setView(`<div class="card"><h3>${esc(bucket?.label || key)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true, title: bucket?.label || "Билет" }); return; }
   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
-  State.duel = { mode:"ticket", topic:null, i:0, me:0, q, ticketLabel: bucket?.label || key };
-  renderQuestion();
+  State.duel = {
+    mode:"ticket",
+    topic:null,
+    i:0,
+    me:0,
+    q,
+    ticketLabel: bucket?.label || key,
+    answers: Array(q.length).fill(null),
+    furthest: 0,
+    completed: false
+  };
+  renderQuestion(0);
 }
 
-function renderQuestion(){
-  const d = State.duel, q = d.q[d.i];
+function renderQuestion(targetIndex){
+  const d = State.duel;
+  if(!d || !Array.isArray(d.q)) return;
+  if(typeof targetIndex !== "number") targetIndex = d.i;
+  if(targetIndex >= d.q.length){
+    finishDuel();
+    return;
+  }
+  d.i = Math.max(0, Math.min(targetIndex, d.q.length - 1));
+  const q = d.q[d.i];
   const ticketInfo = q.ticketLabel || (State.duel?.ticketLabel) || (q.ticketNumber ? `Билет ${q.ticketNumber}` : "Билет");
   const headerTitle = d.mode === "topic" && d.topic ? d.topic : (d.mode === "ticket" ? (State.duel?.ticketLabel || ticketInfo) : "Дуэль");
+  const answerState = d.answers[d.i];
+  const isAnswered = !!(answerState && answerState.status);
+  const tracker = renderTracker();
+  const controls = renderQuestionControls(isAnswered);
+
   setView(`
+    ${tracker}
     <div class="card">
       <div class="meta">Вопрос ${d.i+1}/${d.q.length} • ${esc(ticketInfo)}</div>
       <h3>${esc(q.question)}</h3>
       ${q.image?`<img src="${q.image}" class="qimg" onerror="this.style.display='none'"/>`:""}
-      <div class="grid">${q.answers.map((a,i)=>`<button class="answer" data-i="${i}">${esc(a)}</button>`).join("")}</div>
-      <div id="tip" class="meta" style="display:none;margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
+      <div class="grid">${q.answers.map((a,i)=>renderAnswerButton(a, i, q, answerState)).join("")}</div>
+      <div id="tip" class="meta" style="${answerState?.status === "wrong" ? "display:block" : "display:none"};margin-top:8px;color:#ccc">💡 ${esc(q.tip)}</div>
     </div>
+    ${controls}
   `, { subpage: true, title: headerTitle });
   State.lock = false;
 }
@@ -553,27 +614,25 @@ function onAnswer(i){
   State.lock = true;
   const d = State.duel, q = d.q[d.i];
   const correct = q.correctIndex;
+  const prev = d.answers[d.i];
+  if(prev?.status) return;
 
-  const btns = qsa(".answer");
-  btns.forEach((b,idx)=>{
-    b.disabled = true;
-    if(idx===correct)b.classList.add("correct");
-    else if(idx===i)b.classList.add("wrong");
-  });
+  const isCorrect = (i === correct);
+  if(isCorrect) d.me++;
 
-  if(i===correct){ d.me++; toast("✅ Верно!"); }
-  else { toast("❌ Ошибка"); qs("#tip").style.display="block"; }
+  d.answers[d.i] = { status: isCorrect ? "correct" : "wrong", selected: i };
+  d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
 
-  setTimeout(()=>{
-    State.lock=false;
-    d.i++;
-    if(d.i<d.q.length) renderQuestion();
-    else finishDuel();
-  }, 1000);
+  if(isCorrect){ toast("✅ Верно!"); }
+  else { toast("❌ Ошибка"); }
+
+  renderQuestion(d.i);
 }
 
 function finishDuel(){
   const d=State.duel;
+  if(!d || d.completed) return;
+  d.completed = true;
   const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : "Дуэль");
   setView(`
     <div class="card">
@@ -595,7 +654,7 @@ const qsa=s=>[...document.querySelectorAll(s)];
 function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
 function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
 function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
-function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
+function esc(s){return String(s??"").replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));}
 function updateStatsCounters(){
   setStat("statQuestions", State.pool.length);
   setStat("statTopics", State.topics.size);
@@ -608,4 +667,80 @@ function setStat(id, value){
 }
 function formatNumber(value){
   return Number.isFinite(value) ? value.toLocaleString("ru-RU") : "0";
+}
+
+function renderTracker(){
+  const d = State.duel;
+  if(!d) return "";
+  return `
+    <nav class="question-tracker" aria-label="Прогресс вопросов">
+      ${d.q.map((_, idx)=>{
+        const info = d.answers[idx];
+        const status = info?.status;
+        const classes = ["tracker-dot"];
+        if(idx === d.i) classes.push("is-current");
+        if(status === "correct") classes.push("is-correct");
+        if(status === "wrong") classes.push("is-wrong");
+        const disabled = idx > d.furthest ? "disabled" : "";
+        return `<button type="button" class="${classes.join(" ")}" data-question="${idx}" ${disabled}><span>${idx+1}</span></button>`;
+      }).join("")}
+    </nav>
+  `;
+}
+
+function renderAnswerButton(text, index, question, answerState){
+  const classes = ["answer"];
+  let disabled = "";
+  if(answerState?.status){
+    disabled = "disabled";
+    if(index === question.correctIndex) classes.push("correct");
+    if(answerState.status === "wrong" && index === answerState.selected) classes.push("wrong");
+  }
+  return `<button class="${classes.join(" ")}" data-i="${index}" ${disabled}>${esc(text)}</button>`;
+}
+
+function renderQuestionControls(isAnswered){
+  const d = State.duel;
+  if(!d) return "";
+  const atStart = d.i === 0;
+  const atEnd = d.i === d.q.length - 1;
+  const nextLabel = atEnd ? "Завершить" : "Следующий";
+  const nextAttr = atEnd ? "data-finish" : "data-next";
+  const prevBtn = `<button class="btn ghost nav-btn" data-prev ${atStart?"disabled":""}>⬅️ Назад</button>`;
+  const nextBtn = `<button class="btn btn-primary nav-btn" ${nextAttr} ${isAnswered?"":"disabled"}>${nextLabel} ➡️</button>`;
+  return `
+    <div class="question-controls">
+      ${prevBtn}
+      ${nextBtn}
+    </div>
+  `;
+}
+
+function goToQuestion(index){
+  const d = State.duel;
+  if(!d) return;
+  const target = Math.max(0, Math.min(index, d.q.length - 1));
+  if(target > d.furthest) return;
+  renderQuestion(target);
+}
+
+function nextQuestion(){
+  const d = State.duel;
+  if(!d) return;
+  if(d.i >= d.q.length - 1){
+    if(d.answers[d.i]?.status){
+      finishDuel();
+    }
+    return;
+  }
+  if(!d.answers[d.i]?.status) return;
+  d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
+  renderQuestion(d.i + 1);
+}
+
+function previousQuestion(){
+  const d = State.duel;
+  if(!d) return;
+  if(d.i <= 0) return;
+  renderQuestion(d.i - 1);
 }
