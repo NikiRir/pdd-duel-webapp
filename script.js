@@ -1,7 +1,3 @@
-diff --git a/script.js b/script.js
-index 91dd7ada733416cc5617f5f84e8ed1294bc84a21..c1546747ed7c9d3466684312b56bb173f39fe6c5 100644
-++ b/script.js
-@@ -1,30 +1,33 @@
  /* =======================
     Telegram + Глобальное состояние
  ======================= */
