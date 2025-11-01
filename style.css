@@ -1,7 +1,3 @@
-diff --git a/style.css b/style.css
-index d3120b7256cdca82af05264308517affd1e172de..8e530cc654cf211573d9c8c34f671f602a7043c9 100644
-++ b/style.css
-@@ -292,26 +292,448 @@ button {
  .screen.screen--hidden {
    display: none;
  }
