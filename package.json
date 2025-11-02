@@ -1,2 +1,9 @@
-npm init -y
-npm install node-fetch
+{
+  "name": "auto-edit-bot",
+  "version": "1.0.0",
+  "description": "GitHub Actions auto editor",
+  "main": "auto-edit.js",
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
