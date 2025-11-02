@@ -1,4 +1,4 @@
-name: Auto Edit All Files
+name: Auto Edit Selected Files
 
 on:
   workflow_dispatch:
