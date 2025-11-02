@@ -1,5 +1,5 @@
 // ===============================
-// 🤖 Auto Edit Script (Hugging Face, free)
+// 🤖 Auto Edit Script (Hugging Face, gpt2 - always available)
 // ===============================
 
 const fetch = require("node-fetch");
@@ -7,7 +7,7 @@ const fs = require("fs");
 const { execSync } = require("child_process");
 
 const FILE_PATH = "README.md"; // какой файл редактируем
-const API_URL = "https://api-inference.huggingface.co/models/google/gemma-2b-it"; // ✅ стабильная бесплатная модель
+const API_URL = "https://api-inference.huggingface.co/models/gpt2"; // ✅ стабильная и публичная модель
 const API_KEY = process.env.HUGGINGFACE_API_KEY;
 
 if (!API_KEY) {
@@ -30,17 +30,17 @@ if (!API_KEY) {
 
     // формируем prompt
     const prompt = `
-Ты — умный ассистент, который улучшает README.md проектов.
+Ты — ассистент, который улучшает README.md проектов.
 Вот текущий текст файла:
 """
 ${content}
 """
-Добавь краткое описание проекта, шаги установки и секцию "Как использовать".
-Ответь только улучшенным текстом README без пояснений.
+Сделай его понятным и красивым, добавь описание и пример использования.
+Ответь только обновлённым README.
 `;
 
     // запрос к Hugging Face
-    console.log("📡 Отправляю запрос к Hugging Face...");
+    console.log("📡 Отправляю запрос к Hugging Face (gpt2)...");
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {
@@ -70,7 +70,7 @@ ${content}
     execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git config user.name "github-actions[bot]"');
     execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Gemma-2B" || echo "⚠️ Нет изменений для коммита"`);
+    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via GPT-2" || echo "⚠️ Нет изменений для коммита"`);
     execSync("git push");
 
     console.log("✅ Всё готово! Изменения отправлены в репозиторий.");
