@@ -1,5 +1,5 @@
 // ===============================
-// 🤖 Auto Edit Script (Hugging Face, Zephyr-7B-Beta)
+// 🤖 Auto Edit Script (через твой Hugging Face Space)
 // ===============================
 
 const fetch = require("node-fetch");
@@ -7,13 +7,7 @@ const fs = require("fs");
 const { execSync } = require("child_process");
 
 const FILE_PATH = "README.md";
-const API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"; // ✅ рабочая модель
-const API_KEY = process.env.HUGGINGFACE_API_KEY;
-
-if (!API_KEY) {
-  console.error("❌ Ошибка: переменная HUGGINGFACE_API_KEY не найдена.");
-  process.exit(1);
-}
+const API_URL = "https://NekitWlk-auto-edit-bot.hf.space/api/edit"; // 👈 твой Space URL
 
 (async () => {
   try {
@@ -28,35 +22,27 @@ if (!API_KEY) {
     }
 
     const prompt = `
-Ты — AI-редактор, который улучшает README.md проекта.
-Вот его содержимое:
-"""
-${content}
-"""
-Перепиши README так, чтобы он выглядел профессионально, кратко и понятно.
+Ты — AI-редактор. Перепиши README.md, чтобы он выглядел профессионально и красиво.
 Добавь описание проекта, установку и пример использования.
+
+Текущее содержимое:
+${content}
 `;
 
-    console.log("📡 Отправляю запрос к Hugging Face (Zephyr-7B-Beta)...");
+    console.log("📡 Отправляю запрос к Hugging Face Space...");
     const res = await fetch(API_URL, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ inputs: prompt }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
     });
 
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Hugging Face API error (${res.status}): ${text}`);
+      throw new Error(`Ошибка от Space (${res.status}): ${text}`);
     }
 
     const data = await res.json();
-    const newText =
-      Array.isArray(data) && data[0]?.generated_text
-        ? data[0].generated_text
-        : JSON.stringify(data, null, 2);
+    const newText = data.text || "Ошибка: пустой ответ от Space.";
 
     fs.writeFileSync(FILE_PATH, newText, "utf8");
     console.log(`💾 ${FILE_PATH} успешно обновлён!`);
@@ -65,10 +51,10 @@ ${content}
     execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git config user.name "github-actions[bot]"');
     execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Zephyr-7B-Beta" || echo "⚠️ Нет изменений для коммита"`);
+    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Hugging Face Space" || echo "⚠️ Нет изменений для коммита"`);
     execSync("git push");
 
-    console.log("✅ Всё готово! Изменения отправлены в репозиторий.");
+    console.log("✅ Готово! Изменения отправлены в репозиторий.");
 
   } catch (err) {
     console.error("❌ Ошибка:", err.message);
