@@ -33,3 +33,4 @@ jobs:
             git commit -m "🌀 Auto-push from Cursor workflow"
             git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
           fi
+
