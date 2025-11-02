@@ -23,14 +23,12 @@ jobs:
           node-version: '18'
 
       - name: Clean and install dependencies
-        working-directory: app
         run: |
           echo "🧹 Cleaning and installing dependencies..."
           rm -rf node_modules package-lock.json || true
           npm install
 
       - name: Run auto-edit script
-        working-directory: app
         env:
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
