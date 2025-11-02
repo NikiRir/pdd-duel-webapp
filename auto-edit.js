@@ -1,5 +1,5 @@
 // ===============================
-// 🤖 Auto Edit Script (Hugging Face, MiniMax-M2)
+// 🤖 Auto Edit Script (Hugging Face, Zephyr-7B-Beta)
 // ===============================
 
 const fetch = require("node-fetch");
@@ -7,7 +7,7 @@ const fs = require("fs");
 const { execSync } = require("child_process");
 
 const FILE_PATH = "README.md";
-const API_URL = "https://api-inference.huggingface.co/models/MiniMaxAI/MiniMax-M2"; // ✅ рабочая модель
+const API_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"; // ✅ рабочая модель
 const API_KEY = process.env.HUGGINGFACE_API_KEY;
 
 if (!API_KEY) {
@@ -28,16 +28,16 @@ if (!API_KEY) {
     }
 
     const prompt = `
-Ты — ассистент, который улучшает README.md проектов.
-Вот текущий текст файла:
+Ты — AI-редактор, который улучшает README.md проекта.
+Вот его содержимое:
 """
 ${content}
 """
-Сделай README.md более информативным: добавь краткое описание, установку и пример использования.
-Ответь только улучшенным README без пояснений.
+Перепиши README так, чтобы он выглядел профессионально, кратко и понятно.
+Добавь описание проекта, установку и пример использования.
 `;
 
-    console.log("📡 Отправляю запрос к Hugging Face (MiniMax-M2)...");
+    console.log("📡 Отправляю запрос к Hugging Face (Zephyr-7B-Beta)...");
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {
@@ -65,7 +65,7 @@ ${content}
     execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git config user.name "github-actions[bot]"');
     execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via MiniMax-M2" || echo "⚠️ Нет изменений для коммита"`);
+    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Zephyr-7B-Beta" || echo "⚠️ Нет изменений для коммита"`);
     execSync("git push");
 
     console.log("✅ Всё готово! Изменения отправлены в репозиторий.");
