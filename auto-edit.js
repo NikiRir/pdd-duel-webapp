@@ -7,7 +7,7 @@ const fs = require("fs");
 const { execSync } = require("child_process");
 
 const FILE_PATH = "README.md"; // какой файл редактируем
-const API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"; // стабильная бесплатная модель
+const API_URL = "https://api-inference.huggingface.co/models/google/gemma-2b-it"; // ✅ стабильная бесплатная модель
 const API_KEY = process.env.HUGGINGFACE_API_KEY;
 
 if (!API_KEY) {
@@ -15,7 +15,6 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// === Оборачиваем всё в async ===
 (async () => {
   try {
     console.log("🚀 Запускаю AI-редактирование...");
@@ -57,8 +56,6 @@ ${content}
     }
 
     const data = await res.json();
-
-    // некоторые модели возвращают массив с полем generated_text
     const newText =
       Array.isArray(data) && data[0]?.generated_text
         ? data[0].generated_text
@@ -73,7 +70,7 @@ ${content}
     execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git config user.name "github-actions[bot]"');
     execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Falcon-7B" || echo "⚠️ Нет изменений для коммита"`);
+    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Gemma-2B" || echo "⚠️ Нет изменений для коммита"`);
     execSync("git push");
 
     console.log("✅ Всё готово! Изменения отправлены в репозиторий.");
