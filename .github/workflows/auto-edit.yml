@@ -1,9 +1,9 @@
-name: Auto Edit Files (Hugging Face, free)
+name: Auto Edit Files (Hugging Face Space)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 9 * * *' # запускается каждый день в 9 утра UTC
 
 jobs:
   ai-edit:
@@ -14,30 +14,14 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          persist-credentials: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
-      - name: Clean and install dependencies
-        run: |
-          echo "🧹 Cleaning and installing dependencies..."
-          rm -rf node_modules package-lock.json || true
-          npm install
+      - name: Install dependencies
+        run: npm install node-fetch@2
 
       - name: Run auto-edit script
-        env:
-          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "🚀 Starting AI auto-edit job"
-          pwd
-          ls -la
-          cat package.json || echo "⚠️ No package.json found!"
-          node ./auto-edit.js
-
-      - name: Job finished
-        run: echo "✅ Auto edit workflow complete!"
+        run: node auto-edit.js
