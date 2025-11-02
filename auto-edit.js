@@ -7,7 +7,7 @@ const fs = require("fs");
 const { execSync } = require("child_process");
 
 const FILE_PATH = "README.md"; // какой файл редактируем
-const API_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct";
+const API_URL = "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct"; // стабильная бесплатная модель
 const API_KEY = process.env.HUGGINGFACE_API_KEY;
 
 if (!API_KEY) {
@@ -24,6 +24,7 @@ if (!API_KEY) {
     let content = "";
     if (fs.existsSync(FILE_PATH)) {
       content = fs.readFileSync(FILE_PATH, "utf8");
+      console.log("📖 Найден README.md, отправляю на улучшение...");
     } else {
       console.log(`⚠️ ${FILE_PATH} не найден, создаю новый.`);
     }
@@ -31,11 +32,12 @@ if (!API_KEY) {
     // формируем prompt
     const prompt = `
 Ты — умный ассистент, который улучшает README.md проектов.
-Вот исходный текст файла:
+Вот текущий текст файла:
 """
 ${content}
 """
-Добавь краткое описание, установку и пример использования.
+Добавь краткое описание проекта, шаги установки и секцию "Как использовать".
+Ответь только улучшенным текстом README без пояснений.
 `;
 
     // запрос к Hugging Face
@@ -55,9 +57,12 @@ ${content}
     }
 
     const data = await res.json();
-    const newText = Array.isArray(data) && data[0]?.generated_text
-      ? data[0].generated_text
-      : JSON.stringify(data, null, 2);
+
+    // некоторые модели возвращают массив с полем generated_text
+    const newText =
+      Array.isArray(data) && data[0]?.generated_text
+        ? data[0].generated_text
+        : JSON.stringify(data, null, 2);
 
     // сохраняем результат
     fs.writeFileSync(FILE_PATH, newText, "utf8");
@@ -68,13 +73,13 @@ ${content}
     execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git config user.name "github-actions[bot]"');
     execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH}" || echo "⚠️ Нет изменений для коммита"`);
+    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Falcon-7B" || echo "⚠️ Нет изменений для коммита"`);
     execSync("git push");
 
-    console.log("✅ Всё готово! Изменения отправлены.");
+    console.log("✅ Всё готово! Изменения отправлены в репозиторий.");
 
   } catch (err) {
-    console.error("❌ Ошибка:", err);
+    console.error("❌ Ошибка:", err.message);
     process.exit(1);
   }
 })();
