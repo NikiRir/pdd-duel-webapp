@@ -56,54 +56,89 @@ try {
    setTimeout(initApp, 0);
  }
  
- async function boot(){
-   showLoader(true);
-  let hasQuestions = false;
-   try {
-    try {
-      hydrateFallback({ reset: true });
-    } catch(err){
-      console.error("Ошибка подготовки демонстрационных билетов:", err);
+async function boot(){
+  showLoader(true);
+ let hasQuestions = false;
+  const maxLoadTime = 30000; // 30 секунд максимум на загрузку
+  let loadTimeoutId = setTimeout(() => {
+    console.warn("⚠️ Загрузка превысила максимальное время, принудительно завершаем");
+    if(!State.pool.length){
+      try {
+        hydrateFallback();
+      } catch(err){
+        console.error("Ошибка резервной загрузки билетов:", err);
+      }
     }
-
-    const baseProgress = 5;
-    setLoader(baseProgress);
-
+    hasQuestions = State.pool.length > 0;
+    setLoader(100);
     try {
-      await loadTickets(progress => {
-        if (typeof progress === "number" && !Number.isNaN(progress)) {
-          const clamped = Math.max(0, Math.min(1, progress));
-          setLoader(baseProgress + Math.round(clamped * 85));
-        }
-      });
-    } catch(e) {
-      console.error("Ошибка загрузки билетов:", e);
-    } finally {
-      if(!State.pool.length){
-        try {
-          hydrateFallback();
-        } catch(err){
-          console.error("Ошибка резервной загрузки билетов:", err);
-        }
-       }
-      hasQuestions = State.pool.length > 0;
-      setLoader(100);
-      try {
-        renderHome();
-      } catch(err){
-        console.error("Ошибка отображения главного экрана:", err);
-      }
-      try {
-        updateStatsCounters();
-      } catch(err){
-        console.error("Ошибка обновления статистики:", err);
-      }
-      if(!hasQuestions) setTimeout(()=>notifyDataIssue(), 350);
-     }
-  } finally {
-     setTimeout(()=>showLoader(false), 250);
+      renderHome();
+    } catch(err){
+      console.error("Ошибка отображения главного экрана:", err);
+    }
+    try {
+      updateStatsCounters();
+    } catch(err){
+      console.error("Ошибка обновления статистики:", err);
+    }
+    setTimeout(()=>showLoader(false), 250);
+  }, maxLoadTime);
+
+  try {
+   try {
+     hydrateFallback({ reset: true });
+   } catch(err){
+     console.error("Ошибка подготовки демонстрационных билетов:", err);
    }
- }
+
+   const baseProgress = 5;
+   setLoader(baseProgress);
+
+   try {
+     await loadTickets(progress => {
+       if (typeof progress === "number" && !Number.isNaN(progress)) {
+         const clamped = Math.max(0, Math.min(1, progress));
+         setLoader(baseProgress + Math.round(clamped * 85));
+       }
+     });
+   } catch(e) {
+     console.error("Ошибка загрузки билетов:", e);
+  } finally {
+    if (loadTimeoutId) clearTimeout(loadTimeoutId);
+    if(!State.pool.length){
+       try {
+         hydrateFallback();
+       } catch(err){
+         console.error("Ошибка резервной загрузки билетов:", err);
+       }
+      }
+     hasQuestions = State.pool.length > 0;
+     setLoader(100);
+     try {
+       renderHome();
+     } catch(err){
+       console.error("Ошибка отображения главного экрана:", err);
+     }
+     try {
+       updateStatsCounters();
+     } catch(err){
+       console.error("Ошибка обновления статистики:", err);
+     }
+     if(!hasQuestions) setTimeout(()=>notifyDataIssue(), 350);
+    }
+  } finally {
+    if (loadTimeoutId) clearTimeout(loadTimeoutId);
+    // Гарантируем, что данные есть перед скрытием лоадера
+    if (!State.pool.length) {
+      try {
+        hydrateFallback();
+      } catch(err) {
+        console.error("Ошибка применения fallback в finally:", err);
+      }
+    }
+    setTimeout(()=>showLoader(false), 250);
+  }
+}
  
  /* =======================
     Лоадер
@@ -304,17 +339,60 @@ function setLoader(p){
    let failures = 0;
    const total = ticketFiles.length;
  
-   for(const file of ticketFiles){
-     const url = `questions/${encodePath(file)}`;
-     try {
-       const response = await fetch(url, { cache:"no-store" });
-       if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  for(const file of ticketFiles){
+    const url = `questions/${encodePath(file)}`;
+    try {
+      const response = await fetchWithTimeout(url, { cache:"no-store" }, 8000);
+      if(!response.ok) throw new Error(`HTTP ${response.status}`);
  
        const payload = await response.json();
        const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
        const ticketLabel = extractTicketLabel(file);
        for(const item of list){
-@@ -698,99 +741,107 @@ async function loadPenalties(){
+        raw.push({ ...item, __ticketLabel: ticketLabel });
+      }
+      successes++;
+      loaded++;
+      if (onProgress && total > 0) {
+        onProgress(loaded / total);
+      }
+    } catch(err) {
+      console.warn("Не удалось загрузить " + file + ":", err);
+      failures++;
+      loaded++;
+      if (onProgress && total > 0) {
+        onProgress(loaded / total);
+      }
+    }
+  }
+
+  if (raw.length > 0) {
+    const normalized = normalizeQuestions(raw);
+    applyQuestions(normalized, "remote");
+  } else {
+    // Если ничего не загрузилось, используем fallback
+    try {
+      hydrateFallback();
+    } catch(err) {
+      console.error("Ошибка применения fallback данных:", err);
+    }
+  }
+
+  if (onProgress) {
+    onProgress(1);
+  }
+}
+
+async function loadPenalties(){
+  let text = "";
+  try {
+    const response = await fetchWithTimeout(PENALTIES_URL, { cache:"no-store" }, 10000);
+    if(response.ok) {
+      text = await response.text();
+    }
+  } catch(err) {
+    console.warn("Не удалось загрузить штрафы:", err);
+  }
    const lines = text.split(/\n+/).map(line=>line.trim()).filter(Boolean);
    const items = [];
    for(const line of lines){
@@ -378,17 +456,32 @@ function setLoader(p){
    return out;
  }
  
- function resetQuestionState(){
-   State.pool.length = 0;
-   State.byTicket.clear();
-   State.topics.clear();
- }
- 
- function applyQuestions(norm, source = "remote"){
-   resetQuestionState();
-   ingestQuestions(norm);
-   State.usedFallback = source === "fallback";
- }
+function resetQuestionState(){
+  State.pool.length = 0;
+  State.byTicket.clear();
+  State.topics.clear();
+}
+
+function hydrateFallback(options = {}){
+  if (options.reset) {
+    resetQuestionState();
+  }
+  
+  if (!FALLBACK_QUESTION_BANK || !Array.isArray(FALLBACK_QUESTION_BANK) || FALLBACK_QUESTION_BANK.length === 0) {
+    console.warn("FALLBACK_QUESTION_BANK не определен или пуст");
+    return;
+  }
+  
+  const normalized = normalizeQuestions(FALLBACK_QUESTION_BANK);
+  applyQuestions(normalized, "fallback");
+  return normalized;
+}
+
+function applyQuestions(norm, source = "remote"){
+  resetQuestionState();
+  ingestQuestions(norm);
+  State.usedFallback = source === "fallback";
+}
  
  function ingestQuestions(norm){
    for(const q of norm){
@@ -441,11 +534,27 @@ function setLoader(p){
    return plain.replace(/_/g, " ") || "Билет";
  }
  
- async function fetchJson(url){
-   const response = await fetch(url, { cache:"no-store" });
-   if(!response.ok) throw new Error(`HTTP ${response.status}`);
-   return response.json();
- }
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000){
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response;
+  } catch(err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error(`Request timeout: ${url}`);
+    }
+    throw err;
+  }
+}
+
+async function fetchJson(url){
+  const response = await fetchWithTimeout(url, { cache:"no-store" }, 10000);
+  if(!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
  
  function normalizeImagePath(path){
   const raw = path == null ? "" : path.toString().trim();
