@@ -1,63 +1,81 @@
-// ===============================
-// 🤖 Auto Edit Script (через твой Hugging Face Space)
-// ===============================
+// ======================================
+// 🤖 Auto Editor — массовое редактирование всех файлов
+// Работает через твой Hugging Face Space API
+// ======================================
 
 const fetch = require("node-fetch");
 const fs = require("fs");
+const path = require("path");
 const { execSync } = require("child_process");
 
-const FILE_PATH = "README.md";
-const API_URL = "https://NekitWlk-auto-edit-bot.hf.space/api/edit"; // 👈 твой Space URL
+// URL твоего Space:
+const API_URL = "https://NekitWlk-auto-edit-bot.hf.space/api/edit"; // 👈 замени на свой
 
-(async () => {
-  try {
-    console.log("🚀 Запускаю AI-редактирование...");
+// Какие типы файлов редактировать:
+const EXTENSIONS = [".js", ".html", ".css", ".json", ".md"];
 
-    let content = "";
-    if (fs.existsSync(FILE_PATH)) {
-      content = fs.readFileSync(FILE_PATH, "utf8");
-      console.log("📖 Найден README.md, отправляю на улучшение...");
-    } else {
-      console.log(`⚠️ ${FILE_PATH} не найден, создаю новый.`);
-    }
-
-    const prompt = `
-Ты — AI-редактор. Перепиши README.md, чтобы он выглядел профессионально и красиво.
-Добавь описание проекта, установку и пример использования.
-
-Текущее содержимое:
+async function editFile(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
+  const prompt = `
+Ты — AI-редактор. Улучши стиль и читаемость этого файла, не меняя его поведение и смысл.
+Файл: ${path.basename(filePath)}
+Содержимое:
 ${content}
 `;
 
-    console.log("📡 Отправляю запрос к Hugging Face Space...");
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt }),
-    });
+  console.log(`📡 Отправляю ${filePath}...`);
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Ошибка от Space (${res.status}): ${text}`);
+  if (!res.ok) throw new Error(`Ошибка API: ${res.status}`);
+  const data = await res.json();
+  const newText = data.text || content;
+
+  fs.writeFileSync(filePath, newText, "utf8");
+  console.log(`💾 Обновлён: ${filePath}`);
+}
+
+async function run() {
+  const files = [];
+
+  // Рекурсивный поиск файлов
+  function scan(dir) {
+    for (const item of fs.readdirSync(dir)) {
+      const full = path.join(dir, item);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory() && !full.includes(".git") && !full.includes("node_modules")) {
+        scan(full);
+      } else if (EXTENSIONS.includes(path.extname(full))) {
+        files.push(full);
+      }
     }
-
-    const data = await res.json();
-    const newText = data.text || "Ошибка: пустой ответ от Space.";
-
-    fs.writeFileSync(FILE_PATH, newText, "utf8");
-    console.log(`💾 ${FILE_PATH} успешно обновлён!`);
-
-    console.log("📤 Коммитим и пушим изменения...");
-    execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
-    execSync('git config user.name "github-actions[bot]"');
-    execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via Hugging Face Space" || echo "⚠️ Нет изменений для коммита"`);
-    execSync("git push");
-
-    console.log("✅ Готово! Изменения отправлены в репозиторий.");
-
-  } catch (err) {
-    console.error("❌ Ошибка:", err.message);
-    process.exit(1);
   }
-})();
+
+  scan(".");
+  console.log(`📂 Найдено файлов: ${files.length}`);
+
+  for (const f of files) {
+    try {
+      await editFile(f);
+    } catch (e) {
+      console.error(`⚠️ Пропускаю ${f}: ${e.message}`);
+    }
+  }
+
+  // Коммитим и пушим
+  execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
+  execSync('git config user.name "github-actions[bot]"');
+  execSync("git add .");
+  execSync('git commit -m "🤖 Auto-edit all files via Hugging Face Space" || echo "⚠️ Нет изменений для коммита"');
+  execSync("git push");
+
+  console.log("✅ Готово! Все файлы обновлены.");
+}
+
+run().catch(e => {
+  console.error("❌ Ошибка:", e);
+  process.exit(1);
+});
