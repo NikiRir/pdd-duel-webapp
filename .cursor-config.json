@@ -1,0 +1,23 @@
+{
+    "model": "auto",
+    "autoSave": true,
+    "autoCommit": true,
+    "autoPush": true,
+    "commitMessageTemplate": "🤖 Автообновление: {{file}} изменён автоматически",
+    "context": {
+      "includeFiles": ["*.js", "*.html", "*.css"],
+      "exclude": ["node_modules", "dist", "build"]
+    },
+    "editPreferences": {
+      "style": "concise",
+      "preserveComments": true,
+      "language": "ru"
+    },
+    "git": {
+      "enabled": true,
+      "autoStage": true,
+      "autoPush": true,
+      "branch": "main"
+    }
+  }
+  

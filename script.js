@@ -29,128 +29,223 @@ try {
  const MANIFEST_URL = "questions/index.json";
  const MARKUP_URL = "markup/markup.json";
  const PENALTIES_URL = "penalties/penalties.json";
- const FALLBACK_MANIFEST = {
-   tickets: [
-@@ -336,137 +339,167 @@ const FALLBACK_QUESTION_BANK = [
-     ],
-     tip: "Выступающий груз необходимо обозначить флажками или световозвращателями."
-   }
- ];
+const FALLBACK_MANIFEST = {
+  tickets: []
+};
+
+const FALLBACK_QUESTION_BANK = [
+  {
+    question: "Пример вопроса ПДД",
+    answers: [
+      { text: "Правильный ответ", is_correct: true },
+      { text: "Неправильный ответ 1", is_correct: false },
+      { text: "Неправильный ответ 2", is_correct: false }
+    ],
+    tip: "Это демонстрационный вопрос"
+  }
+];
  
  /* =======================
     Запуск
  ======================= */
- function initApp(){
-   try {
-     bindMenu();
-     bindDelegation();
-   } catch(err){
-     console.error("Ошибка инициализации интерфейса:", err);
-   }
-   boot();
- }
- 
- if (document.readyState === "loading") {
-   document.addEventListener("DOMContentLoaded", initApp, { once: true });
- } else {
-   setTimeout(initApp, 0);
- }
+function initApp(){
+  try {
+    bindMenu();
+    bindDelegation();
+  } catch(err){
+    console.error("Ошибка инициализации интерфейса:", err);
+  }
+  boot();
+}
+
+// Улучшенная логика запуска
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initApp, { once: true });
+} else {
+  // DOM уже готов
+  if (document.body) {
+    setTimeout(initApp, 0);
+  } else {
+    // Ждем body
+    const checkBody = setInterval(() => {
+      if (document.body) {
+        clearInterval(checkBody);
+        initApp();
+      }
+    }, 10);
+    // На всякий случай запускаем через 100мс
+    setTimeout(() => {
+      clearInterval(checkBody);
+      if (document.body) initApp();
+    }, 100);
+  }
+}
  
 async function boot(){
-  showLoader(true);
- let hasQuestions = false;
-  const maxLoadTime = 30000; // 30 секунд максимум на загрузку
+  console.log("🚀 boot() запущен");
+  
+  // Принудительно показываем лоадер
+  try {
+    const loaderEl = document.querySelector("#loader");
+    if (loaderEl) {
+      loaderEl.classList.remove("hidden");
+      loaderEl.style.display = "";
+      loaderEl.style.visibility = "visible";
+      loaderEl.style.opacity = "1";
+    }
+    if (document.body) {
+      document.body.classList.add("is-loading");
+    }
+  } catch(e) {
+    console.error("Ошибка при показе лоадера:", e);
+  }
+  
+  let hasQuestions = false;
+  const maxLoadTime = 8000; // 8 секунд максимум на загрузку
+  
+  // Сразу загружаем fallback данные для быстрого отклика
+  try {
+    console.log("📦 Загружаем fallback данные немедленно...");
+    hydrateFallback({ reset: true });
+    hasQuestions = State.pool.length > 0;
+    console.log("✓ Fallback данные загружены, вопросов:", State.pool.length);
+    // Если fallback загружен, сразу рендерим интерфейс
+    if (hasQuestions) {
+      try {
+        renderHome();
+        updateStatsCounters();
+      } catch(e) {
+        console.error("Ошибка рендеринга:", e);
+      }
+    }
+  } catch(err) {
+    console.error("Ошибка загрузки fallback данных:", err);
+  }
+  
   let loadTimeoutId = setTimeout(() => {
-    console.warn("⚠️ Загрузка превысила максимальное время, принудительно завершаем");
+    console.warn("⏱️ Таймаут загрузки сработал (8 секунд)");
     if(!State.pool.length){
       try {
+        console.log("📦 Применяем fallback по таймауту...");
         hydrateFallback();
+        hasQuestions = State.pool.length > 0;
       } catch(err){
         console.error("Ошибка резервной загрузки билетов:", err);
       }
     }
     hasQuestions = State.pool.length > 0;
-    setLoader(100);
     try {
+      setLoader(100);
       renderHome();
-    } catch(err){
-      console.error("Ошибка отображения главного экрана:", err);
-    }
-    try {
       updateStatsCounters();
     } catch(err){
-      console.error("Ошибка обновления статистики:", err);
+      console.error("Ошибка при завершении:", err);
     }
-    setTimeout(()=>showLoader(false), 250);
+    // Принудительно скрываем лоадер
+    setTimeout(() => {
+      hideLoaderForced();
+      if(!hasQuestions){
+        notifyDataIssue();
+      }
+    }, 100);
   }, maxLoadTime);
 
   try {
-   try {
-     hydrateFallback({ reset: true });
-   } catch(err){
-     console.error("Ошибка подготовки демонстрационных билетов:", err);
-   }
+    const baseProgress = 5;
+    setLoader(baseProgress);
 
-   const baseProgress = 5;
-   setLoader(baseProgress);
-
-   try {
-     await loadTickets(progress => {
-       if (typeof progress === "number" && !Number.isNaN(progress)) {
-         const clamped = Math.max(0, Math.min(1, progress));
-         setLoader(baseProgress + Math.round(clamped * 85));
-       }
-     });
-   } catch(e) {
-     console.error("Ошибка загрузки билетов:", e);
-  } finally {
-    if (loadTimeoutId) clearTimeout(loadTimeoutId);
-    if(!State.pool.length){
-       try {
-         hydrateFallback();
-       } catch(err){
-         console.error("Ошибка резервной загрузки билетов:", err);
-       }
-      }
-     hasQuestions = State.pool.length > 0;
-     setLoader(100);
-     try {
-       renderHome();
-     } catch(err){
-       console.error("Ошибка отображения главного экрана:", err);
-     }
-     try {
-       updateStatsCounters();
-     } catch(err){
-       console.error("Ошибка обновления статистики:", err);
-     }
-     if(!hasQuestions) setTimeout(()=>notifyDataIssue(), 350);
+    try {
+      console.log("📥 Начинаем загрузку билетов...");
+      await loadTickets(progress => {
+        if (typeof progress === "number" && !Number.isNaN(progress)) {
+          const clamped = Math.max(0, Math.min(1, progress));
+          setLoader(baseProgress + Math.round(clamped * 85));
+        }
+      });
+      console.log("✓ Билеты загружены, вопросов:", State.pool.length);
+      hasQuestions = State.pool.length > 0;
+    } catch(e) {
+      console.error("Ошибка загрузки билетов:", e);
+      hasQuestions = State.pool.length > 0;
     }
+  } catch(e) {
+    console.error("Критическая ошибка в boot():", e);
   } finally {
     if (loadTimeoutId) clearTimeout(loadTimeoutId);
     // Гарантируем, что данные есть перед скрытием лоадера
     if (!State.pool.length) {
       try {
+        console.log("📦 Применяем fallback данные в finally...");
         hydrateFallback();
+        console.log("✓ Fallback применен, вопросов:", State.pool.length);
       } catch(err) {
         console.error("Ошибка применения fallback в finally:", err);
       }
     }
-    setTimeout(()=>showLoader(false), 250);
+    hasQuestions = State.pool.length > 0;
+    setLoader(100);
+    // Рендерим интерфейс
+    try {
+      renderHome();
+      updateStatsCounters();
+    } catch(err) {
+      console.error("Ошибка при рендеринге:", err);
+    }
+    if(!hasQuestions) {
+      setTimeout(()=>notifyDataIssue(), 350);
+    }
+    // Принудительно скрываем лоадер
+    setTimeout(()=>{
+      console.log("👋 Скрываем лоадер...");
+      hideLoaderForced();
+    }, 100);
   }
 }
  
  /* =======================
     Лоадер
  ======================= */
- function showLoader(v){
-   const isVisible = !!v;
-  const el = qs("#loader");
-  if (el) el.classList.toggle("hidden", !isVisible);
-  if (document.body) document.body.classList.toggle("is-loading", isVisible);
+function hideLoaderForced(){
+  try {
+    const loaderEl = document.querySelector("#loader");
+    if (loaderEl) {
+      loaderEl.classList.add("hidden");
+      loaderEl.style.display = "none";
+      loaderEl.style.visibility = "hidden";
+      loaderEl.style.opacity = "0";
+    }
+    if (document.body) {
+      document.body.classList.remove("is-loading");
+    }
+    console.log("✓ Лоадер скрыт принудительно");
+  } catch(e) {
+    console.error("Ошибка при скрытии лоадера:", e);
+  }
+}
+
+function showLoader(v){
+  const isVisible = !!v;
+ const el = document.querySelector("#loader");
+ if (el) {
+   el.classList.toggle("hidden", !isVisible);
+   if (!isVisible) {
+     el.style.display = "none";
+   } else {
+     el.style.display = "";
+   }
+ }
+ if (document.body) {
+   document.body.classList.toggle("is-loading", isVisible);
+   if (!isVisible) {
+     document.body.classList.remove("is-loading");
+   }
+ }
+ if (!isVisible) {
+   hideLoaderForced();
+ }
 }
 function setLoader(p){
-  const bar = qs("#loaderBar");
+  const bar = document.querySelector("#loaderBar");
   if (!bar) return;
   bar.style.width = Math.max(0,Math.min(100,p))+"%";
  }
@@ -234,32 +329,45 @@ function setLoader(p){
  /* =======================
     Делегация событий
  ======================= */
-@@ -504,51 +537,60 @@ function handleTap(e){
-   if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
-   const back = e.target.closest("[data-back]");
-   if (back){ e.preventDefault(); renderHome(); return; }
-   const dot = e.target.closest("[data-question]");
-   if (dot){
-     e.preventDefault();
-     if (dot.disabled) return;
-     goToQuestion(+dot.dataset.question);
-     return;
-   }
-   if (e.target.closest("[data-prev]")){
-     e.preventDefault();
-     previousQuestion();
-     return;
-   }
-   if (e.target.closest("[data-next]")){
-     e.preventDefault();
-     nextQuestion();
-     return;
-   }
-   if (e.target.closest("[data-finish]")){
-     e.preventDefault();
-     finishDuel();
-     return;
-   }
+function bindDelegation(){
+  if (delegationBound) return;
+  document.addEventListener("click", handleClick, { passive: false });
+  document.addEventListener("pointerdown", handlePointerDown, { passive: true });
+  document.addEventListener("pointermove", handlePointerMove, { passive: true });
+  document.addEventListener("pointerup", handlePointerUp, { passive: true });
+  document.addEventListener("pointercancel", handlePointerCancel, { passive: true });
+  delegationBound = true;
+}
+
+function handleTap(e){
+  const topic = e.target.closest("[data-t]");
+  if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
+  const ticket = e.target.closest("[data-ticket]");
+  if (ticket){ e.preventDefault(); startTicket(ticket.dataset.ticket); return; }
+  const back = e.target.closest("[data-back]");
+  if (back){ e.preventDefault(); renderHome(); return; }
+  const dot = e.target.closest("[data-question]");
+  if (dot){
+    e.preventDefault();
+    if (dot.disabled) return;
+    goToQuestion(+dot.dataset.question);
+    return;
+  }
+  if (e.target.closest("[data-prev]")){
+    e.preventDefault();
+    previousQuestion();
+    return;
+  }
+  if (e.target.closest("[data-next]")){
+    e.preventDefault();
+    nextQuestion();
+    return;
+  }
+  if (e.target.closest("[data-finish]")){
+    e.preventDefault();
+    finishDuel();
+    return;
+  }
   if (e.target.id === "again"){ 
     e.preventDefault();
     const currentDuel = State.duel;
@@ -270,8 +378,17 @@ function setLoader(p){
     }
     return;
   }
-   if (e.target.id === "home"){ e.preventDefault(); renderHome(); return; }
- }
+  if (e.target.id === "home"){ e.preventDefault(); renderHome(); return; }
+  const answer = e.target.closest("button.answer[data-i]");
+  if (answer){
+    e.preventDefault();
+    const index = parseInt(answer.dataset.i);
+    if (!isNaN(index)){
+      onAnswer(index);
+    }
+    return;
+  }
+}
  
  function handlePointerDown(e){
    if (e.pointerType !== "touch") return;
@@ -293,10 +410,20 @@ function setLoader(p){
  }
  
  function handlePointerUp(e){
-   if (e.pointerType !== "touch") return;
-   const tap = State.tap;
-@@ -579,52 +621,53 @@ function handlePointerCancel(){
- function handleClick(e){
+  if (e.pointerType !== "touch") return;
+  const tap = State.tap;
+  if (!tap || e.pointerId !== tap.pointerId) return;
+  if (!tap.moved && tap.target) {
+    handleTap({ target: tap.target, preventDefault: ()=>{}, currentTarget: tap.target });
+  }
+  State.tap = null;
+}
+
+function handlePointerCancel(){
+  State.tap = null;
+}
+
+function handleClick(e){
    if (State.ignoreClickUntil && Date.now() < State.ignoreClickUntil) {
      return;
    }
@@ -311,76 +438,83 @@ function setLoader(p){
  /* =======================
     Загрузка билетов
  ======================= */
- async function loadTickets(onProgress){
-   onProgress && onProgress(0);
- 
-   let manifest = null;
+async function loadTickets(onProgress){
+  onProgress && onProgress(0);
+
+  let manifest = null;
+  try {
+    manifest = await fetchJson(MANIFEST_URL);
+  } catch(err){
+    console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
+  }
+
+ const manifestTickets = (manifest && Array.isArray(manifest.tickets)) ? manifest.tickets : [];
+  const ticketFiles = uniqueStrings([
+   ...manifestTickets,
+    ...FALLBACK_MANIFEST.tickets
+  ]);
+  if(!ticketFiles.length){
+    console.warn("⚠️ Нет списка билетов для загрузки");
+    const fallback = hydrateFallback();
+    onProgress && onProgress(1);
+    return fallback;
+  }
+
+  const raw = [];
+  let loaded = 0;
+  let successes = 0;
+  let failures = 0;
+  const total = ticketFiles.length;
+  const maxFailures = Math.ceil(total * 0.7); // Если больше 70% файлов не загрузилось, прекращаем
+
+ for(const file of ticketFiles){
+   if(failures > maxFailures && raw.length === 0){
+     console.warn("⚠️ Слишком много ошибок загрузки, переключаемся на fallback");
+     break;
+   }
+   
+   const url = `questions/${encodePath(file)}`;
    try {
-     manifest = await fetchJson(MANIFEST_URL);
-   } catch(err){
-     console.warn("⚠️ Не удалось загрузить manifest, используем запасной список", err);
-   }
- 
-  const manifestTickets = (manifest && Array.isArray(manifest.tickets)) ? manifest.tickets : [];
-   const ticketFiles = uniqueStrings([
-    ...manifestTickets,
-     ...FALLBACK_MANIFEST.tickets
-   ]);
-   if(!ticketFiles.length){
-     console.warn("⚠️ Нет списка билетов для загрузки");
-     const fallback = hydrateFallback();
-     onProgress && onProgress(1);
-     return fallback;
-   }
- 
-   const raw = [];
-   let loaded = 0;
-   let successes = 0;
-   let failures = 0;
-   const total = ticketFiles.length;
- 
-  for(const file of ticketFiles){
-    const url = `questions/${encodePath(file)}`;
-    try {
-      const response = await fetchWithTimeout(url, { cache:"no-store" }, 8000);
-      if(!response.ok) throw new Error(`HTTP ${response.status}`);
- 
-       const payload = await response.json();
-       const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
-       const ticketLabel = extractTicketLabel(file);
-       for(const item of list){
-        raw.push({ ...item, __ticketLabel: ticketLabel });
+     const response = await fetchWithTimeout(url, { cache:"no-store" }, 3000); // Уменьшил таймаут до 3 секунд
+     if(!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const payload = await response.json();
+      const list = Array.isArray(payload) ? payload : (payload.questions || payload.list || payload.data || []);
+      const ticketLabel = extractTicketLabel(file);
+      for(const item of list){
+       raw.push({ ...item, __ticketLabel: ticketLabel });
       }
       successes++;
       loaded++;
       if (onProgress && total > 0) {
         onProgress(loaded / total);
       }
-    } catch(err) {
-      console.warn("Не удалось загрузить " + file + ":", err);
-      failures++;
-      loaded++;
-      if (onProgress && total > 0) {
-        onProgress(loaded / total);
-      }
-    }
-  }
+   } catch(err) {
+     console.warn("Не удалось загрузить " + file + ":", err);
+     failures++;
+     loaded++;
+     if (onProgress && total > 0) {
+       onProgress(loaded / total);
+     }
+   }
+ }
 
-  if (raw.length > 0) {
-    const normalized = normalizeQuestions(raw);
-    applyQuestions(normalized, "remote");
-  } else {
-    // Если ничего не загрузилось, используем fallback
-    try {
-      hydrateFallback();
-    } catch(err) {
-      console.error("Ошибка применения fallback данных:", err);
-    }
-  }
+ if (raw.length > 0) {
+   const normalized = normalizeQuestions(raw);
+   applyQuestions(normalized, "remote");
+ } else {
+   // Если ничего не загрузилось, используем fallback
+   console.log("📦 Ничего не загружено, применяем fallback данные");
+   try {
+     hydrateFallback();
+   } catch(err) {
+     console.error("Ошибка применения fallback данных:", err);
+   }
+ }
 
-  if (onProgress) {
-    onProgress(1);
-  }
+ if (onProgress) {
+   onProgress(1);
+ }
 }
 
 async function loadPenalties(){
@@ -515,9 +649,16 @@ function applyQuestions(norm, source = "remote"){
    const match = label.match(/\d+/);
    if (!match) return undefined;
    const value = parseInt(match[0], 10);
-@@ -817,69 +868,69 @@ function uniqueStrings(list){
+   return Number.isFinite(value) ? value : undefined;
+ }
+ 
+ function uniqueStrings(items){
+   const seen = new Set();
+   const out = [];
+   for(const item of items){
+     if (typeof item !== "string") continue;
      const normalized = item.trim();
-     if(seen.has(normalized)) continue;
+     if(!normalized || seen.has(normalized)) continue;
      seen.add(normalized);
      out.push(normalized);
    }
@@ -551,7 +692,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000){
 }
 
 async function fetchJson(url){
-  const response = await fetchWithTimeout(url, { cache:"no-store" }, 10000);
+  const response = await fetchWithTimeout(url, { cache:"no-store" }, 3000); // Уменьшил таймаут до 3 секунд
   if(!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
@@ -601,7 +742,6 @@ async function fetchJson(url){
  }
  
  async function uiMarkup(){
-@@ -955,237 +1006,247 @@ function uiStats(){
  }
  
  /* =======================
