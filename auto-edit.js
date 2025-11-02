@@ -1,13 +1,13 @@
 // ===============================
-// 🤖 Auto Edit Script (Hugging Face, gpt2 - always available)
+// 🤖 Auto Edit Script (Hugging Face, MiniMax-M2)
 // ===============================
 
 const fetch = require("node-fetch");
 const fs = require("fs");
 const { execSync } = require("child_process");
 
-const FILE_PATH = "README.md"; // какой файл редактируем
-const API_URL = "https://api-inference.huggingface.co/models/gpt2"; // ✅ стабильная и публичная модель
+const FILE_PATH = "README.md";
+const API_URL = "https://api-inference.huggingface.co/models/MiniMaxAI/MiniMax-M2"; // ✅ рабочая модель
 const API_KEY = process.env.HUGGINGFACE_API_KEY;
 
 if (!API_KEY) {
@@ -19,7 +19,6 @@ if (!API_KEY) {
   try {
     console.log("🚀 Запускаю AI-редактирование...");
 
-    // читаем текущий README.md
     let content = "";
     if (fs.existsSync(FILE_PATH)) {
       content = fs.readFileSync(FILE_PATH, "utf8");
@@ -28,19 +27,17 @@ if (!API_KEY) {
       console.log(`⚠️ ${FILE_PATH} не найден, создаю новый.`);
     }
 
-    // формируем prompt
     const prompt = `
 Ты — ассистент, который улучшает README.md проектов.
 Вот текущий текст файла:
 """
 ${content}
 """
-Сделай его понятным и красивым, добавь описание и пример использования.
-Ответь только обновлённым README.
+Сделай README.md более информативным: добавь краткое описание, установку и пример использования.
+Ответь только улучшенным README без пояснений.
 `;
 
-    // запрос к Hugging Face
-    console.log("📡 Отправляю запрос к Hugging Face (gpt2)...");
+    console.log("📡 Отправляю запрос к Hugging Face (MiniMax-M2)...");
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {
@@ -61,16 +58,14 @@ ${content}
         ? data[0].generated_text
         : JSON.stringify(data, null, 2);
 
-    // сохраняем результат
     fs.writeFileSync(FILE_PATH, newText, "utf8");
     console.log(`💾 ${FILE_PATH} успешно обновлён!`);
 
-    // коммит и пуш
     console.log("📤 Коммитим и пушим изменения...");
     execSync('git config user.email "github-actions[bot]@users.noreply.github.com"');
     execSync('git config user.name "github-actions[bot]"');
     execSync(`git add ${FILE_PATH}`);
-    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via GPT-2" || echo "⚠️ Нет изменений для коммита"`);
+    execSync(`git commit -m "🤖 Auto-edit ${FILE_PATH} via MiniMax-M2" || echo "⚠️ Нет изменений для коммита"`);
     execSync("git push");
 
     console.log("✅ Всё готово! Изменения отправлены в репозиторий.");
