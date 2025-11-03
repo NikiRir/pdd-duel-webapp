@@ -248,15 +248,24 @@ async function boot(){
    if (subpage) {
      toggleSubpage(true);
      
-     const header = `<header class="subpage-header">
-       <button type="button" class="back-btn" data-back>← Назад</button>
-       <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
-     </header>`;
-     
-     host.innerHTML = header + `<div class="view-content-wrapper"><div class="view-content">${html || ""}</div></div>`;
+     // Создаем структуру правильно: заголовок отдельно, контент отдельно
+     host.innerHTML = `
+       <header class="subpage-header">
+         <button type="button" class="back-btn" data-back>← Назад</button>
+         <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
+       </header>
+       <div class="view-content-wrapper">
+         <div class="view-content">
+           ${html || ""}
+         </div>
+       </div>
+     `;
      host.className = "screen";
+     // Скроллим только контент, не весь экран
      const wrapper = host.querySelector(".view-content-wrapper");
-     if(wrapper) wrapper.scrollTop = 0;
+     if(wrapper) {
+       wrapper.scrollTop = 0;
+     }
    } else {
      toggleSubpage(false);
      host.className = "screen screen--hidden";
