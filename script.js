@@ -244,13 +244,20 @@ async function boot(){
  function setView(html, { subpage = true, title = "" } = {}){
    toggleSubpage(subpage);
    const host = qs("#screen");
-   if(!host) return;
+   if(!host) {
+     console.error("❌ Элемент #screen не найден!");
+     return;
+   }
    host.scrollTop = 0;
  
    if (subpage) {
-     const content = wrapSubpage(title, html);
+     const content = wrapSubpage(title, html || "");
      host.classList.remove("screen--hidden");
      host.innerHTML = `<div class="view">${content}</div>`;
+     // Принудительно показываем экран через небольшую задержку
+     setTimeout(() => {
+       host.classList.remove("screen--hidden");
+     }, 0);
    } else {
      host.classList.add("screen--hidden");
      host.innerHTML = "";
@@ -867,6 +874,34 @@ async function uiMarkup(){
   html += `</div>`;
   setView(html, { subpage: true, title: "Разметка" });
   bindSearch("search-markup", listId);
+}
+
+function uiStats(){
+  const questionsCount = State.pool.length;
+  const topicsCount = State.topics.size;
+  const ticketsCount = State.byTicket.size;
+  
+  setView(`
+    <div class="card">
+      <h3>Статистика</h3>
+    </div>
+    <div class="card">
+      <div class="grid auto">
+        <div class="stat-item">
+          <div class="stat-value">${formatNumber(questionsCount)}</div>
+          <div class="stat-label">Вопросов</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${formatNumber(topicsCount)}</div>
+          <div class="stat-label">Тем</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${formatNumber(ticketsCount)}</div>
+          <div class="stat-label">Билетов</div>
+        </div>
+      </div>
+    </div>
+  `, { subpage: true, title: "Статистика" });
 }
 
 async function uiPenalties(){
