@@ -328,6 +328,7 @@ nav {
   visibility: visible !important;
   opacity: 1 !important;
   box-sizing: border-box !important;
+  height: 100vh !important;
 }
 
 .screen.screen--hidden {
@@ -342,6 +343,8 @@ nav {
   margin: 0 !important;
   width: 100%;
   box-sizing: border-box;
+  min-height: 0;
+  display: block;
 }
 
 .screen .view-content {
@@ -724,6 +727,7 @@ nav {
   flex-shrink: 0;
   width: 100%;
   min-height: 60px;
+  overflow: hidden !important;
 }
 
 .back-btn {
