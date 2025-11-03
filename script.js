@@ -170,8 +170,6 @@ async function boot(){
       }
     }
   } finally {
-    // Гарантируем, что состояние загрузки убрано
-    document.body.classList.remove("is-loading");
     console.log("✅ boot() завершен");
   }
 }
