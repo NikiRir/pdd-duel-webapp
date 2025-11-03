@@ -53,8 +53,40 @@ const FALLBACK_QUESTION_BANK = [
 ];
  
  /* =======================
+    Лоадер
+======================= */
+function showLoader(text = "Загрузка...", subtext = "") {
+  const overlay = qs("#loader-overlay");
+  const loaderText = qs(".loader-text");
+  const loaderSubtext = qs(".loader-subtext");
+  if(overlay && loaderText) {
+    loaderText.textContent = text;
+    if(loaderSubtext) loaderSubtext.textContent = subtext;
+    overlay.classList.add("active");
+  }
+}
+
+function hideLoader() {
+  const overlay = qs("#loader-overlay");
+  if(overlay) {
+    overlay.classList.remove("active");
+    setTimeout(() => {
+      const progress = qs("#loader-progress");
+      if(progress) progress.style.width = "0%";
+    }, 300);
+  }
+}
+
+function updateLoaderProgress(percent, subtext = "") {
+  const progress = qs("#loader-progress");
+  const loaderSubtext = qs(".loader-subtext");
+  if(progress) progress.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+  if(loaderSubtext && subtext) loaderSubtext.textContent = subtext;
+}
+
+ /* =======================
     Запуск
- ======================= */
+======================= */
 function initApp(){
   try {
     bindMenu();
@@ -90,6 +122,7 @@ if (document.readyState === "loading") {
  
 async function boot(){
   console.log("🚀 boot() запущен");
+  showLoader("Загрузка билетов...", "Подготовка данных");
   
   // Добавляем общий таймаут для boot (максимум 35 секунд)
   const bootTimeout = new Promise((_, reject) => {
@@ -126,7 +159,9 @@ async function boot(){
 
       try {
         console.log("📥 Начинаем загрузку билетов...");
+        updateLoaderProgress(20, "Загрузка списка билетов...");
         await Promise.race([loadTickets(), loadTimeout]);
+        updateLoaderProgress(90, "Обработка данных...");
         console.log("✓ Билеты загружены, вопросов:", State.pool.length);
         hasQuestions = State.pool.length > 0;
       } catch(e) {
@@ -177,6 +212,10 @@ async function boot(){
       }
     }
   } finally {
+    updateLoaderProgress(100, "Готово!");
+    setTimeout(() => {
+      hideLoader();
+    }, 500);
     console.log("✅ boot() завершен");
   }
 }
@@ -398,6 +437,12 @@ async function loadTickets(){
     const total = ticketFiles.length;
     const maxFailures = Math.ceil(total * 0.7); // Если больше 70% файлов не загрузилось, прекращаем
 
+    // Обновляем прогресс загрузки
+    const updateProgress = () => {
+      const percent = 20 + Math.floor((loaded / total) * 70);
+      updateLoaderProgress(percent, `Загружено ${loaded} из ${total} файлов...`);
+    };
+
     // Ограничиваем количество одновременных загрузок
     const maxConcurrent = 5;
     const chunks = [];
@@ -426,10 +471,12 @@ async function loadTickets(){
           }
           successes++;
           loaded++;
+          updateProgress();
         } catch(err) {
           console.warn("Не удалось загрузить " + file + ":", err);
           failures++;
           loaded++;
+          updateProgress();
         }
       }));
     }
@@ -657,12 +704,17 @@ async function fetchJson(url){
  function uiTopics(){
    const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
    if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
+   const listId = "topics-list";
    setView(`
      <div class="card"><h3>Темы</h3></div>
-    <div class="card"><div class="grid auto">
-       ${list.map(t=>`<button type="button" class="answer" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+     <div class="card">
+       <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
+     </div>
+     <div class="card"><div class="grid auto" id="${listId}">
+       ${list.map(t=>`<button type="button" class="answer" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
      </div></div>
    `, { subpage: true, title: "Темы" });
+   bindSearch("search-topics", listId);
  }
  
  function uiTickets(){
@@ -709,7 +761,14 @@ async function uiMarkup(){
   }
 
   const categories = Object.keys(markup);
-  let html = `<div class="card"><h3>Разметка</h3></div>`;
+  const listId = "markup-list";
+  let html = `
+    <div class="card"><h3>Разметка</h3></div>
+    <div class="card">
+      <input type="text" id="search-markup" class="search-input" placeholder="🔍 Поиск разметки..." data-search-target="${listId}" />
+    </div>
+    <div id="${listId}">
+  `;
 
   for(const category of categories) {
     const items = markup[category];
@@ -734,8 +793,9 @@ async function uiMarkup(){
             const image = item.image || "";
             const description = item.description || "";
             const imagePath = image.startsWith("./") ? image.substring(2) : image;
+            const searchText = `${number} ${description} ${category}`.toLowerCase();
             return `
-              <div class="markup-item">
+              <div class="markup-item" data-search-text="${esc(searchText)}">
                 <div class="markup-item__head">
                   <h4>${esc(number)}</h4>
                   <span class="markup-item__badge">${esc(number)}</span>
@@ -749,8 +809,10 @@ async function uiMarkup(){
       </div>
     `;
   }
-
+  
+  html += `</div>`;
   setView(html, { subpage: true, title: "Разметка" });
+  bindSearch("search-markup", listId);
 }
 
 async function uiPenalties(){
@@ -759,6 +821,7 @@ async function uiPenalties(){
   }
 
   const items = State.penalties || [];
+  const listId = "penalties-list";
   
   if(!items.length) {
     setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные о штрафах не найдены</p></div>`, { subpage: true, title: "Штрафы" });
@@ -769,18 +832,25 @@ async function uiPenalties(){
     <div class="card penalties-card">
       <h3>Штрафы</h3>
     </div>
-    <div class="penalties-grid">
-      ${items.map(item => `
-        <div class="penalty">
-          <h4>Статья ${esc(item.articlePart || "—")}</h4>
-          <p>${esc(item.text || "")}</p>
-          <p class="penalty__fine">${esc(item.penalty || "—")}</p>
-        </div>
-      `).join("")}
+    <div class="card">
+      <input type="text" id="search-penalties" class="search-input" placeholder="🔍 Поиск штрафов..." data-search-target="${listId}" />
+    </div>
+    <div class="penalties-grid" id="${listId}">
+      ${items.map(item => {
+        const searchText = `${item.articlePart || ""} ${item.text || ""} ${item.penalty || ""}`.toLowerCase();
+        return `
+          <div class="penalty" data-search-text="${esc(searchText)}">
+            <h4>Статья ${esc(item.articlePart || "—")}</h4>
+            <p>${esc(item.text || "")}</p>
+            <p class="penalty__fine">${esc(item.penalty || "—")}</p>
+          </div>
+        `;
+      }).join("")}
     </div>
   `;
 
   setView(html, { subpage: true, title: "Штрафы" });
+  bindSearch("search-penalties", listId);
 }
  
  /* =======================
@@ -922,6 +992,41 @@ function esc(s){
   const base = s == null ? "" : s;
   return String(base).replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
 }
+ function bindSearch(inputId, targetId){
+   const input = document.getElementById(inputId);
+   if(!input) return;
+   const target = document.getElementById(targetId);
+   if(!target) return;
+   
+   input.addEventListener("input", (e) => {
+     const query = e.target.value.toLowerCase().trim();
+     const items = target.querySelectorAll("[data-search-text]");
+     
+     items.forEach(item => {
+       const searchText = item.getAttribute("data-search-text") || "";
+       if(!query || searchText.includes(query)) {
+         item.style.display = "";
+         item.classList.add("fade-in");
+       } else {
+         item.style.display = "none";
+       }
+     });
+     
+     // Скрываем пустые категории для разметки
+     if(targetId === "markup-list") {
+       const categories = target.querySelectorAll(".markup-category");
+       categories.forEach(cat => {
+         const visibleItems = cat.querySelectorAll("[data-search-text]:not([style*='display: none'])");
+         if(visibleItems.length === 0 && query) {
+           cat.style.display = "none";
+         } else {
+           cat.style.display = "";
+         }
+       });
+     }
+   });
+ }
+
  function updateStatsCounters(){
    setStat("statQuestions", State.pool.length);
    setStat("statTopics", State.topics.size);

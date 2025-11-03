@@ -8,8 +8,8 @@
    <link rel="preconnect" href="https://fonts.googleapis.com" />
    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="preload" href="style.css?v=7" as="style" />
-  <link rel="stylesheet" href="style.css?v=7" />
+  <link rel="preload" href="style.css?v=8" as="style" />
+  <link rel="stylesheet" href="style.css?v=8" />
    <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
  </head>
  
@@ -52,6 +52,18 @@
    </div>
  
    <div id="toast" class="toast-wrap"></div>
-  <script src="script.js?v=6"></script>
+   
+   <div id="loader-overlay" class="loader-overlay">
+     <div class="loader-content">
+       <div class="loader-spinner"></div>
+       <div class="loader-text">Загрузка билетов...</div>
+       <div class="loader-subtext" id="loader-status">Подготовка данных</div>
+       <div class="loader-progress">
+         <div class="loader-progress-bar" id="loader-progress"></div>
+       </div>
+     </div>
+   </div>
+   
+  <script src="script.js?v=8"></script>
  </body>
  </html>
