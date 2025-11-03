@@ -339,15 +339,20 @@ nav {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   padding: 20px !important;
+  margin: 0 !important;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .screen .view-content {
   max-width: 1200px;
   margin: 0 auto !important;
+  padding: 0 !important;
   display: flex;
   flex-direction: column;
   gap: 20px;
   box-sizing: border-box;
+  width: 100%;
 }
 
 .app--subpage .hero,
@@ -711,13 +716,14 @@ nav {
   align-items: center;
   gap: 16px;
   margin: 0 !important;
-  padding: 20px !important;
+  padding: 16px 20px !important;
   background: #ffffff !important;
   z-index: 10;
   border-bottom: 1px solid var(--border-light);
   box-sizing: border-box;
   flex-shrink: 0;
   width: 100%;
+  min-height: 60px;
 }
 
 .back-btn {
@@ -734,6 +740,8 @@ nav {
   transition: all var(--transition);
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .back-btn::before {
@@ -784,6 +792,11 @@ nav {
   -webkit-text-fill-color: transparent;
   position: relative;
   z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 /* =======================
@@ -1474,8 +1487,41 @@ body::before {
   }
 
   .subpage-header {
-    padding: 16px 0 !important;
-    margin: 0 0 20px 0 !important;
+    padding: 12px 16px !important;
+    margin: 0 !important;
+    gap: 12px;
+    min-height: 56px;
+    overflow: hidden;
+  }
+  
+  .subpage-header .subpage-title {
+    font-size: 1.25rem !important;
+    min-width: 0;
+  }
+  
+  .back-btn {
+    padding: 10px 14px !important;
+    font-size: 0.9rem !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: auto;
+  }
+  
+  .screen {
+    padding: 0 !important;
+  }
+  
+  .screen .view-content-wrapper {
+    padding: 16px !important;
+  }
+  
+  .screen .view-content {
+    padding: 0 !important;
+    gap: 16px;
+  }
+  
+  .card {
+    padding: 20px !important;
   }
 
   .markup-list,
