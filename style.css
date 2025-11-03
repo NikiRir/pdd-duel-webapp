@@ -325,23 +325,11 @@ nav {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
-  display: none !important;
-}
-
-.screen:not(.screen--hidden) {
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
 }
 
 .screen .view {
   max-width: 1200px;
   margin: 0 auto;
-  display: flex !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  min-height: 100px !important;
 }
 
 .app--subpage .hero,
@@ -395,20 +383,6 @@ nav {
   z-index: 1;
 }
 
-.view > * {
-  opacity: 1 !important;
-  visibility: visible !important;
-  display: block !important;
-}
-
-.view header,
-.view .card {
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  position: relative !important;
-  z-index: 1 !important;
-}
 
 .card {
   background: var(--gradient-card);
