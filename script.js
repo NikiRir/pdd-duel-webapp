@@ -244,10 +244,7 @@ async function boot(){
  function setView(html, { subpage = true, title = "" } = {}){
    toggleSubpage(subpage);
    const host = qs("#screen");
-   if(!host) {
-     console.error("❌ Элемент #screen не найден!");
-     return;
-   }
+   if(!host) return;
    
    if (subpage) {
      const header = `<header class="subpage-header">
@@ -258,21 +255,9 @@ async function boot(){
        <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
      </header>`;
      
-     const content = `${header}${html || ""}`;
-     host.innerHTML = `<div class="view">${content}</div>`;
+     host.innerHTML = `<div class="view">${header}${html || ""}</div>`;
      host.classList.remove("screen--hidden");
-     host.style.display = "block";
-     host.style.opacity = "1";
-     host.style.visibility = "visible";
      host.scrollTop = 0;
-     
-     console.log("✅ setView: контент установлен, title:", title, "html длина:", html?.length || 0);
-     const viewEl = host.querySelector(".view");
-     if(viewEl) {
-       console.log("✅ .view найден, children:", viewEl.children.length);
-     } else {
-       console.error("❌ .view не найден!");
-     }
    } else {
      host.classList.add("screen--hidden");
      host.innerHTML = "";
