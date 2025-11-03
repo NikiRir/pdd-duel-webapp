@@ -334,17 +334,14 @@ nav {
   display: none !important;
 }
 
-.screen .view {
+.screen .view-content {
   max-width: 1200px;
   margin: 0 auto !important;
-  padding: 0 !important;
+  padding: 20px !important;
   display: flex;
   flex-direction: column;
   gap: 20px;
   box-sizing: border-box;
-  height: auto;
-  min-height: auto;
-  overflow: visible;
 }
 
 .app--subpage .hero,
@@ -703,13 +700,14 @@ nav {
    Subpage Header
 ======================= */
 .subpage-header {
-  position: relative;
+  position: sticky;
+  top: 0;
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 0 0 20px 0 !important;
-  padding: 16px 0 !important;
-  background: transparent;
+  margin: 0 !important;
+  padding: 20px !important;
+  background: #ffffff;
   z-index: 10;
   border-bottom: 1px solid var(--border-light);
   box-sizing: border-box;

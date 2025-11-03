@@ -253,7 +253,7 @@ async function boot(){
        <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
      </header>`;
      
-     host.innerHTML = `<div class="view">${header}${html || ""}</div>`;
+     host.innerHTML = `${header}<div class="view-content">${html || ""}</div>`;
      host.className = "screen";
      host.scrollTop = 0;
    } else {
