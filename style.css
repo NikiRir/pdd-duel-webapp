@@ -1,6 +1,27 @@
- .screen.screen--hidden {
-   display: none;
- }
+/* Удаляем загрузчик полностью */
+#loader,
+.loader,
+.loader-core,
+.loader-bg,
+.orb,
+.orb-ring {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+body.is-loading {
+  filter: none !important;
+}
+
+body.is-loading .app {
+  filter: none !important;
+  pointer-events: auto !important;
+}
+
+.screen.screen--hidden {
+  display: none;
+}
  .view {
    display: flex;
    flex-direction: column;

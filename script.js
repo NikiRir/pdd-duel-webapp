@@ -1,6 +1,13 @@
  /* =======================
     Telegram + Глобальное состояние
  ======================= */
+ // Сразу убираем загрузчик, если он есть
+if (document.body) {
+  document.body.classList.remove("is-loading");
+  const loader = document.getElementById("loader");
+  if (loader) loader.remove();
+}
+
  const TG = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 try {
   if (TG && typeof TG.ready === "function") TG.ready();
