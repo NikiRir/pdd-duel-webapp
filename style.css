@@ -177,11 +177,41 @@ nav {
    Screen секция
 ======================= */
 .screen {
-  min-height: 200px;
-  margin-bottom: clamp(32px, 6vw, 48px);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-screen);
+  z-index: 1000;
+  overflow-y: auto;
+  padding: clamp(20px, 5vw, 40px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition), visibility var(--transition);
+}
+
+.screen:not(.screen--hidden) {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.screen .view {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .screen.screen--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Скрываем hero и nav когда открыта подстраница */
+.app--subpage .hero,
+.app--subpage nav {
   display: none;
 }
 

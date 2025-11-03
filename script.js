@@ -190,10 +190,7 @@ async function boot(){
    const isSubpage = !!isSub;
   if (appRoot) appRoot.classList.toggle("app--subpage", isSubpage);
    setActive(null);
-   if (!isSubpage) return;
- 
-   const screen = document.querySelector("#screen");
-  if (screen) screen.scrollIntoView({ block: "start", behavior: "smooth" });
+   // Убрали scrollIntoView - теперь контент показывается как полноэкранная страница
  }
  
  function setView(html, { subpage = true, title = "" } = {}){
