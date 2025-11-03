@@ -56,6 +56,10 @@ html {
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-x: hidden !important;
+  width: 100%;
 }
 
 body {
@@ -69,7 +73,10 @@ body {
     radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.03) 0px, transparent 50%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  overflow-x: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
   transform: translateZ(0);
   -webkit-transform: translateZ(0);
 }
@@ -97,12 +104,12 @@ h3 {
   font-weight: 700;
 }
 h4 { 
-  font-size: 1.25rem;
+   font-size: 1.25rem;
   font-weight: 600;
-}
+ }
 
 p {
-  margin: 0;
+   margin: 0;
   color: var(--text);
   line-height: 1.7;
 }
@@ -179,7 +186,7 @@ img {
   position: relative;
   z-index: 1;
   font-size: clamp(1.1rem, 3vw, 1.5rem);
-  color: var(--muted);
+   color: var(--muted);
   margin: 0;
   font-weight: 500;
   animation: fadeInUp 0.8s ease-out 0.2s backwards;
@@ -314,10 +321,13 @@ nav {
   background: #ffffff !important;
   z-index: 1001 !important;
   overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding: 20px !important;
+  margin: 0 !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+  box-sizing: border-box !important;
 }
 
 .screen.screen--hidden {
@@ -326,10 +336,12 @@ nav {
 
 .screen .view {
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 0 auto !important;
+  padding: 0 !important;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  box-sizing: border-box;
 }
 
 .app--subpage .hero,
@@ -693,15 +705,14 @@ nav {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 0;
-  margin-bottom: 20px;
+  margin: 0 0 20px 0 !important;
+  padding: 16px 0 !important;
   background: var(--bg-screen);
   backdrop-filter: blur(10px);
   z-index: 10;
   animation: slideInDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   border-bottom: 1px solid var(--border-light);
-  margin: -clamp(20px, 5vw, 40px) -clamp(20px, 5vw, 40px) 24px;
-  padding: 20px clamp(20px, 5vw, 40px);
+  box-sizing: border-box;
 }
 
 .back-btn {
@@ -1038,7 +1049,7 @@ nav {
 ======================= */
 @keyframes fadeIn {
   from {
-    opacity: 0;
+  opacity: 0;
     transform: translateY(20px);
   }
   to {
@@ -1458,8 +1469,8 @@ body::before {
   }
 
   .subpage-header {
-    padding: 16px 20px;
-    margin: -20px -20px 20px;
+    padding: 16px 0 !important;
+    margin: 0 0 20px 0 !important;
   }
 
   .markup-list,
