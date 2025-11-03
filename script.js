@@ -253,9 +253,10 @@ async function boot(){
        <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
      </header>`;
      
-     host.innerHTML = `${header}<div class="view-content-wrapper"><div class="view-content">${html || ""}</div></div>`;
+     host.innerHTML = header + `<div class="view-content-wrapper"><div class="view-content">${html || ""}</div></div>`;
      host.className = "screen";
-     host.scrollTop = 0;
+     const wrapper = host.querySelector(".view-content-wrapper");
+     if(wrapper) wrapper.scrollTop = 0;
    } else {
      toggleSubpage(false);
      host.className = "screen screen--hidden";
