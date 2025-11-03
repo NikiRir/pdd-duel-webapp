@@ -308,36 +308,57 @@ function bindDelegation(){
 }
 
 function handleTap(e){
+  // Проверяем темы ПЕРВЫМИ, до проверки ответов
   const topic = e.target.closest("[data-t]");
-  if (topic){ e.preventDefault(); startDuel({mode:"topic", topic: topic.dataset.t}); return; }
+  if (topic && !topic.hasAttribute("data-i")){ 
+    e.preventDefault(); 
+    e.stopPropagation();
+    startDuel({mode:"topic", topic: topic.dataset.t}); 
+    return; 
+  }
   const ticket = e.target.closest("[data-ticket]");
-  if (ticket){ e.preventDefault(); startTicket(ticket.dataset.ticket); return; }
+  if (ticket){ 
+    e.preventDefault(); 
+    e.stopPropagation();
+    startTicket(ticket.dataset.ticket); 
+    return; 
+  }
   const back = e.target.closest("[data-back]");
-  if (back){ e.preventDefault(); renderHome(); return; }
+  if (back){ 
+    e.preventDefault(); 
+    e.stopPropagation();
+    renderHome(); 
+    return; 
+  }
   const dot = e.target.closest("[data-question]");
   if (dot){
     e.preventDefault();
+    e.stopPropagation();
     if (dot.disabled) return;
     goToQuestion(+dot.dataset.question);
     return;
   }
   if (e.target.closest("[data-prev]")){
     e.preventDefault();
+    e.stopPropagation();
     previousQuestion();
     return;
   }
   if (e.target.closest("[data-next]")){
     e.preventDefault();
+    e.stopPropagation();
     nextQuestion();
     return;
   }
   if (e.target.closest("[data-finish]")){
     e.preventDefault();
+    e.stopPropagation();
     finishDuel();
     return;
   }
   if (e.target.id === "again"){ 
     e.preventDefault();
+    e.stopPropagation();
     const currentDuel = State.duel;
     if (currentDuel && currentDuel.topic){
       startDuel({ mode: "topic", topic: currentDuel.topic });
@@ -346,10 +367,17 @@ function handleTap(e){
     }
     return;
   }
-  if (e.target.id === "home"){ e.preventDefault(); renderHome(); return; }
+  if (e.target.id === "home"){ 
+    e.preventDefault(); 
+    e.stopPropagation();
+    renderHome(); 
+    return; 
+  }
+  // Проверяем ответы ТОЛЬКО если есть data-i
   const answer = e.target.closest("button.answer[data-i]");
-  if (answer){
+  if (answer && answer.hasAttribute("data-i") && !answer.hasAttribute("data-t")){
     e.preventDefault();
+    e.stopPropagation();
     const index = parseInt(answer.dataset.i);
     if (!isNaN(index)){
       onAnswer(index);
@@ -711,7 +739,7 @@ async function fetchJson(url){
        <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
      </div>
      <div class="card"><div class="grid auto" id="${listId}">
-       ${list.map(t=>`<button type="button" class="answer" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+       ${list.map(t=>`<button type="button" class="btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
      </div></div>
    `, { subpage: true, title: "Темы" });
    bindSearch("search-topics", listId);
@@ -913,11 +941,16 @@ async function uiPenalties(){
   const tipVisible = !!(answerState && answerState.status === "wrong");
    const tracker = renderTracker();
    const controls = renderQuestionControls(isAnswered);
+   
+   // Индикатор прогресса сверху
+   const progressPercent = ((d.i+1)/d.q.length*100).toFixed(0);
+   const progressIndicator = `<div class="question-progress"><div class="question-progress-bar" style="--progress-width: ${progressPercent}%"><div style="width: ${progressPercent}%"></div></div><span class="question-progress-text">${d.i+1}/${d.q.length}</span></div>`;
  
    setView(`
+     ${progressIndicator}
      ${tracker}
      <div class="card">
-       <div class="meta">Вопрос ${d.i+1}/${d.q.length} • ${esc(ticketInfo)}</div>
+       <div class="meta">${esc(ticketInfo)}</div>
        <h3>${esc(q.question)}</h3>
        ${q.image?`<img src="${q.image}" class="qimg" onerror="this.style.display='none'"/>`:""}
        <div class="grid">${q.answers.map((a,i)=>renderAnswerButton(a, i, q, answerState)).join("")}</div>
@@ -953,16 +986,54 @@ async function uiPenalties(){
      toast("💥 Неверно! Попробуйте ещё");
    }
  
-   renderQuestion(d.i);
- 
+   // Обновляем UI без полной перерисовки для производительности
+   const answerButtons = qsa("button.answer[data-i]");
+   answerButtons.forEach((btn, idx) => {
+     btn.classList.remove("correct", "wrong");
+     if (idx === i) {
+       btn.classList.add(isCorrect ? "correct" : "wrong");
+     }
+     if (idx === correct && !isCorrect) {
+       btn.classList.add("correct");
+     }
+     btn.disabled = true;
+   });
+   
+   // Обновляем трекер
+   const trackerDot = qs(`[data-question="${currentIndex}"]`);
+   if(trackerDot) {
+     trackerDot.classList.remove("is-correct", "is-wrong");
+     trackerDot.classList.add(isCorrect ? "is-correct" : "is-wrong");
+   }
+   
+   // Обновляем индикатор прогресса
+   const progressBar = qs(".question-progress-bar > div");
+   const progressPercent = ((currentIndex+1)/d.q.length*100).toFixed(0);
+   if(progressBar) {
+     progressBar.style.width = `${progressPercent}%`;
+   }
+   const progressText = qs(".question-progress-text");
+   if(progressText) {
+     progressText.textContent = `${currentIndex+1}/${d.q.length}`;
+   }
+
    if(isCorrect){
+     // Переходим к следующему вопросу без перерисовки текущего
      State.advanceTimer = setTimeout(()=>{
       const currentAnswer = d.answers[currentIndex];
       const isCurrentCorrect = currentAnswer && currentAnswer.status === "correct";
       if(State.duel === d && d.i === currentIndex && isCurrentCorrect){
-         nextQuestion();
+         d.i = Math.min(d.i + 1, d.q.length - 1);
+         if(d.i >= d.q.length){
+           finishDuel();
+         } else {
+           renderQuestion(d.i);
+         }
        }
-     }, 650);
+     }, 800);
+   } else {
+     // Если неправильно, просто разблокируем для следующей попытки (если разрешено)
+     State.lock = false;
    }
  }
  

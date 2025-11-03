@@ -433,11 +433,12 @@ nav {
   font-weight: 600;
   font-size: 1rem;
   text-align: left;
-  transition: all var(--transition);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
   position: relative;
   overflow: hidden;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
+  will-change: transform;
 }
 
 .answer::before {
@@ -496,6 +497,54 @@ nav {
 .answer > * {
   position: relative;
   z-index: 1;
+}
+
+/* =======================
+   Question Progress Indicator
+======================= */
+.question-progress {
+  position: sticky;
+  top: 0;
+  background: var(--bg-screen);
+  backdrop-filter: blur(10px);
+  padding: 12px 0;
+  margin: -clamp(20px, 5vw, 40px) 0 16px 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.question-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.question-progress-bar > div {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: 999px;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: shimmer 2s infinite;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+}
+
+.question-progress-text {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent);
+  font-family: 'Poppins', sans-serif;
+  min-width: 50px;
+  text-align: right;
+  background: var(--gradient-hero);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* =======================
