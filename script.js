@@ -684,8 +684,104 @@ async function fetchJson(url){
    `, { subpage: true, title: "Билеты" });
  }
  
- async function uiMarkup(){
- }
+async function loadMarkup(){
+  if (State.markup) return State.markup;
+  try {
+    const response = await fetchWithTimeout(MARKUP_URL, { cache:"no-store" }, 10000);
+    if(response.ok) {
+      const data = await response.json();
+      State.markup = data;
+      return data;
+    }
+  } catch(err) {
+    console.warn("Не удалось загрузить разметку:", err);
+  }
+  return null;
+}
+
+async function uiMarkup(){
+  await loadMarkup();
+  const markup = State.markup;
+  
+  if(!markup || typeof markup !== "object") {
+    setView(`<div class="card"><h3>Разметка</h3><p>❌ Данные разметки не найдены</p></div>`, { subpage: true, title: "Разметка" });
+    return;
+  }
+
+  const categories = Object.keys(markup);
+  let html = `<div class="card"><h3>Разметка</h3></div>`;
+
+  for(const category of categories) {
+    const items = markup[category];
+    if(!items || typeof items !== "object") continue;
+
+    const itemKeys = Object.keys(items).sort((a,b)=>{
+      const numA = parseFloat(a) || 0;
+      const numB = parseFloat(b) || 0;
+      return numA - numB;
+    });
+
+    html += `
+      <div class="markup-category">
+        <div class="card">
+          <h3>${esc(category)}</h3>
+        </div>
+        <div class="markup-list">
+          ${itemKeys.map(key => {
+            const item = items[key];
+            if(!item) return "";
+            const number = item.number || key;
+            const image = item.image || "";
+            const description = item.description || "";
+            const imagePath = image.startsWith("./") ? image.substring(2) : image;
+            return `
+              <div class="markup-item">
+                <div class="markup-item__head">
+                  <h4>${esc(number)}</h4>
+                  <span class="markup-item__badge">${esc(number)}</span>
+                </div>
+                ${image ? `<img src="${esc(imagePath)}" class="markup-item__image" alt="${esc(number)}" onerror="this.style.display='none'">` : ""}
+                <p>${esc(description)}</p>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  setView(html, { subpage: true, title: "Разметка" });
+}
+
+async function uiPenalties(){
+  if(!State.penalties || State.penalties.length === 0) {
+    await loadPenalties();
+  }
+
+  const items = State.penalties || [];
+  
+  if(!items.length) {
+    setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные о штрафах не найдены</p></div>`, { subpage: true, title: "Штрафы" });
+    return;
+  }
+
+  const html = `
+    <div class="card penalties-card">
+      <h3>Штрафы</h3>
+    </div>
+    <div class="penalties-grid">
+      ${items.map(item => `
+        <div class="penalty">
+          <h4>Статья ${esc(item.articlePart || "—")}</h4>
+          <p>${esc(item.text || "")}</p>
+          <p class="penalty__fine">${esc(item.penalty || "—")}</p>
+        </div>
+      `).join("")}
+    </div>
+  `;
+
+  setView(html, { subpage: true, title: "Штрафы" });
+}
  
  /* =======================
     Викторина
