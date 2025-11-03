@@ -242,43 +242,24 @@ async function boot(){
  }
  
  function setView(html, { subpage = true, title = "" } = {}){
-   toggleSubpage(subpage);
-   const host = qs("#screen");
-   if(!host) {
-     console.error("Элемент #screen не найден");
-     return;
-   }
+   const host = document.getElementById("screen");
+   if(!host) return;
    
    if (subpage) {
+     toggleSubpage(true);
+     
      const header = `<header class="subpage-header">
-       <button type="button" class="back-btn" data-back aria-label="Назад">
-         <span class="back-btn__icon" aria-hidden="true"></span>
-         <span class="back-btn__label">Назад</span>
-       </button>
+       <button type="button" class="back-btn" data-back>← Назад</button>
        <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
      </header>`;
      
-     const fullContent = `<div class="view">${header}${html || ""}</div>`;
-     
-     host.innerHTML = fullContent;
-     host.style.display = "block";
-     host.style.visibility = "visible";
-     host.style.opacity = "1";
-     host.style.position = "fixed";
-     host.style.top = "0";
-     host.style.left = "0";
-     host.style.right = "0";
-     host.style.bottom = "0";
-     host.style.zIndex = "1001";
-     host.style.backgroundColor = "#ffffff";
-     host.style.overflowY = "auto";
-     host.style.padding = "20px";
+     host.innerHTML = `<div class="view">${header}${html || ""}</div>`;
      host.className = "screen";
      host.scrollTop = 0;
    } else {
-     host.style.display = "none";
-     host.innerHTML = "";
+     toggleSubpage(false);
      host.className = "screen screen--hidden";
+     host.innerHTML = "";
    }
  }
  function renderHome(){
