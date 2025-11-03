@@ -315,23 +315,18 @@ nav {
   z-index: 1001;
   overflow-y: auto;
   padding: clamp(20px, 5vw, 40px);
-  transition: opacity 0.3s ease, visibility 0.3s;
 }
 
 .screen.screen--hidden {
-  display: none;
-}
-
-.screen {
-  display: block;
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
+  display: none !important;
 }
 
 .screen .view {
   max-width: 1200px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .app--subpage .hero,
