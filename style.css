@@ -356,6 +356,7 @@ nav {
   gap: 20px;
   box-sizing: border-box;
   width: 100%;
+  min-height: 200px;
 }
 
 .app--subpage .hero,
@@ -728,6 +729,9 @@ nav {
   width: 100%;
   min-height: 60px;
   overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  max-width: 100%;
 }
 
 .back-btn {
@@ -796,11 +800,12 @@ nav {
   -webkit-text-fill-color: transparent;
   position: relative;
   z-index: 1;
-  overflow: hidden;
+  overflow: hidden !important;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+  max-width: 100%;
 }
 
 /* =======================
