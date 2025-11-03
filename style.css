@@ -372,15 +372,11 @@ nav {
    View и Card компоненты - Улучшенные
 ======================= */
 .view {
-  display: flex !important;
+  display: flex;
   flex-direction: column;
   gap: 20px;
-  opacity: 1 !important;
-  visibility: visible !important;
   min-height: 200px;
   width: 100%;
-  position: relative;
-  z-index: 1;
 }
 
 

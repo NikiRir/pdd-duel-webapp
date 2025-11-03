@@ -250,10 +250,29 @@ async function boot(){
    }
    
    if (subpage) {
-     const content = wrapSubpage(title, html || "");
+     const header = `<header class="subpage-header">
+       <button type="button" class="back-btn" data-back aria-label="Назад">
+         <span class="back-btn__icon" aria-hidden="true"></span>
+         <span class="back-btn__label">Назад</span>
+       </button>
+       <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
+     </header>`;
+     
+     const content = `${header}${html || ""}`;
      host.innerHTML = `<div class="view">${content}</div>`;
      host.classList.remove("screen--hidden");
+     host.style.display = "block";
+     host.style.opacity = "1";
+     host.style.visibility = "visible";
      host.scrollTop = 0;
+     
+     console.log("✅ setView: контент установлен, title:", title, "html длина:", html?.length || 0);
+     const viewEl = host.querySelector(".view");
+     if(viewEl) {
+       console.log("✅ .view найден, children:", viewEl.children.length);
+     } else {
+       console.error("❌ .view не найден!");
+     }
    } else {
      host.classList.add("screen--hidden");
      host.innerHTML = "";
@@ -265,19 +284,6 @@ async function boot(){
    setView("", { subpage: false });
  }
  
- function wrapSubpage(title, html){
-   const safe = esc((title || "ПДД ДУЭЛИ").trim());
-   return `
-     <header class="subpage-header">
-       <button type="button" class="back-btn" data-back aria-label="Назад">
-         <span class="back-btn__icon" aria-hidden="true"></span>
-         <span class="back-btn__label">Назад</span>
-       </button>
-       <h2 class="subpage-title">${safe}</h2>
-     </header>
-     ${html}
-   `;
- }
  function setActive(id){
    qsa("[data-action]").forEach(b=>b.classList.remove("active"));
   if(id){
