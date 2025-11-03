@@ -27,6 +27,8 @@ try {
    ignoreClickUntil: 0,
    advanceTimer: null,
    usedFallback: false,
+   penaltiesLoading: false,
+   markupLoading: false,
  };
  
  let delegationBound = false;
@@ -122,6 +124,13 @@ if (document.readyState === "loading") {
  
 async function boot(){
   console.log("🚀 boot() запущен");
+  
+  // Предзагружаем штрафы и разметку параллельно в фоне
+  Promise.all([
+    loadPenalties().catch(() => {}),
+    loadMarkup().catch(() => {})
+  ]).catch(() => {});
+  
   showLoader("Загрузка билетов...", "Подготовка данных");
   
   // Добавляем общий таймаут для boot (максимум 35 секунд)
@@ -738,8 +747,8 @@ async function fetchJson(url){
      <div class="card">
        <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
      </div>
-     <div class="card"><div class="grid auto" id="${listId}">
-       ${list.map(t=>`<button type="button" class="btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+     <div class="card"><div class="grid auto topics-grid" id="${listId}">
+       ${list.map(t=>`<button type="button" class="btn topic-btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
      </div></div>
    `, { subpage: true, title: "Темы" });
    bindSearch("search-topics", listId);
@@ -780,7 +789,24 @@ async function loadMarkup(){
 }
 
 async function uiMarkup(){
-  await loadMarkup();
+  // Если данные уже загружены, показываем сразу
+  if(!State.markup) {
+    // Показываем placeholder сразу для мгновенного отклика
+    setView(`<div class="card"><h3>Разметка</h3></div><div class="card"><input type="text" class="search-input" placeholder="🔍 Поиск разметки..." disabled /></div><div><div class="card"><h3>Загрузка...</h3></div></div>`, { subpage: true, title: "Разметка" });
+    
+    // Загружаем в фоне
+    if(!State.markupLoading) {
+      State.markupLoading = true;
+      await loadMarkup();
+      State.markupLoading = false;
+    } else {
+      // Ждем завершения текущей загрузки
+      while(State.markupLoading) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+    }
+  }
+  
   const markup = State.markup;
   
   if(!markup || typeof markup !== "object") {
@@ -844,8 +870,22 @@ async function uiMarkup(){
 }
 
 async function uiPenalties(){
+  // Если данные уже загружены, показываем сразу
   if(!State.penalties || State.penalties.length === 0) {
-    await loadPenalties();
+    // Показываем placeholder сразу для мгновенного отклика
+    setView(`<div class="card penalties-card"><h3>Штрафы</h3></div><div class="card"><input type="text" class="search-input" placeholder="🔍 Поиск штрафов..." disabled /></div><div class="penalties-grid"><div class="penalty"><h4>Загрузка...</h4></div></div>`, { subpage: true, title: "Штрафы" });
+    
+    // Загружаем в фоне
+    if(!State.penaltiesLoading) {
+      State.penaltiesLoading = true;
+      await loadPenalties();
+      State.penaltiesLoading = false;
+    } else {
+      // Ждем завершения текущей загрузки
+      while(State.penaltiesLoading) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+    }
   }
 
   const items = State.penalties || [];
@@ -981,9 +1021,9 @@ async function uiPenalties(){
  
    // Улучшенные тосты с анимацией
    if(isCorrect){ 
-     toast("✨ Отлично! Верно!");
+     toast("✓");
    } else { 
-     toast("💥 Неверно! Попробуйте ещё");
+     toast("✕");
    }
  
    // Обновляем UI без полной перерисовки для производительности
