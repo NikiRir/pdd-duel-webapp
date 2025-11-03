@@ -248,16 +248,12 @@ async function boot(){
      console.error("❌ Элемент #screen не найден!");
      return;
    }
-   host.scrollTop = 0;
- 
+   
    if (subpage) {
      const content = wrapSubpage(title, html || "");
-     host.classList.remove("screen--hidden");
      host.innerHTML = `<div class="view">${content}</div>`;
-     // Принудительно показываем экран через небольшую задержку
-     setTimeout(() => {
-       host.classList.remove("screen--hidden");
-     }, 0);
+     host.classList.remove("screen--hidden");
+     host.scrollTop = 0;
    } else {
      host.classList.add("screen--hidden");
      host.innerHTML = "";

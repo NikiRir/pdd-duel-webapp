@@ -312,19 +312,19 @@ nav {
   right: 0;
   bottom: 0;
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  z-index: 1000;
+  z-index: 1001;
   overflow-y: auto;
   padding: clamp(20px, 5vw, 40px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
   transition: opacity 0.3s ease, visibility 0.3s;
 }
 
-.screen:not(.screen--hidden) {
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
+.screen.screen--hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .screen .view {
