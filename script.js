@@ -256,7 +256,7 @@ async function boot(){
      }
      
      // Устанавливаем контент
-     host.innerHTML = `<div class="view">${content}</div>`;
+     host.innerHTML = `<div class="view" style="display: flex !important; opacity: 1 !important; visibility: visible !important; min-height: 100px !important;">${content}</div>`;
      
      // Принудительно показываем экран сразу
      host.classList.remove("screen--hidden");
@@ -298,14 +298,14 @@ async function boot(){
  function wrapSubpage(title, html){
    const safe = esc((title || "ПДД ДУЭЛИ").trim());
    return `
-     <header class="subpage-header">
+     <header class="subpage-header" style="display: flex !important; opacity: 1 !important; visibility: visible !important;">
        <button type="button" class="back-btn" data-back aria-label="Назад">
          <span class="back-btn__icon" aria-hidden="true"></span>
          <span class="back-btn__label">Назад</span>
        </button>
        <h2 class="subpage-title">${safe}</h2>
      </header>
-     ${html}
+     <div style="display: block !important; opacity: 1 !important; visibility: visible !important;">${html}</div>
    `;
  }
  function setActive(id){
@@ -780,16 +780,21 @@ async function fetchJson(url){
    console.log("📋 Список тем, длина:", list.length);
    const listId = "topics-list";
    
-   // ВРЕМЕННО: показываем тестовый контент для отладки
-   const html = !list.length ? `
-     <div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p><p style="margin-top:12px;color:var(--muted);font-size:0.9rem;">Всего вопросов загружено: ${State.pool.length}</p><p style="margin-top:8px;color:var(--accent);font-weight:600;">Тестовый контент для отладки</p></div>
-   ` : `
-     <div class="card"><h3>Темы</h3><p style="color:var(--muted);font-size:0.9rem;">Найдено тем: ${list.length}</p></div>
-     <div class="card">
-       <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
+   if(!list.length){ 
+     const errorHtml = `
+       <div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important; background: var(--bg-card) !important; padding: 24px !important; border-radius: 12px !important;"><h3>Темы</h3><p>❌ Темы не найдены</p><p style="margin-top:12px;color:var(--muted);font-size:0.9rem;">Всего вопросов загружено: ${State.pool.length}</p></div>
+     `;
+     setView(errorHtml, { subpage: true, title: "Темы" }); 
+     return; 
+   }
+   
+   const html = `
+     <div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important; background: var(--bg-card) !important; padding: 24px !important; border-radius: 12px !important;"><h3>Темы</h3></div>
+     <div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important; background: var(--bg-card) !important; padding: 24px !important; border-radius: 12px !important;">
+       <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" style="width: 100% !important; display: block !important; opacity: 1 !important; visibility: visible !important;" />
      </div>
-     <div class="card"><div class="grid auto topics-grid" id="${listId}">
-       ${list.map(t=>`<button type="button" class="btn topic-btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+     <div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important; background: var(--bg-card) !important; padding: 24px !important; border-radius: 12px !important;"><div class="grid auto topics-grid" id="${listId}" style="display: grid !important; opacity: 1 !important; visibility: visible !important;">
+       ${list.map(t=>`<button type="button" class="btn topic-btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}" style="display: block !important; opacity: 1 !important; visibility: visible !important;">${esc(t)}</button>`).join("")}
      </div></div>
    `;
    
@@ -821,12 +826,12 @@ async function fetchJson(url){
      questions: meta.questions
    })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
    if(!tickets.length){
-     setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
+     setView(`<div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important;"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
      return;
    }
    setView(`
-     <div class="card"><h3>Билеты</h3></div>
-     <div class="card"><div class="grid auto">
+     <div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important;"><h3>Билеты</h3></div>
+     <div class="card" style="display: block !important; opacity: 1 !important; visibility: visible !important;"><div class="grid auto">
        ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
      </div></div>
    `, { subpage: true, title: "Билеты" });
