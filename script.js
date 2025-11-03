@@ -256,10 +256,11 @@ async function boot(){
      </header>`;
      
      host.innerHTML = `<div class="view">${header}${html || ""}</div>`;
-     host.classList.remove("screen--hidden");
+     host.removeAttribute("class");
+     host.className = "screen";
      host.scrollTop = 0;
    } else {
-     host.classList.add("screen--hidden");
+     host.className = "screen screen--hidden";
      host.innerHTML = "";
    }
  }

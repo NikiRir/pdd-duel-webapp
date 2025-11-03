@@ -319,13 +319,14 @@ nav {
 }
 
 .screen.screen--hidden {
-  display: none !important;
+  display: none;
 }
 
-.screen:not(.screen--hidden) {
+.screen {
   display: block;
   opacity: 1;
   visibility: visible;
+  pointer-events: auto;
 }
 
 .screen .view {
