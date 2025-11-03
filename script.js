@@ -251,9 +251,23 @@ async function boot(){
    
    if (subpage) {
      const content = wrapSubpage(title, html || "");
+     if(!content || content.trim() === "") {
+       console.warn("⚠️ Пустой контент для setView, title:", title);
+     }
      host.innerHTML = `<div class="view">${content}</div>`;
      host.classList.remove("screen--hidden");
      host.scrollTop = 0;
+     
+     // Принудительно проверяем, что экран виден
+     scheduleFrame(() => {
+       if(host.classList.contains("screen--hidden")) {
+         host.classList.remove("screen--hidden");
+       }
+       // Убеждаемся, что стили применены
+       host.style.opacity = "1";
+       host.style.visibility = "visible";
+       host.style.pointerEvents = "auto";
+     });
    } else {
      host.classList.add("screen--hidden");
      host.innerHTML = "";
@@ -742,10 +756,25 @@ async function fetchJson(url){
     Экраны
  ======================= */
  function uiTopics(){
+   console.log("📚 uiTopics вызван");
+   console.log("📊 State.topics.size:", State.topics.size);
+   console.log("📊 State.pool.length:", State.pool.length);
+   
    const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
-   if(!list.length){ setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); return; }
+   console.log("📋 Список тем, длина:", list.length);
    const listId = "topics-list";
-   setView(`
+   
+   if(!list.length){ 
+     console.warn("⚠️ Список тем пустой!");
+     const errorHtml = `
+       <div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p><p style="margin-top:12px;color:var(--muted);font-size:0.9rem;">Возможно, данные еще загружаются. Всего вопросов загружено: ${State.pool.length}</p></div>
+     `;
+     setView(errorHtml, { subpage: true, title: "Темы" }); 
+     return; 
+   }
+   
+   console.log("✅ Темы найдены, первая тема:", list[0]);
+   const html = `
      <div class="card"><h3>Темы</h3></div>
      <div class="card">
        <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
@@ -753,8 +782,22 @@ async function fetchJson(url){
      <div class="card"><div class="grid auto topics-grid" id="${listId}">
        ${list.map(t=>`<button type="button" class="btn topic-btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
      </div></div>
-   `, { subpage: true, title: "Темы" });
-   bindSearch("search-topics", listId);
+   `;
+   
+   console.log("📄 HTML длина:", html.length);
+   setView(html, { subpage: true, title: "Темы" });
+   
+   // Биндим поиск после небольшой задержки, чтобы DOM обновился
+   scheduleFrame(() => {
+     const searchInput = qs("#search-topics");
+     const listContainer = qs(`#${listId}`);
+     console.log("🔍 Поиск input:", searchInput ? "найден" : "не найден");
+     console.log("📋 Контейнер списка:", listContainer ? "найден" : "не найден");
+     if(searchInput && listContainer) {
+       bindSearch("search-topics", listId);
+       console.log("✅ Поиск привязан");
+     }
+   });
  }
  
  function uiTickets(){

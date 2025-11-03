@@ -378,10 +378,12 @@ nav {
    View и Card компоненты - Улучшенные
 ======================= */
 .view {
-  display: flex;
+  display: flex !important;
   flex-direction: column;
   gap: 20px;
-  animation: fadeInUp 0.5s ease-out;
+  opacity: 1 !important;
+  visibility: visible !important;
+  min-height: 200px;
 }
 
 .card {
