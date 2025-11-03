@@ -384,6 +384,15 @@ nav {
   opacity: 1 !important;
   visibility: visible !important;
   min-height: 200px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.view > * {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
 }
 
 .card {

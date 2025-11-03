@@ -252,21 +252,37 @@ async function boot(){
    if (subpage) {
      const content = wrapSubpage(title, html || "");
      if(!content || content.trim() === "") {
-       console.warn("⚠️ Пустой контент для setView, title:", title);
+       console.warn("⚠️ Пустой контент для setView, title:", title, "html:", html);
      }
+     
+     // Устанавливаем контент
      host.innerHTML = `<div class="view">${content}</div>`;
+     
+     // Принудительно показываем экран сразу
      host.classList.remove("screen--hidden");
+     host.style.opacity = "1";
+     host.style.visibility = "visible";
+     host.style.pointerEvents = "auto";
+     host.style.display = "block";
+     
      host.scrollTop = 0;
      
-     // Принудительно проверяем, что экран виден
+     // Дополнительная проверка через кадр
      scheduleFrame(() => {
        if(host.classList.contains("screen--hidden")) {
          host.classList.remove("screen--hidden");
        }
-       // Убеждаемся, что стили применены
        host.style.opacity = "1";
        host.style.visibility = "visible";
        host.style.pointerEvents = "auto";
+       
+       // Проверяем, что контент действительно есть
+       const viewEl = host.querySelector(".view");
+       if(!viewEl) {
+         console.error("❌ Элемент .view не найден после рендеринга!");
+       } else {
+         console.log("✅ Элемент .view найден, children:", viewEl.children.length);
+       }
      });
    } else {
      host.classList.add("screen--hidden");
@@ -764,18 +780,11 @@ async function fetchJson(url){
    console.log("📋 Список тем, длина:", list.length);
    const listId = "topics-list";
    
-   if(!list.length){ 
-     console.warn("⚠️ Список тем пустой!");
-     const errorHtml = `
-       <div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p><p style="margin-top:12px;color:var(--muted);font-size:0.9rem;">Возможно, данные еще загружаются. Всего вопросов загружено: ${State.pool.length}</p></div>
-     `;
-     setView(errorHtml, { subpage: true, title: "Темы" }); 
-     return; 
-   }
-   
-   console.log("✅ Темы найдены, первая тема:", list[0]);
-   const html = `
-     <div class="card"><h3>Темы</h3></div>
+   // ВРЕМЕННО: показываем тестовый контент для отладки
+   const html = !list.length ? `
+     <div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p><p style="margin-top:12px;color:var(--muted);font-size:0.9rem;">Всего вопросов загружено: ${State.pool.length}</p><p style="margin-top:8px;color:var(--accent);font-weight:600;">Тестовый контент для отладки</p></div>
+   ` : `
+     <div class="card"><h3>Темы</h3><p style="color:var(--muted);font-size:0.9rem;">Найдено тем: ${list.length}</p></div>
      <div class="card">
        <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
      </div>
@@ -784,15 +793,19 @@ async function fetchJson(url){
      </div></div>
    `;
    
-   console.log("📄 HTML длина:", html.length);
+   console.log("📄 HTML длина:", html.length, "первые 200 символов:", html.substring(0, 200));
    setView(html, { subpage: true, title: "Темы" });
    
    // Биндим поиск после небольшой задержки, чтобы DOM обновился
    scheduleFrame(() => {
      const searchInput = qs("#search-topics");
      const listContainer = qs(`#${listId}`);
+     const viewEl = qs("#screen .view");
+     const cards = qsa("#screen .card");
      console.log("🔍 Поиск input:", searchInput ? "найден" : "не найден");
      console.log("📋 Контейнер списка:", listContainer ? "найден" : "не найден");
+     console.log("📦 Элемент .view:", viewEl ? "найден" : "не найден");
+     console.log("🃏 Карточки найдены:", cards.length);
      if(searchInput && listContainer) {
        bindSearch("search-topics", listId);
        console.log("✅ Поиск привязан");
