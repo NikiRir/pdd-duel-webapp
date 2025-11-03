@@ -946,8 +946,12 @@ async function uiPenalties(){
    d.answers[d.i] = { status: isCorrect ? "correct" : "wrong", selected: i };
    d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
  
-   if(isCorrect){ toast("✅ Верно!"); }
-   else { toast("❌ Ошибка"); }
+   // Улучшенные тосты с анимацией
+   if(isCorrect){ 
+     toast("✨ Отлично! Верно!");
+   } else { 
+     toast("💥 Неверно! Попробуйте ещё");
+   }
  
    renderQuestion(d.i);
  
@@ -987,7 +991,17 @@ async function uiPenalties(){
  const qsa=s=>[...document.querySelectorAll(s)];
  function delay(ms){ return new Promise(r=>setTimeout(r,ms)); }
  function shuffle(a){return a.map(x=>[Math.random(),x]).sort((a,b)=>a[0]-b[0]).map(x=>x[1]);}
- function toast(t){const el=qs("#toast");el.innerHTML=`<div class="toast">${t}</div>`;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1500);}
+ function toast(t){
+   const el=qs("#toast");
+   if(!el) return;
+   el.innerHTML=`<div class="toast">${t}</div>`;
+   el.style.opacity=1;
+   el.style.transform="translateX(-50%) translateY(0)";
+   setTimeout(()=>{
+     el.style.opacity=0;
+     el.style.transform="translateX(-50%) translateY(20px)";
+   },2500);
+ }
 function esc(s){
   const base = s == null ? "" : s;
   return String(base).replace(/[&<>\"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
