@@ -665,13 +665,51 @@ body {
 
 .ticket-btn.ticket-completed {
   border-color: #10b981;
-  background: linear-gradient(to right, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.15) 50%, rgba(16, 185, 129, 0.25) 100%);
   position: relative;
+  background-size: 200% 200%;
+  animation: wave 3s ease-in-out infinite;
 }
 
 .ticket-btn.ticket-partial {
   border-color: rgba(16, 185, 129, 0.5);
   position: relative;
+  overflow: hidden;
+  background: var(--gradient-card);
+}
+
+.ticket-btn.ticket-partial::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--progress-width, 0%);
+  background: linear-gradient(135deg, 
+    rgba(16, 185, 129, 0.25) 0%, 
+    rgba(16, 185, 129, 0.35) 25%,
+    rgba(16, 185, 129, 0.25) 50%,
+    rgba(16, 185, 129, 0.35) 75%,
+    rgba(16, 185, 129, 0.25) 100%
+  );
+  background-size: 200% 100%;
+  animation: wave 3s ease-in-out infinite;
+  z-index: 0;
+  transition: width 0.3s ease;
+}
+
+.ticket-btn.ticket-partial > * {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes wave {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 .question-tracker {

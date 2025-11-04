@@ -395,16 +395,19 @@ function saveUserStats() {
   }
 }
 
-function saveTicketProgress(ticketKey, correctCount, totalCount) {
+function saveTicketProgress(ticketKey, correctCount, totalCount, answeredCount = null) {
   if (!State.stats.ticketsProgress) {
     State.stats.ticketsProgress = {};
   }
-  const percent = (correctCount / totalCount) * 100;
+  // Используем answeredCount если передан, иначе correctCount
+  const progressCount = answeredCount !== null ? answeredCount : correctCount;
+  const percent = (progressCount / totalCount) * 100;
   State.stats.ticketsProgress[ticketKey] = {
     correct: correctCount,
+    answered: answeredCount !== null ? answeredCount : progressCount,
     total: totalCount,
     percent: percent,
-    completed: percent === 100
+    completed: percent === 100 && correctCount === totalCount
   };
   saveUserStats();
 }
@@ -626,7 +629,13 @@ function handleTap(e){
   if (back){ 
     e.preventDefault(); 
     e.stopPropagation();
-    renderHome(); 
+    // Если мы в билете, возвращаемся к списку билетов, иначе на главную
+    const d = State.duel;
+    if (d && d.mode === "ticket") {
+      uiTickets();
+    } else {
+      renderHome();
+    }
     return; 
   }
   const dot = e.target.closest("[data-question]");
@@ -1074,9 +1083,10 @@ async function fetchJson(url){
          const progress = getTicketProgress(t.label);
          const progressPercent = progress ? progress.percent : 0;
          const isCompleted = progress && progress.completed;
-         const progressStyle = progressPercent > 0 ? `background: linear-gradient(to right, rgba(16, 185, 129, 0.3) ${progressPercent}%, transparent ${progressPercent}%)` : '';
          const borderClass = isCompleted ? 'ticket-completed' : progressPercent > 0 ? 'ticket-partial' : '';
-         return `<button type="button" class="answer ticket-btn ${borderClass}" data-ticket="${esc(t.key)}" style="${progressStyle}">${esc(t.label)}</button>`;
+         // Добавляем style с CSS переменной для процента прогресса
+         const progressStyle = progressPercent > 0 && !isCompleted ? `style="--progress-width: ${progressPercent}%"` : '';
+         return `<button type="button" class="answer ticket-btn ${borderClass}" data-ticket="${esc(t.key)}" ${progressStyle}>${esc(t.label)}</button>`;
        }).join("")}
      </div></div>
    `, { subpage: true, title: "Билеты" });
@@ -1394,6 +1404,12 @@ async function uiPenalties(){
        tipElement.style.display = "block";
        tipElement.textContent = `💡 ${q.tip}`;
      }
+   }
+
+   // Сохраняем прогресс билета в реальном времени
+   if(d.mode === "ticket" && d.ticketLabel) {
+     const answeredCount = d.answers.filter(a => a && a.status).length;
+     saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount);
    }
 
    if(isCorrect){
