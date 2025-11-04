@@ -1899,11 +1899,9 @@ async function uiPenalties(){
  ======================= */
 const DUEL_SEARCH_KEY = "pdd-duel-search-queue";
 const DUEL_SEARCH_TIMEOUT = 20000; // 20 секунд
-// URL API сервера (замените на ваш URL)
+// URL API сервера
 // Для разработки используйте: const API_BASE_URL = "http://localhost:8080";
-// Для продакшена замените на URL вашего API сервера (должен быть на том же домене, что и бот, или с настроенным CORS)
-// Пример: const API_BASE_URL = "https://your-api-server.com";
-const API_BASE_URL = "http://localhost:8080";  // TODO: Замените на ваш API URL для продакшена
+const API_BASE_URL = "https://pdd-duel-webapp.onrender.com";  // Продакшен API сервер на Render
 
 function startDuelSearch() {
   // Пробуем получить Telegram ID несколько раз (API может загружаться асинхронно)
