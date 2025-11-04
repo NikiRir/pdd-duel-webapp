@@ -41,7 +41,8 @@ try {
    onlineCount: 0,
    // Настройки пользователя
    settings: {
-     showDifficulty: false
+     showDifficulty: false,
+     hideCompletedTickets: false
    },
    // Глобальная статистика по билетам для расчета сложности
    ticketsDifficultyStats: {}
@@ -479,8 +480,23 @@ function updateTicketDifficultyStats(ticketLabel, correctCount, totalCount) {
 // Вычисляет уровень сложности билета на основе статистики
 function getTicketDifficulty(ticketLabel) {
   const stats = State.ticketsDifficultyStats[ticketLabel];
+  
+  // Если нет статистики, возвращаем случайный уровень сложности
   if (!stats || stats.totalAttempts === 0) {
-    return null; // Недостаточно данных
+    const difficulties = [
+      { text: "Легко", level: "easy" },
+      { text: "Средне", level: "medium" },
+      { text: "Сложно", level: "hard" },
+      { text: "Невозможно", level: "impossible" }
+    ];
+    // Используем хеш от названия билета для стабильного "случайного" выбора
+    let hash = 0;
+    for (let i = 0; i < ticketLabel.length; i++) {
+      hash = ((hash << 5) - hash) + ticketLabel.charCodeAt(i);
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    const randomIndex = Math.abs(hash) % difficulties.length;
+    return difficulties[randomIndex];
   }
   
   // Процент правильных ответов
@@ -1197,6 +1213,7 @@ async function fetchJson(url){
 ======================= */
 function uiSettings(){
   const showDifficulty = State.settings.showDifficulty || false;
+  const hideCompleted = State.settings.hideCompletedTickets || false;
   
   setView(`
     <div class="card">
@@ -1208,32 +1225,61 @@ function uiSettings(){
           </div>
           <input type="checkbox" id="setting-show-difficulty" ${showDifficulty ? 'checked' : ''} style="position: absolute; opacity: 0; pointer-events: none;" />
         </label>
+        <label style="display: flex; align-items: center; justify-content: space-between; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; background: var(--bg-card); transition: all var(--transition);" for="setting-hide-completed" class="settings-toggle-label-2">
+          <span style="font-weight: 500; font-size: 15px; color: var(--text);">Скрыть решенные билеты</span>
+          <div style="position: relative; width: 48px; height: 26px; background: ${hideCompleted ? 'var(--accent)' : 'var(--border)'}; border-radius: 13px; transition: all var(--transition); cursor: pointer;">
+            <div style="position: absolute; top: 2px; left: ${hideCompleted ? '24px' : '2px'}; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+          </div>
+          <input type="checkbox" id="setting-hide-completed" ${hideCompleted ? 'checked' : ''} style="position: absolute; opacity: 0; pointer-events: none;" />
+        </label>
       </div>
     </div>
   `, { subpage: true, title: "Настройки" });
   
   scheduleFrame(() => {
-    const checkbox = qs("#setting-show-difficulty");
-    const label = qs(".settings-toggle-label");
+    const checkbox1 = qs("#setting-show-difficulty");
+    const label1 = qs(".settings-toggle-label");
+    const checkbox2 = qs("#setting-hide-completed");
+    const label2 = qs(".settings-toggle-label-2");
     
-    if (checkbox && label) {
-      // Обработчик клика на label
-      label.addEventListener("click", (e) => {
+    // Обработчик для первого переключателя
+    if (checkbox1 && label1) {
+      label1.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        checkbox.checked = !checkbox.checked;
-        State.settings.showDifficulty = checkbox.checked;
+        checkbox1.checked = !checkbox1.checked;
+        State.settings.showDifficulty = checkbox1.checked;
         saveUserSettings();
         
-        // Обновляем визуальное состояние переключателя
-        const toggle = label.querySelector("div > div");
-        const bg = label.querySelector("div");
+        const toggle = label1.querySelector("div > div");
+        const bg = label1.querySelector("div");
         if (toggle && bg) {
-          toggle.style.left = checkbox.checked ? '24px' : '2px';
-          bg.style.background = checkbox.checked ? 'var(--accent)' : 'var(--border)';
+          toggle.style.left = checkbox1.checked ? '24px' : '2px';
+          bg.style.background = checkbox1.checked ? 'var(--accent)' : 'var(--border)';
         }
         
-        // Возвращаемся к списку билетов для обновления отображения
+        setTimeout(() => {
+          uiTickets();
+        }, 200);
+      }, { passive: true });
+    }
+    
+    // Обработчик для второго переключателя
+    if (checkbox2 && label2) {
+      label2.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        checkbox2.checked = !checkbox2.checked;
+        State.settings.hideCompletedTickets = checkbox2.checked;
+        saveUserSettings();
+        
+        const toggle = label2.querySelector("div > div");
+        const bg = label2.querySelector("div");
+        if (toggle && bg) {
+          toggle.style.left = checkbox2.checked ? '24px' : '2px';
+          bg.style.background = checkbox2.checked ? 'var(--accent)' : 'var(--border)';
+        }
+        
         setTimeout(() => {
           uiTickets();
         }, 200);
@@ -1288,14 +1334,27 @@ function uiTopics(){
    clearAdvanceTimer();
    State.duel = null;
    
-   const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
+   let tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
      key,
      label: meta.label || key,
      order: Number.isFinite(meta.order) ? meta.order : Number.MAX_SAFE_INTEGER,
      questions: meta.questions
    })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
+   
+   // Фильтруем решенные билеты, если включена настройка
+   const hideCompleted = State.settings.hideCompletedTickets || false;
+   if (hideCompleted) {
+     tickets = tickets.filter(t => {
+       const progress = getTicketProgress(t.label);
+       return !(progress && progress.completed);
+     });
+   }
+   
    if(!tickets.length){
-     setView(`<div class="card"><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты", showSettings: true });
+     const message = hideCompleted ? 
+       `<div class="card"><p>✅ Все билеты решены!</p></div>` : 
+       `<div class="card"><p>❌ Билеты не найдены</p></div>`;
+     setView(message, { subpage: true, title: "Билеты", showSettings: true });
      return;
    }
    
@@ -1311,7 +1370,7 @@ function uiTopics(){
          // Добавляем style с CSS переменной для процента прогресса
          const progressStyle = progressPercent > 0 && !isCompleted ? `style="--progress-width: ${progressPercent}%"` : '';
          
-         // Получаем уровень сложности
+         // Получаем уровень сложности (всегда показываем, если включена настройка)
          let difficultyHtml = '';
          if (showDifficulty) {
            const difficulty = getTicketDifficulty(t.label);
