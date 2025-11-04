@@ -408,15 +408,7 @@ function bindMenu(){
     }, { passive: true });
   }
   
-  // Кнопка "Место в топе" (через делегацию)
-  document.addEventListener("click", (e) => {
-    const topCard = e.target.closest('[data-action="top"]');
-    if (topCard) {
-      e.preventDefault();
-      e.stopPropagation();
-      uiTopPlayers();
-    }
-  }, { passive: true });
+  // Кнопка "Место в топе" обрабатывается в handleTap
   
   menuBound = true;
 }
@@ -686,11 +678,7 @@ function updateStatsDisplay() {
   if (topPlaceCard) {
     topPlaceCard.style.cursor = 'pointer';
     topPlaceCard.setAttribute('data-action', 'top');
-    topPlaceCard.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      uiTopPlayers();
-    }, { passive: true });
+    // Обработчик клика уже есть в handleTap через делегацию
   }
 }
 
@@ -952,6 +940,15 @@ function bindDelegation(){
 }
 
 function handleTap(e){
+  // Проверяем клик на "Место в топе" (data-action="top")
+  const topCard = e.target.closest('[data-action="top"]');
+  if (topCard) {
+    e.preventDefault();
+    e.stopPropagation();
+    uiTopPlayers();
+    return;
+  }
+  
   // Проверяем темы ПЕРВЫМИ, до проверки ответов
   const topic = e.target.closest("[data-t]");
   if (topic && !topic.hasAttribute("data-i")){ 

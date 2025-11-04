@@ -7,16 +7,23 @@ from database import Database
 
 logging.basicConfig(level=logging.INFO)
 
-BOT_TOKEN = "8390787038:AAHChRwHsSbDKHcXEqS8oJXhi0_ASUSq4P8"
-# ЗАМЕНИ на свой GitHub Pages URL
-WEBAPP_URL = "https://твой-username.github.io/pdd-duel-webapp"
+# Импортируем токен из config.py (если он там есть) или используем переменную окружения
+import os
+try:
+    from config import BOT_TOKEN, WEBAPP_URL
+except ImportError:
+    # Если config.py не найден, используем переменные окружения
+    BOT_TOKEN = os.getenv("BOT_TOKEN", "8390787038:AAHChRwHsSbDKHcXEqS8oJXhi0_ASUSq4P8")
+    # URL веб-приложения на GitHub Pages
+    WEBAPP_URL = os.getenv("WEBAPP_URL", "https://nikirir.github.io/pdd-duel-webapp")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 db = Database()
 
 def get_main_keyboard():
-    webapp_url = f"{WEBAPP_URL}/index.html"
+    # Убираем слэш в конце если есть, и добавляем /index.html
+    webapp_url = f"{WEBAPP_URL.rstrip('/')}/index.html"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🎮 Открыть приложение", 
@@ -31,20 +38,20 @@ def get_main_keyboard():
 async def cmd_start(message: Message):
     user = db.get_or_create_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     
-    welcome_text = f"""
-🚗 Привет, {message.from_user.first_name}!
+    welcome_text = f"""🚗 Привет, {message.from_user.first_name or 'друг'}!
 
-Добро пожаловать в ПДД Дуэли! 
-Соревнуйся с друзьями в знании правил дорожного движения.
+Добро пожаловать в **ПДД ДУЭЛИ**! 🎮
 
-🎯 Возможности:
-• 🤺 Дуэли 1 на 1
-• 📚 Тренировка по билетам  
-• 🏆 Рейтинг игроков
-• 🎮 Увлекательные баттлы
+Подготовка к экзамену ГИБДД стала еще интереснее!
 
-Нажми кнопку ниже чтобы начать!
-    """
+🎯 **Возможности:**
+• 📚 Решение билетов ГИБДД
+• 🎓 Тренировка по темам ПДД
+• 🏆 Топ игроков по рейтингу
+• 📊 Статистика и прогресс
+• ⚡ Мгновенная проверка ответов
+
+Нажми кнопку ниже, чтобы начать! 👇"""
     
     await message.answer(welcome_text, reply_markup=get_main_keyboard())
 
