@@ -150,18 +150,20 @@ img {
 ======================= */
 .news-carousel {
   position: relative;
-  margin-bottom: clamp(32px, 6vw, 56px);
-  padding: 0 clamp(20px, 4vw, 40px);
+  margin-bottom: clamp(24px, 5vw, 48px);
+  padding: 0 clamp(16px, 3vw, 32px);
 }
 
 .carousel-container {
   position: relative;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 16px;
   background: var(--bg-card);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0 auto;
+  max-width: 100%;
 }
 
 .carousel-track {
@@ -175,7 +177,8 @@ img {
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.4s ease;
-  padding: clamp(32px, 6vw, 48px) clamp(24px, 4vw, 40px);
+  padding: clamp(24px, 5vw, 40px) clamp(16px, 3vw, 32px);
+  box-sizing: border-box;
 }
 
 .carousel-slide.active {
@@ -187,7 +190,9 @@ img {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .carousel-icon {
@@ -199,7 +204,7 @@ img {
 }
 
 .carousel-content h3 {
-  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-size: clamp(1.25rem, 3.5vw, 1.75rem);
   font-weight: 700;
   margin: 0;
   color: var(--text);
@@ -207,14 +212,25 @@ img {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  padding: 0 clamp(8px, 2vw, 16px);
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .carousel-content p {
-  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  font-size: clamp(0.875rem, 2.2vw, 1rem);
   color: var(--muted);
   margin: 0;
-  line-height: 1.6;
-  max-width: 500px;
+  line-height: 1.5;
+  max-width: 100%;
+  width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  padding: 0 clamp(8px, 2vw, 16px);
+  box-sizing: border-box;
 }
 
 .carousel-arrow {
@@ -237,6 +253,7 @@ img {
   transition: all 0.3s ease;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
+  flex-shrink: 0;
 }
 
 .carousel-arrow:hover {
@@ -288,22 +305,102 @@ img {
 }
 
 @media (max-width: 600px) {
+  .news-carousel {
+    padding: 0 12px;
+    margin-bottom: 24px;
+  }
+  
+  .carousel-container {
+    border-radius: 12px;
+    margin: 0;
+  }
+  
   .carousel-arrow {
-    width: 36px;
-    height: 36px;
-    font-size: 24px;
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
   }
   
   .carousel-arrow-prev {
-    left: -8px;
+    left: 4px;
   }
   
   .carousel-arrow-next {
-    right: -8px;
+    right: 4px;
   }
   
   .carousel-slide {
-    padding: clamp(24px, 5vw, 32px) clamp(20px, 4vw, 28px);
+    padding: 20px 40px 20px 40px;
+  }
+  
+  .carousel-content {
+    gap: 10px;
+  }
+  
+  .carousel-icon {
+    font-size: 2.5rem;
+    margin-bottom: 4px;
+  }
+  
+  .carousel-content h3 {
+    font-size: 1.125rem;
+    padding: 0 8px;
+  }
+  
+  .carousel-content p {
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    padding: 0 8px;
+  }
+  
+  .carousel-dots {
+    margin-top: 16px;
+    gap: 6px;
+  }
+  
+  .carousel-dot {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .carousel-dot.active {
+    width: 20px;
+  }
+}
+
+@media (max-width: 400px) {
+  .news-carousel {
+    padding: 0 8px;
+  }
+  
+  .carousel-slide {
+    padding: 16px 36px 16px 36px;
+  }
+  
+  .carousel-arrow {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+  
+  .carousel-arrow-prev {
+    left: 2px;
+  }
+  
+  .carousel-arrow-next {
+    right: 2px;
+  }
+  
+  .carousel-icon {
+    font-size: 2rem;
+  }
+  
+  .carousel-content h3 {
+    font-size: 1rem;
+  }
+  
+  .carousel-content p {
+    font-size: 0.75rem;
   }
 }
 
