@@ -851,6 +851,8 @@ function saveUserTopData() {
 // Собирает данные всех игроков для топа ТОЛЬКО из базы данных бота (API)
 async function getAllPlayersTopData() {
   try {
+    console.log("🔍 Запрос топа игроков с API:", `${API_BASE_URL}/api/top/players`);
+    
     // Получаем данные ТОЛЬКО из API сервера (база данных бота)
     const response = await fetch(`${API_BASE_URL}/api/top/players`, {
       method: 'GET',
@@ -859,16 +861,32 @@ async function getAllPlayersTopData() {
       }
     });
     
+    console.log("📡 Ответ API:", response.status, response.statusText);
+    
     if (!response.ok) {
-      console.warn("⚠️ Не удалось получить топ из API:", response.status);
+      const errorText = await response.text();
+      console.error("❌ Ошибка API:", response.status, errorText);
+      // Показываем ошибку пользователю через toast
+      toast(`Ошибка загрузки топа: ${response.status}`, 3000);
       return [];
     }
     
     const data = await response.json();
-    if (!data.success || !data.players) {
-      console.warn("⚠️ API вернул некорректные данные:", data);
+    console.log("📦 Данные от API:", data);
+    
+    if (!data.success) {
+      console.error("❌ API вернул ошибку:", data.error || "Неизвестная ошибка");
+      toast(`Ошибка API: ${data.error || "Неизвестная ошибка"}`, 3000);
       return [];
     }
+    
+    if (!data.players || !Array.isArray(data.players)) {
+      console.error("❌ API вернул некорректные данные:", data);
+      toast("Ошибка: некорректные данные от API", 3000);
+      return [];
+    }
+    
+    console.log(`✅ Получено ${data.players.length} игроков из API`);
     
     // Преобразуем данные из API в формат для отображения
     let players = data.players.map(player => {
@@ -885,7 +903,7 @@ async function getAllPlayersTopData() {
         username: player.username || '',  // Убеждаемся что это не null/undefined
         firstName: player.first_name || '',  // Убеждаемся что это не null/undefined
         lastName: '',
-        photoUrl: player.photo_url || null, // Фото из базы данных
+        photoUrl: (player.photo_url && player.photo_url.trim() && player.photo_url !== 'null') ? player.photo_url.trim() : null, // Фото из базы данных
         gamesPlayed: player.total_games || 0,
         wins: player.wins || 0,
         losses: player.losses || 0,
@@ -1599,12 +1617,40 @@ function uiMainSettings(){
 }
 
 async function uiTopPlayers(){
+  // Показываем загрузку
+  setView(`
+    <div class="card">
+      <p style="text-align: center; color: var(--muted);">Загрузка топа игроков...</p>
+    </div>
+  `, { subpage: true, title: "Топ игроков" });
+  
   const players = await getAllPlayersTopData();
   
+  console.log(`🎯 Отображение топа: ${players.length} игроков`);
+  
   if (!players.length) {
+    // Проверяем, что API вообще доступен
+    let apiStatus = '⏳ Проверка...';
+    try {
+      const apiCheck = await fetch(`${API_BASE_URL}/health`, { method: 'GET' }).catch(() => null);
+      apiStatus = apiCheck ? (apiCheck.ok ? '✅ API работает' : `❌ API ошибка ${apiCheck.status}`) : '❌ API недоступен';
+    } catch(e) {
+      apiStatus = `❌ Ошибка: ${e.message}`;
+    }
+    
     setView(`
       <div class="card">
-        <p style="text-align: center; color: var(--muted);">Пока нет игроков в топе</p>
+        <p style="text-align: center; color: var(--muted); margin-bottom: 12px; font-weight: 600;">Пока нет игроков в топе</p>
+        <div style="padding: 12px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; margin-top: 12px;">
+          <p style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">${apiStatus}</p>
+          <p style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">URL: ${API_BASE_URL}/api/top/players</p>
+          <p style="font-size: 11px; color: var(--muted); margin-top: 8px;">💡 Убедитесь, что:</p>
+          <ul style="font-size: 11px; color: var(--muted); margin: 8px 0; padding-left: 20px;">
+            <li>Пользователи зарегистрированы через /start в боте</li>
+            <li>API сервер работает и доступен</li>
+            <li>База данных содержит пользователей</li>
+          </ul>
+        </div>
       </div>
     `, { subpage: true, title: "Топ игроков" });
     return;
