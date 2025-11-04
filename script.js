@@ -629,11 +629,21 @@ function handleTap(e){
   if (back){ 
     e.preventDefault(); 
     e.stopPropagation();
-    // Если мы в билете, возвращаемся к списку билетов, иначе на главную
+    // Проверяем, где мы находимся
     const d = State.duel;
+    const titleEl = qs(".subpage-title");
+    const currentTitle = titleEl ? titleEl.textContent.trim() : "";
+    
+    // Если мы в активном билете (режим ticket), возвращаемся к списку билетов
     if (d && d.mode === "ticket") {
       uiTickets();
-    } else {
+    } 
+    // Если мы в списке билетов (title = "Билеты"), возвращаемся на главную
+    else if (currentTitle === "Билеты") {
+      renderHome();
+    }
+    // Во всех остальных случаях возвращаемся на главную
+    else {
       renderHome();
     }
     return; 
@@ -1412,6 +1422,12 @@ async function uiPenalties(){
      saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount);
    }
 
+   // Активируем кнопку "Следующий" после любого ответа
+   const nextBtn = qs("[data-next], [data-finish]");
+   if(nextBtn) {
+     nextBtn.disabled = false;
+   }
+
    if(isCorrect){
      // Переходим к следующему вопросу без перерисовки текущего
      State.advanceTimer = setTimeout(()=>{
@@ -1427,8 +1443,19 @@ async function uiPenalties(){
        }
      }, 800);
    } else {
-     // Если неправильно, просто разблокируем для следующей попытки (если разрешено)
+     // Если неправильно, разблокируем и позволяем перейти к следующему вопросу
      State.lock = false;
+     // Автоматически переходим к следующему вопросу через небольшую задержку
+     State.advanceTimer = setTimeout(()=>{
+       if(State.duel === d && d.i === currentIndex){
+         d.i = Math.min(d.i + 1, d.q.length - 1);
+         if(d.i >= d.q.length){
+           finishDuel();
+         } else {
+           renderQuestion(d.i);
+         }
+       }
+     }, 1500); // Чуть больше задержка для неправильного ответа, чтобы пользователь увидел подсказку
    }
  }
  
