@@ -34,7 +34,8 @@ try {
      gamesPlayed: 0,
      experience: 0,
      level: 1,
-     topPlace: null
+     topPlace: null,
+     ticketsProgress: {}
    },
    onlineCount: 0
  };
@@ -200,6 +201,7 @@ async function boot(){
     try {
       loadUserStats();
       updateStatsDisplay();
+      startStatsRotation();
       renderHome();
       updateStatsCounters();
     } catch(err) {
@@ -221,6 +223,7 @@ async function boot(){
         hydrateFallback();
         loadUserStats();
         updateStatsDisplay();
+        startStatsRotation();
         renderHome();
         updateStatsCounters();
       } catch(finalErr) {
@@ -318,7 +321,6 @@ function bindMenu(){
       if (act==="tickets")  uiTickets();
       if (act==="markup")   uiMarkup();
       if (act==="penalties")uiPenalties();
-      if (act==="stats")    uiStats();
       if (act==="favorites") toast("⭐ Избранное пока в разработке");
     }, { passive:true });
   });
@@ -373,11 +375,15 @@ function loadUserStats() {
         gamesPlayed: stats.gamesPlayed || 0,
         experience: stats.experience || 0,
         level: stats.level || 1,
-        topPlace: stats.topPlace || null
+        topPlace: stats.topPlace || null,
+        ticketsProgress: stats.ticketsProgress || {}
       };
+    } else {
+      State.stats.ticketsProgress = {};
     }
   } catch(e) {
     console.error("Ошибка загрузки статистики:", e);
+    State.stats.ticketsProgress = {};
   }
 }
 
@@ -389,13 +395,47 @@ function saveUserStats() {
   }
 }
 
+function saveTicketProgress(ticketKey, correctCount, totalCount) {
+  if (!State.stats.ticketsProgress) {
+    State.stats.ticketsProgress = {};
+  }
+  const percent = (correctCount / totalCount) * 100;
+  State.stats.ticketsProgress[ticketKey] = {
+    correct: correctCount,
+    total: totalCount,
+    percent: percent,
+    completed: percent === 100
+  };
+  saveUserStats();
+}
+
+function getTicketProgress(ticketKey) {
+  return State.stats.ticketsProgress?.[ticketKey] || null;
+}
+
+function getTicketsCompletedCount() {
+  if (!State.stats.ticketsProgress) return 0;
+  return Object.values(State.stats.ticketsProgress).filter(t => t.completed).length;
+}
+
+let statsRotationInterval = null;
+let currentStatsView = 0; // 0 = games, 1 = tickets
+
 function updateStatsDisplay() {
   const gamesEl = qs("#games-played");
   const levelEl = qs("#experience-level");
   const topPlaceEl = qs("#top-place");
+  const gamesLabelEl = gamesEl?.parentElement?.querySelector('.stat-label');
   
   if (gamesEl) {
-    gamesEl.textContent = State.stats.gamesPlayed;
+    if (currentStatsView === 0) {
+      gamesEl.textContent = State.stats.gamesPlayed;
+      if (gamesLabelEl) gamesLabelEl.textContent = "игр сыграно";
+    } else {
+      const ticketsCompleted = getTicketsCompletedCount();
+      gamesEl.textContent = ticketsCompleted;
+      if (gamesLabelEl) gamesLabelEl.textContent = "билетов решено";
+    }
   }
   
   if (levelEl) {
@@ -408,6 +448,16 @@ function updateStatsDisplay() {
   if (topPlaceEl) {
     topPlaceEl.textContent = State.stats.topPlace || "-";
   }
+}
+
+function startStatsRotation() {
+  if (statsRotationInterval) {
+    clearInterval(statsRotationInterval);
+  }
+  statsRotationInterval = setInterval(() => {
+    currentStatsView = currentStatsView === 0 ? 1 : 0;
+    updateStatsDisplay();
+  }, 3000); // Переключаем каждые 3 секунды
 }
 
 function addExperience(amount) {
@@ -1020,7 +1070,14 @@ async function fetchJson(url){
    }
    setView(`
      <div class="card"><div class="grid auto">
-       ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
+       ${tickets.map(t=>{
+         const progress = getTicketProgress(t.label);
+         const progressPercent = progress ? progress.percent : 0;
+         const isCompleted = progress && progress.completed;
+         const progressStyle = progressPercent > 0 ? `background: linear-gradient(to right, rgba(16, 185, 129, 0.3) ${progressPercent}%, transparent ${progressPercent}%)` : '';
+         const borderClass = isCompleted ? 'ticket-completed' : progressPercent > 0 ? 'ticket-partial' : '';
+         return `<button type="button" class="answer ticket-btn ${borderClass}" data-ticket="${esc(t.key)}" style="${progressStyle}">${esc(t.label)}</button>`;
+       }).join("")}
      </div></div>
    `, { subpage: true, title: "Билеты" });
  }
@@ -1364,6 +1421,11 @@ async function uiPenalties(){
    if(!d || d.completed) return;
    clearAdvanceTimer();
    d.completed = true;
+   
+   // Сохраняем прогресс билета
+   if (d.mode === "ticket" && d.ticketLabel) {
+     saveTicketProgress(d.ticketLabel, d.me, d.q.length);
+   }
    
    // Обновляем статистику
    incrementGamesPlayed();

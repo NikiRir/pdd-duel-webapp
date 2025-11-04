@@ -173,30 +173,8 @@ body {
   transition: all var(--transition);
   position: relative;
   overflow: hidden;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--gradient-hero);
-  opacity: 0;
-  transition: opacity var(--transition);
-  z-index: 0;
-}
-
-.stat-card:hover {
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 1);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-2px);
-}
-
-.stat-card:hover::before {
-  opacity: 0.05;
+  pointer-events: none;
+  cursor: default;
 }
 
 .stat-card > * {
@@ -683,6 +661,17 @@ body {
   background: #ef4444;
   color: white;
   border-color: #ef4444;
+}
+
+.ticket-btn.ticket-completed {
+  border-color: #10b981;
+  background: linear-gradient(to right, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+  position: relative;
+}
+
+.ticket-btn.ticket-partial {
+  border-color: rgba(16, 185, 129, 0.5);
+  position: relative;
 }
 
 .question-tracker {
