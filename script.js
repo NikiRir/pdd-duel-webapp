@@ -1342,8 +1342,11 @@ async function uiPenalties(){
    let startIndex = 0;
    if (topic) {
      savedProgress = getTopicProgress(topic);
-     if (savedProgress && !savedProgress.completed && savedProgress.answers && savedProgress.answers.length > 0) {
-       startIndex = savedProgress.currentIndex || 0;
+     if (savedProgress && !savedProgress.completed) {
+       // Если есть сохраненный прогресс, начинаем с сохраненного индекса
+       startIndex = savedProgress.currentIndex !== undefined ? savedProgress.currentIndex : 0;
+       // Если индекс больше или равен количеству вопросов, начинаем сначала
+       if (startIndex >= 20) startIndex = 0;
      }
    }
    
@@ -1363,9 +1366,21 @@ async function uiPenalties(){
    // Восстанавливаем ответы если есть сохраненный прогресс
    let answers = Array(q.length).fill(null);
    let me = 0;
-   if (savedProgress && savedProgress.answers && savedProgress.answers.length > 0) {
-     answers = savedProgress.answers.map(a => a ? { ...a } : null);
-     me = savedProgress.correct || 0;
+   if (savedProgress && !savedProgress.completed) {
+     if (savedProgress.answers && savedProgress.answers.length > 0) {
+       // Обрезаем или расширяем массив ответов до нужной длины
+       answers = Array(q.length).fill(null);
+       for (let i = 0; i < Math.min(savedProgress.answers.length, q.length); i++) {
+         if (savedProgress.answers[i]) {
+           answers[i] = { ...savedProgress.answers[i] };
+         }
+       }
+       me = savedProgress.correct || 0;
+     }
+     // Восстанавливаем индекс, на котором остановились
+     startIndex = savedProgress.currentIndex !== undefined ? savedProgress.currentIndex : 0;
+     // Если индекс больше или равен количеству вопросов, начинаем сначала
+     if (startIndex >= q.length) startIndex = 0;
    }
    
    State.duel = {
@@ -1400,18 +1415,28 @@ async function uiPenalties(){
     if (q.length === 0) {
       q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
     }
-    startIndex = savedProgress.currentIndex || 0;
   } else {
     q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
   }
   
-  // Восстанавливаем ответы если есть сохраненный прогресс
+  // Восстанавливаем ответы и индекс если есть сохраненный прогресс
   let answers = Array(q.length).fill(null);
   let me = 0;
-  if (savedProgress && savedProgress.answers && savedProgress.answers.length > 0 && !savedProgress.completed) {
-    answers = savedProgress.answers.map(a => a ? { ...a } : null);
-    me = savedProgress.correct || 0;
-    startIndex = savedProgress.currentIndex || 0;
+  if (savedProgress && !savedProgress.completed) {
+    if (savedProgress.answers && savedProgress.answers.length > 0) {
+      // Обрезаем или расширяем массив ответов до нужной длины
+      answers = Array(q.length).fill(null);
+      for (let i = 0; i < Math.min(savedProgress.answers.length, q.length); i++) {
+        if (savedProgress.answers[i]) {
+          answers[i] = { ...savedProgress.answers[i] };
+        }
+      }
+      me = savedProgress.correct || 0;
+    }
+    // Восстанавливаем индекс, на котором остановились
+    startIndex = savedProgress.currentIndex !== undefined ? savedProgress.currentIndex : 0;
+    // Если индекс больше или равен количеству вопросов, начинаем сначала
+    if (startIndex >= q.length) startIndex = 0;
   }
   
    State.duel = {
@@ -1533,6 +1558,7 @@ async function uiPenalties(){
    }
 
    // Сохраняем прогресс билета или темы в реальном времени (с текущим индексом и ответами)
+   // Сохраняем текущий индекс (до перехода), чтобы при возврате можно было продолжить
    if(d.mode === "ticket" && d.ticketLabel) {
      const answeredCount = d.answers.filter(a => a && a.status).length;
      // Сохраняем уникальные идентификаторы вопросов (используем текст вопроса как ключ)
@@ -1557,10 +1583,21 @@ async function uiPenalties(){
       const currentAnswer = d.answers[currentIndex];
       const isCurrentCorrect = currentAnswer && currentAnswer.status === "correct";
       if(State.duel === d && d.i === currentIndex && isCurrentCorrect){
-         d.i = Math.min(d.i + 1, d.q.length - 1);
-         if(d.i >= d.q.length){
+         const newIndex = Math.min(d.i + 1, d.q.length);
+         if(newIndex >= d.q.length){
            finishDuel();
          } else {
+           d.i = newIndex;
+           // Сохраняем прогресс после перехода к следующему вопросу
+           if(d.mode === "ticket" && d.ticketLabel) {
+             const answeredCount = d.answers.filter(a => a && a.status).length;
+             const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+             saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
+           } else if(d.mode === "topic" && d.topic) {
+             const answeredCount = d.answers.filter(a => a && a.status).length;
+             const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+             saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
+           }
            renderQuestion(d.i);
          }
        }
@@ -1571,10 +1608,21 @@ async function uiPenalties(){
      // Автоматически переходим к следующему вопросу через небольшую задержку
      State.advanceTimer = setTimeout(()=>{
        if(State.duel === d && d.i === currentIndex){
-         d.i = Math.min(d.i + 1, d.q.length - 1);
-         if(d.i >= d.q.length){
+         const newIndex = Math.min(d.i + 1, d.q.length);
+         if(newIndex >= d.q.length){
            finishDuel();
          } else {
+           d.i = newIndex;
+           // Сохраняем прогресс после перехода к следующему вопросу
+           if(d.mode === "ticket" && d.ticketLabel) {
+             const answeredCount = d.answers.filter(a => a && a.status).length;
+             const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+             saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
+           } else if(d.mode === "topic" && d.topic) {
+             const answeredCount = d.answers.filter(a => a && a.status).length;
+             const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+             saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
+           }
            renderQuestion(d.i);
          }
        }
@@ -1762,17 +1810,6 @@ function esc(s){
    if(!d) return;
    clearAdvanceTimer();
    
-   // Сохраняем прогресс перед переходом к следующему вопросу
-   if(d.mode === "ticket" && d.ticketLabel) {
-     const answeredCount = d.answers.filter(a => a && a.status).length;
-     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
-     saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
-   } else if(d.mode === "topic" && d.topic) {
-     const answeredCount = d.answers.filter(a => a && a.status).length;
-     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
-     saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
-   }
-   
    if(d.i >= d.q.length - 1){
     const current = d.answers[d.i];
     if(current && current.status){
@@ -1782,8 +1819,21 @@ function esc(s){
    }
   const activeAnswer = d.answers[d.i];
   if(!(activeAnswer && activeAnswer.status)) return;
-   d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
-   renderQuestion(d.i + 1);
+   const nextIndex = d.i + 1;
+   d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, nextIndex));
+   
+   // Сохраняем прогресс перед переходом к следующему вопросу
+   if(d.mode === "ticket" && d.ticketLabel) {
+     const answeredCount = d.answers.filter(a => a && a.status).length;
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount, nextIndex, d.answers, questionOrder);
+   } else if(d.mode === "topic" && d.topic) {
+     const answeredCount = d.answers.filter(a => a && a.status).length;
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, nextIndex, d.answers, questionOrder);
+   }
+   
+   renderQuestion(nextIndex);
  }
  
  function previousQuestion(){
