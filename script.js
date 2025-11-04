@@ -17,8 +17,23 @@ try {
 // Получаем ID пользователя Telegram
 function getTelegramUserId() {
   try {
-    return TG?.initDataUnsafe?.user?.id || TG?.initData?.user?.id || null;
+    // Пробуем разные способы получения ID
+    if (TG?.initDataUnsafe?.user?.id) {
+      return TG.initDataUnsafe.user.id;
+    }
+    if (TG?.initData?.user?.id) {
+      return TG.initData.user.id;
+    }
+    // Пробуем через window напрямую
+    if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+      return window.Telegram.WebApp.initDataUnsafe.user.id;
+    }
+    if (window.Telegram?.WebApp?.initData?.user?.id) {
+      return window.Telegram.WebApp.initData.user.id;
+    }
+    return null;
   } catch(e) {
+    console.warn("Ошибка получения Telegram ID:", e);
     return null;
   }
 }
@@ -1869,10 +1884,18 @@ const DUEL_SEARCH_KEY = "pdd-duel-search-queue";
 const DUEL_SEARCH_TIMEOUT = 20000; // 20 секунд
 
 function startDuelSearch() {
-  const currentUserId = getTelegramUserId();
+  let currentUserId = getTelegramUserId();
+  
+  // Если нет ID (Telegram API может быть еще не загружен), используем временный ID
   if (!currentUserId) {
-    toast("❌ Требуется авторизация через Telegram");
-    return;
+    // Проверяем, есть ли уже сохраненный временный ID
+    const savedTempId = localStorage.getItem('pdd-duel-temp-user-id');
+    if (savedTempId) {
+      currentUserId = savedTempId;
+    } else {
+      currentUserId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('pdd-duel-temp-user-id', currentUserId);
+    }
   }
   
   // Останавливаем предыдущий поиск если есть
@@ -1890,8 +1913,16 @@ function startDuelSearch() {
   showDuelSearchScreen();
   
   // Начинаем проверку каждую секунду
-  State.duelSearch.searchInterval = setInterval(() => {
+  const searchInterval = setInterval(() => {
+    if (!State.duelSearch.active) {
+      clearInterval(searchInterval);
+      return;
+    }
+    
     checkForOpponent(currentUserId);
+    
+    // Обновляем экран с новым временем
+    updateDuelSearchScreen();
     
     // Проверяем, прошло ли 20 секунд
     const elapsed = Date.now() - State.duelSearch.startTime;
@@ -1899,6 +1930,8 @@ function startDuelSearch() {
       showBotButton();
     }
   }, 1000);
+  
+  State.duelSearch.searchInterval = searchInterval;
 }
 
 function stopDuelSearch() {
@@ -1912,6 +1945,15 @@ function stopDuelSearch() {
 
 function addToSearchQueue(userId) {
   try {
+    if (!userId) {
+      // Если userId не передан, используем временный
+      const savedTempId = localStorage.getItem('pdd-duel-temp-user-id');
+      userId = savedTempId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      if (!savedTempId) {
+        localStorage.setItem('pdd-duel-temp-user-id', userId);
+      }
+    }
+    
     const queue = getSearchQueue();
     // Удаляем старые записи (старше 30 секунд)
     const now = Date.now();
@@ -1932,8 +1974,12 @@ function addToSearchQueue(userId) {
 
 function removeFromSearchQueue() {
   try {
-    const currentUserId = getTelegramUserId();
-    if (!currentUserId) return;
+    let currentUserId = getTelegramUserId();
+    if (!currentUserId) {
+      // Используем сохраненный временный ID если есть
+      currentUserId = localStorage.getItem('pdd-duel-temp-user-id');
+      if (!currentUserId) return;
+    }
     
     const queue = getSearchQueue();
     const filtered = queue.filter(entry => entry.userId !== currentUserId);
