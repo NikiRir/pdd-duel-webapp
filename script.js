@@ -871,19 +871,29 @@ async function getAllPlayersTopData() {
     }
     
     // Преобразуем данные из API в формат для отображения
-    let players = data.players.map(player => ({
-      userId: player.user_id,
-      username: player.username,
-      firstName: player.first_name,
-      lastName: '',
-      photoUrl: player.photo_url || null, // Фото из базы данных
-      gamesPlayed: player.total_games || 0,
-      wins: player.wins || 0,
-      losses: player.losses || 0,
-      winRate: player.win_rate || 0,
-      experience: 0,
-      level: 1
-    }));
+    let players = data.players.map(player => {
+      // Логируем для отладки
+      console.log("📊 Игрок из API:", {
+        userId: player.user_id,
+        username: player.username,
+        first_name: player.first_name,
+        photo_url: player.photo_url
+      });
+      
+      return {
+        userId: player.user_id,
+        username: player.username || '',  // Убеждаемся что это не null/undefined
+        firstName: player.first_name || '',  // Убеждаемся что это не null/undefined
+        lastName: '',
+        photoUrl: player.photo_url || null, // Фото из базы данных
+        gamesPlayed: player.total_games || 0,
+        wins: player.wins || 0,
+        losses: player.losses || 0,
+        winRate: player.win_rate || 0,
+        experience: 0,
+        level: 1
+      };
+    });
     
     // Проверяем настройки "Скрыть из топа" из localStorage для текущего пользователя
     const currentUserId = getTelegramUserId();
@@ -1608,26 +1618,36 @@ async function uiTopPlayers(){
     const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
     
     // Получаем имя пользователя из Telegram (username или first_name)
-    // Если нет username, используем first_name, если нет и его - используем ID
+    // Логируем для отладки
+    console.log("👤 Обработка игрока:", {
+      userId: player.userId,
+      username: player.username,
+      firstName: player.firstName,
+      photoUrl: player.photoUrl
+    });
+    
     let displayName = '';
-    if (player.username) {
-      displayName = `@${player.username}`;
-    } else if (player.firstName) {
-      displayName = player.firstName;
+    // Проверяем username (может быть пустой строкой)
+    if (player.username && player.username.trim()) {
+      displayName = `@${player.username.trim()}`;
+    } else if (player.firstName && player.firstName.trim()) {
+      // Если нет username, используем first_name
+      displayName = player.firstName.trim();
     } else {
-      // Если нет никаких данных, используем ID (но это не должно происходить, так как данные из базы бота)
+      // Если нет никаких данных, используем ID
       displayName = `ID: ${player.userId}`;
+      console.warn("⚠️ Нет данных пользователя для ID:", player.userId);
     }
     
     return `
       <div class="card" style="${isCurrentUser ? 'border: 2px solid var(--accent); background: rgba(0, 149, 246, 0.05);' : ''}">
         <div style="display: flex; align-items: center; gap: 12px;">
           <div style="font-size: 24px; font-weight: 700; min-width: 40px; text-align: center;">${medal}</div>
-          ${player.photoUrl ? 
-            `<img src="${esc(player.photoUrl)}" alt="${esc(displayName)}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />` : 
+          ${(player.photoUrl && player.photoUrl.trim() && player.photoUrl !== 'null') ? 
+            `<img src="${esc(player.photoUrl.trim())}" alt="${esc(displayName)}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />` : 
             ''
           }
-          <div style="display: ${player.photoUrl ? 'none' : 'flex'}; width: 48px; height: 48px; border-radius: 50%; background: var(--accent-transparent); align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: var(--accent);">
+          <div style="display: ${(player.photoUrl && player.photoUrl.trim() && player.photoUrl !== 'null') ? 'none' : 'flex'}; width: 48px; height: 48px; border-radius: 50%; background: var(--accent-transparent); align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: var(--accent);">
             ${displayName.charAt(0).toUpperCase()}
           </div>
           <div style="flex: 1; min-width: 0;">

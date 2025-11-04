@@ -36,23 +36,34 @@ def get_main_keyboard():
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
+    user_id = message.from_user.id
+    username = message.from_user.username
+    first_name = message.from_user.first_name
+    
+    logging.info(f"📝 Регистрация пользователя: ID={user_id}, username={username}, first_name={first_name}")
+    
     # Получаем фото пользователя если есть
     photo_url = None
     try:
-        photos = await bot.get_user_profile_photos(message.from_user.id, limit=1)
+        photos = await bot.get_user_profile_photos(user_id, limit=1)
         if photos.photos:
             file = await bot.get_file(photos.photos[0][0].file_id)
             photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+            logging.info(f"✅ Фото пользователя получено: {photo_url}")
+        else:
+            logging.info(f"ℹ️ У пользователя {user_id} нет фото профиля")
     except Exception as e:
-        logging.warning(f"Не удалось получить фото пользователя: {e}")
+        logging.warning(f"⚠️ Не удалось получить фото пользователя {user_id}: {e}")
     
     # Сохраняем/обновляем пользователя в базе данных
+    logging.info(f"💾 Сохранение пользователя в БД: ID={user_id}, username={username}, first_name={first_name}, photo_url={photo_url}")
     user = db.get_or_create_user(
-        message.from_user.id, 
-        message.from_user.username, 
-        message.from_user.first_name,
+        user_id, 
+        username, 
+        first_name,
         photo_url
     )
+    logging.info(f"✅ Пользователь {user_id} сохранен в БД")
     
     welcome_text = f"""🚗 Привет, {message.from_user.first_name or 'друг'}!
 

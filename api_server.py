@@ -157,6 +157,8 @@ def get_top_players():
     try:
         top_users = db.get_top_users(limit=None)  # Получаем всех пользователей
         
+        print(f"📊 Получено пользователей из БД: {len(top_users)}")
+        
         players = []
         for user in top_users:
             # user может быть с photo_url или без (в зависимости от версии БД)
@@ -165,16 +167,22 @@ def get_top_players():
             else:
                 user_id, username, first_name, wins, losses, total_games, win_rate = user
                 photo_url = None
+            
+            # Логируем для отладки
+            print(f"👤 Пользователь {user_id}: username={username}, first_name={first_name}, photo_url={photo_url}")
+            
             players.append({
                 'user_id': user_id,
-                'username': username,
-                'first_name': first_name,
-                'photo_url': photo_url,
+                'username': username or '',  # Убеждаемся что это не None
+                'first_name': first_name or '',  # Убеждаемся что это не None
+                'photo_url': photo_url or '',  # Убеждаемся что это не None
                 'wins': wins,
                 'losses': losses,
                 'total_games': total_games,
                 'win_rate': win_rate
             })
+        
+        print(f"✅ Возвращаем {len(players)} игроков")
         
         return jsonify({
             'success': True,
@@ -182,6 +190,8 @@ def get_top_players():
         })
     except Exception as e:
         print(f"❌ Ошибка получения топа игроков: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': str(e)
