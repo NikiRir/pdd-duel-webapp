@@ -109,15 +109,22 @@ function getStorageKey(baseKey) {
    },
    // Глобальная статистика по билетам для расчета сложности
    ticketsDifficultyStats: {},
-   // Состояние поиска противника для дуэли
-   duelSearch: {
-     active: false,
-     startTime: null,
-     searchInterval: null,
-     opponentId: null,
-     isBot: false
-   }
- };
+  // Состояние поиска противника для дуэли
+  duelSearch: {
+    active: false,
+    startTime: null,
+    searchInterval: null,
+    opponentId: null,
+    isBot: false
+  },
+  // Прогресс соперника в текущей дуэли
+  opponentProgress: {
+    currentQuestion: 0,
+    score: 0
+  },
+  // Интервал для обновления прогресса соперника
+  opponentProgressInterval: null
+};
  
  let delegationBound = false;
  let menuBound = false;
@@ -1892,6 +1899,10 @@ async function uiPenalties(){
  ======================= */
 const DUEL_SEARCH_KEY = "pdd-duel-search-queue";
 const DUEL_SEARCH_TIMEOUT = 20000; // 20 секунд
+// URL API сервера (замените на ваш URL)
+// Для разработки используйте: const API_BASE_URL = "http://localhost:8080";
+// Для продакшена замените на ваш домен:
+const API_BASE_URL = "http://localhost:8080";  // TODO: Замените на ваш API URL
 
 function startDuelSearch() {
   // Пробуем получить Telegram ID несколько раз (API может загружаться асинхронно)
@@ -1938,8 +1949,8 @@ function startDuelSearch() {
   State.duelSearch.opponentId = null;
   State.duelSearch.isBot = false;
   
-  // Добавляем себя в очередь поиска
-  addToSearchQueue(currentUserId);
+  // Добавляем себя в очередь поиска (async)
+  addToSearchQueue(currentUserId).catch(e => console.error("Ошибка добавления в очередь:", e));
   
   // Показываем экран поиска
   showDuelSearchScreen();
@@ -1951,7 +1962,7 @@ function startDuelSearch() {
       return;
     }
     
-    checkForOpponent(currentUserId);
+    checkForOpponent(currentUserId).catch(e => console.error("Ошибка проверки противника:", e));
     
     // Обновляем экран с новым временем
     updateDuelSearchScreen();
@@ -1975,7 +1986,7 @@ function stopDuelSearch() {
   removeFromSearchQueue();
 }
 
-function addToSearchQueue(userId) {
+async function addToSearchQueue(userId) {
   try {
     if (!userId) {
       // Если userId не передан, используем временный
@@ -1986,25 +1997,46 @@ function addToSearchQueue(userId) {
       }
     }
     
-    const queue = getSearchQueue();
-    // Удаляем старые записи (старше 30 секунд)
-    const now = Date.now();
-    const activeQueue = queue.filter(entry => now - entry.timestamp < 30000);
-    
-    // Добавляем себя только если еще нет в очереди
-    if (!activeQueue.find(entry => entry.userId === userId)) {
-      activeQueue.push({
-        userId: userId,
-        timestamp: now
+    // Используем API сервер для добавления в очередь
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/duel/search/join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_id: parseInt(userId) || userId })
       });
-      localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(activeQueue));
+      
+      if (response.ok) {
+        console.log("✅ Добавлен в очередь поиска через API");
+      } else {
+        console.warn("⚠️ Не удалось добавить в очередь через API, используем localStorage");
+        // Fallback на localStorage
+        const queue = getSearchQueue();
+        const now = Date.now();
+        const activeQueue = queue.filter(entry => now - entry.timestamp < 30000);
+        if (!activeQueue.find(entry => entry.userId === userId)) {
+          activeQueue.push({ userId: userId, timestamp: now });
+          localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(activeQueue));
+        }
+      }
+    } catch(apiError) {
+      console.warn("⚠️ API недоступен, используем localStorage:", apiError);
+      // Fallback на localStorage
+      const queue = getSearchQueue();
+      const now = Date.now();
+      const activeQueue = queue.filter(entry => now - entry.timestamp < 30000);
+      if (!activeQueue.find(entry => entry.userId === userId)) {
+        activeQueue.push({ userId: userId, timestamp: now });
+        localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(activeQueue));
+      }
     }
   } catch(e) {
     console.error("Ошибка добавления в очередь:", e);
   }
 }
 
-function removeFromSearchQueue() {
+async function removeFromSearchQueue() {
   try {
     let currentUserId = getTelegramUserId();
     if (!currentUserId) {
@@ -2013,9 +2045,31 @@ function removeFromSearchQueue() {
       if (!currentUserId) return;
     }
     
-    const queue = getSearchQueue();
-    const filtered = queue.filter(entry => entry.userId !== currentUserId);
-    localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(filtered));
+    // Используем API сервер для удаления из очереди
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/duel/search/leave`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_id: parseInt(currentUserId) || currentUserId })
+      });
+      
+      if (response.ok) {
+        console.log("✅ Удален из очереди через API");
+      } else {
+        // Fallback на localStorage
+        const queue = getSearchQueue();
+        const filtered = queue.filter(entry => entry.userId !== currentUserId);
+        localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(filtered));
+      }
+    } catch(apiError) {
+      console.warn("⚠️ API недоступен, используем localStorage:", apiError);
+      // Fallback на localStorage
+      const queue = getSearchQueue();
+      const filtered = queue.filter(entry => entry.userId !== currentUserId);
+      localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(filtered));
+    }
   } catch(e) {
     console.error("Ошибка удаления из очереди:", e);
   }
@@ -2030,8 +2084,34 @@ function getSearchQueue() {
   }
 }
 
-function checkForOpponent(currentUserId) {
+async function checkForOpponent(currentUserId) {
   try {
+    // Используем API сервер для поиска противника
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/duel/search/check`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_id: parseInt(currentUserId) || currentUserId })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.found && data.opponent_id) {
+          // Найден противник через API!
+          State.duelSearch.opponentId = data.opponent_id;
+          State.duelSearch.isBot = false;
+          stopDuelSearch();
+          startRealDuel(data.opponent_id);
+          return;
+        }
+      }
+    } catch(apiError) {
+      console.warn("⚠️ API недоступен, используем localStorage:", apiError);
+    }
+    
+    // Fallback на localStorage
     const queue = getSearchQueue();
     const now = Date.now();
     
@@ -2042,7 +2122,7 @@ function checkForOpponent(currentUserId) {
     );
     
     if (opponent) {
-      // Найден противник!
+      // Найден противник через localStorage!
       State.duelSearch.opponentId = opponent.userId;
       State.duelSearch.isBot = false;
       stopDuelSearch();
@@ -2182,6 +2262,109 @@ function startRealDuel(opponentId) {
   
   // Запускаем дуэль против реального игрока
   startDuel({ mode: "duel", opponentId: opponentId, isBot: false });
+  
+  // Начинаем отслеживать прогресс соперника
+  startOpponentProgressTracking(opponentId);
+}
+
+// Начать отслеживание прогресса соперника
+function startOpponentProgressTracking(opponentId) {
+  // Останавливаем предыдущий интервал если есть
+  if (State.opponentProgressInterval) {
+    clearInterval(State.opponentProgressInterval);
+  }
+  
+  // Обновляем прогресс каждые 2 секунды
+  State.opponentProgressInterval = setInterval(() => {
+    updateOpponentProgress(opponentId);
+  }, 2000);
+  
+  // Первое обновление сразу
+  updateOpponentProgress(opponentId);
+}
+
+// Остановить отслеживание прогресса соперника
+function stopOpponentProgressTracking() {
+  if (State.opponentProgressInterval) {
+    clearInterval(State.opponentProgressInterval);
+    State.opponentProgressInterval = null;
+  }
+}
+
+// Обновить прогресс соперника
+async function updateOpponentProgress(opponentId) {
+  const d = State.duel;
+  if (!d || !opponentId || d.isBot) return;
+  
+  const currentUserId = getTelegramUserId();
+  if (!currentUserId) return;
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/duel/progress/get`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        user_id: parseInt(currentUserId) || currentUserId,
+        opponent_id: parseInt(opponentId) || opponentId
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success && data.progress) {
+        State.opponentProgress.currentQuestion = data.progress.current_question || 0;
+        State.opponentProgress.score = data.progress.score || 0;
+        
+        // Обновляем отображение прогресса соперника
+        updateOpponentProgressDisplay();
+      }
+    }
+  } catch(e) {
+    console.warn("Ошибка получения прогресса соперника:", e);
+  }
+}
+
+// Обновить отображение прогресса соперника
+function updateOpponentProgressDisplay() {
+  const opponentProgressEl = qs("#opponent-progress");
+  if (opponentProgressEl && State.opponentProgress) {
+    opponentProgressEl.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0, 149, 246, 0.05); border-radius: 8px; margin-bottom: 12px;">
+        <span style="font-size: 12px; color: var(--muted);">Соперник:</span>
+        <span style="font-size: 13px; font-weight: 600; color: var(--text);">
+          Вопрос ${State.opponentProgress.currentQuestion + 1} | Очки: ${State.opponentProgress.score}
+        </span>
+      </div>
+    `;
+  }
+}
+
+// Отправить свой прогресс на сервер
+async function syncDuelProgress() {
+  const d = State.duel;
+  if (!d || !d.opponentId || d.isBot) return;
+  
+  const currentUserId = getTelegramUserId();
+  if (!currentUserId) return;
+  
+  try {
+    await fetch(`${API_BASE_URL}/api/duel/progress/update`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        user_id: parseInt(currentUserId) || currentUserId,
+        opponent_id: parseInt(d.opponentId) || d.opponentId,
+        current_question: d.i || 0,
+        user_score: d.me || 0
+      })
+    });
+  } catch(e) {
+    console.warn("Ошибка синхронизации прогресса:", e);
+  }
 }
 
  /* =======================
@@ -2333,9 +2516,20 @@ function startRealDuel(opponentId) {
    // Индикатор прогресса сверху
    const progressPercent = ((d.i+1)/d.q.length*100).toFixed(0);
    const progressIndicator = `<div class="question-progress"><div class="question-progress-bar" style="--progress-width: ${progressPercent}%"><div style="width: ${progressPercent}%"></div></div><span class="question-progress-text">${d.i+1}/${d.q.length}</span></div>`;
+   
+   // Прогресс соперника (только для дуэли с реальным игроком)
+   const opponentProgressHtml = (d.mode === "duel" && d.opponentId && !d.isBot) ? `
+     <div id="opponent-progress" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(0, 149, 246, 0.05); border-radius: 8px; margin-bottom: 12px;">
+       <span style="font-size: 12px; color: var(--muted);">Соперник:</span>
+       <span style="font-size: 13px; font-weight: 600; color: var(--text);">
+         Вопрос ${State.opponentProgress.currentQuestion + 1} | Очки: ${State.opponentProgress.score}
+       </span>
+     </div>
+   ` : '';
  
    setView(`
      ${progressIndicator}
+     ${opponentProgressHtml}
      ${tracker}
      <div class="card">
        <div class="meta">${esc(ticketInfo)}</div>
@@ -2366,6 +2560,11 @@ function startRealDuel(opponentId) {
  
    d.answers[d.i] = { status: isCorrect ? "correct" : "wrong", selected: i };
    d.furthest = Math.min(d.q.length - 1, Math.max(d.furthest, d.i + 1));
+   
+   // Синхронизируем прогресс с сервером (для дуэли с реальным игроком)
+   if (d.mode === "duel" && d.opponentId && !d.isBot) {
+     syncDuelProgress();
+   }
  
    // Улучшенные тосты с анимацией
    if(isCorrect){ 
@@ -2455,6 +2654,10 @@ function startRealDuel(opponentId) {
              const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
              saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
            }
+           // Синхронизируем прогресс с сервером (для дуэли с реальным игроком)
+           if (d.mode === "duel" && d.opponentId && !d.isBot) {
+             syncDuelProgress();
+           }
            renderQuestion(d.i);
          }
        }
@@ -2480,6 +2683,10 @@ function startRealDuel(opponentId) {
              const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
              saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
            }
+           // Синхронизируем прогресс с сервером (для дуэли с реальным игроком)
+           if (d.mode === "duel" && d.opponentId && !d.isBot) {
+             syncDuelProgress();
+           }
            renderQuestion(d.i);
          }
        }
@@ -2492,6 +2699,9 @@ function startRealDuel(opponentId) {
    if(!d || d.completed) return;
    clearAdvanceTimer();
    d.completed = true;
+   
+   // Останавливаем отслеживание прогресса соперника
+   stopOpponentProgressTracking();
    
    const isBot = d.isBot || false;
    

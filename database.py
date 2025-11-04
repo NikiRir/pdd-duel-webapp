@@ -110,4 +110,152 @@ class Database:
         
         conn.commit()
         conn.close()
+    
+    def add_to_search_queue(self, user_id: int):
+        """Добавить пользователя в очередь поиска противника"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Создаем таблицу очереди поиска если её нет
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS duel_search_queue (
+                user_id INTEGER PRIMARY KEY,
+                timestamp INTEGER NOT NULL
+            )
+        """)
+        
+        # Удаляем старые записи (старше 30 секунд)
+        import time
+        now = int(time.time() * 1000)
+        cursor.execute("DELETE FROM duel_search_queue WHERE timestamp < ?", (now - 30000,))
+        
+        # Добавляем или обновляем запись
+        cursor.execute("""
+            INSERT OR REPLACE INTO duel_search_queue (user_id, timestamp)
+            VALUES (?, ?)
+        """, (user_id, now))
+        
+        conn.commit()
+        conn.close()
+    
+    def remove_from_search_queue(self, user_id: int):
+        """Удалить пользователя из очереди поиска"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM duel_search_queue WHERE user_id = ?", (user_id,))
+        
+        conn.commit()
+        conn.close()
+    
+    def find_opponent(self, user_id: int) -> Optional[int]:
+        """Найти противника для пользователя"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Создаем таблицу если её нет
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS duel_search_queue (
+                user_id INTEGER PRIMARY KEY,
+                timestamp INTEGER NOT NULL
+            )
+        """)
+        
+        # Удаляем старые записи
+        import time
+        now = int(time.time() * 1000)
+        cursor.execute("DELETE FROM duel_search_queue WHERE timestamp < ?", (now - 30000,))
+        
+        # Ищем другого игрока
+        cursor.execute("""
+            SELECT user_id FROM duel_search_queue 
+            WHERE user_id != ? 
+            ORDER BY timestamp DESC 
+            LIMIT 1
+        """, (user_id,))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result[0] if result else None
+    
+    def update_duel_progress(self, user_id: int, opponent_id: int, current_question: int, user_score: int):
+        """Обновить прогресс дуэли"""
+        import time
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Создаем таблицу прогресса дуэлей если её нет
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS duel_progress (
+                duel_id TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                opponent_id INTEGER NOT NULL,
+                user_current_question INTEGER NOT NULL,
+                opponent_current_question INTEGER NOT NULL,
+                user_score INTEGER NOT NULL,
+                opponent_score INTEGER NOT NULL,
+                timestamp INTEGER NOT NULL
+            )
+        """)
+        
+        # Создаем уникальный ID дуэли (меньший ID идет первым)
+        duel_id = f"{min(user_id, opponent_id)}_{max(user_id, opponent_id)}"
+        now = int(time.time() * 1000)
+        
+        # Получаем текущий прогресс
+        cursor.execute("SELECT * FROM duel_progress WHERE duel_id = ?", (duel_id,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            # Обновляем прогресс для текущего пользователя
+            if existing[1] == user_id:
+                cursor.execute("""
+                    UPDATE duel_progress 
+                    SET user_current_question = ?, user_score = ?, timestamp = ?
+                    WHERE duel_id = ?
+                """, (current_question, user_score, now, duel_id))
+            else:
+                cursor.execute("""
+                    UPDATE duel_progress 
+                    SET opponent_current_question = ?, opponent_score = ?, timestamp = ?
+                    WHERE duel_id = ?
+                """, (current_question, user_score, now, duel_id))
+        else:
+            # Создаем новую запись
+            cursor.execute("""
+                INSERT INTO duel_progress 
+                (duel_id, user_id, opponent_id, user_current_question, opponent_current_question, user_score, opponent_score, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (duel_id, user_id, opponent_id, current_question, 0, user_score, 0, now))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_opponent_progress(self, user_id: int, opponent_id: int) -> Optional[dict]:
+        """Получить прогресс противника"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        duel_id = f"{min(user_id, opponent_id)}_{max(user_id, opponent_id)}"
+        
+        cursor.execute("SELECT * FROM duel_progress WHERE duel_id = ?", (duel_id,))
+        result = cursor.fetchone()
+        
+        conn.close()
+        
+        if not result:
+            return None
+        
+        # Определяем, кто есть кто
+        if result[1] == user_id:
+            return {
+                'current_question': result[4],  # opponent_current_question
+                'score': result[6]  # opponent_score
+            }
+        else:
+            return {
+                'current_question': result[3],  # user_current_question
+                'score': result[5]  # user_score
+            }
 
