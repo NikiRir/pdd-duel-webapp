@@ -14,6 +14,16 @@ try {
   if (TG && typeof TG.expand === "function") TG.expand();
 } catch(_) {}
 
+// Отладочная информация для проверки Telegram API
+if (typeof console !== 'undefined') {
+  console.log("Telegram WebApp доступен:", !!TG);
+  console.log("window.Telegram доступен:", !!window.Telegram);
+  if (TG) {
+    console.log("TG.initDataUnsafe:", TG.initDataUnsafe);
+    console.log("TG.initData:", TG.initData);
+  }
+}
+
 // Получаем ID пользователя Telegram
 function getTelegramUserId() {
   try {
@@ -1884,10 +1894,30 @@ const DUEL_SEARCH_KEY = "pdd-duel-search-queue";
 const DUEL_SEARCH_TIMEOUT = 20000; // 20 секунд
 
 function startDuelSearch() {
+  // Пробуем получить Telegram ID несколько раз (API может загружаться асинхронно)
   let currentUserId = getTelegramUserId();
   
-  // Если нет ID (Telegram API может быть еще не загружен), используем временный ID
+  console.log("🔍 Поиск Telegram ID:", currentUserId);
+  
+  // Если ID не найден, пробуем еще раз через небольшую задержку
   if (!currentUserId) {
+    // Пробуем получить через window напрямую
+    try {
+      if (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) {
+        currentUserId = window.Telegram.WebApp.initDataUnsafe.user.id;
+        console.log("✅ Telegram ID найден через window.Telegram.WebApp.initDataUnsafe");
+      } else if (window.Telegram?.WebApp?.initData?.user?.id) {
+        currentUserId = window.Telegram.WebApp.initData.user.id;
+        console.log("✅ Telegram ID найден через window.Telegram.WebApp.initData");
+      }
+    } catch(e) {
+      console.warn("Ошибка при получении Telegram ID:", e);
+    }
+  }
+  
+  // Если все еще нет ID, используем временный ID (без ошибок!)
+  if (!currentUserId) {
+    console.log("⚠️ Telegram ID не найден, используем временный ID");
     // Проверяем, есть ли уже сохраненный временный ID
     const savedTempId = localStorage.getItem('pdd-duel-temp-user-id');
     if (savedTempId) {
@@ -1897,6 +1927,8 @@ function startDuelSearch() {
       localStorage.setItem('pdd-duel-temp-user-id', currentUserId);
     }
   }
+  
+  console.log("🎮 Начинаем поиск противника с ID:", currentUserId);
   
   // Останавливаем предыдущий поиск если есть
   stopDuelSearch();
