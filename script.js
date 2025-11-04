@@ -35,7 +35,8 @@ try {
      experience: 0,
      level: 1,
      topPlace: null,
-     ticketsProgress: {}
+     ticketsProgress: {},
+     topicsProgress: {}
    },
    onlineCount: 0
  };
@@ -376,14 +377,17 @@ function loadUserStats() {
         experience: stats.experience || 0,
         level: stats.level || 1,
         topPlace: stats.topPlace || null,
-        ticketsProgress: stats.ticketsProgress || {}
+        ticketsProgress: stats.ticketsProgress || {},
+        topicsProgress: stats.topicsProgress || {}
       };
     } else {
       State.stats.ticketsProgress = {};
+      State.stats.topicsProgress = {};
     }
   } catch(e) {
     console.error("Ошибка загрузки статистики:", e);
     State.stats.ticketsProgress = {};
+    State.stats.topicsProgress = {};
   }
 }
 
@@ -414,6 +418,27 @@ function saveTicketProgress(ticketKey, correctCount, totalCount, answeredCount =
 
 function getTicketProgress(ticketKey) {
   return State.stats.ticketsProgress?.[ticketKey] || null;
+}
+
+function saveTopicProgress(topicKey, correctCount, totalCount, answeredCount = null) {
+  if (!State.stats.topicsProgress) {
+    State.stats.topicsProgress = {};
+  }
+  // Используем answeredCount если передан, иначе correctCount
+  const progressCount = answeredCount !== null ? answeredCount : correctCount;
+  const percent = (progressCount / totalCount) * 100;
+  State.stats.topicsProgress[topicKey] = {
+    correct: correctCount,
+    answered: answeredCount !== null ? answeredCount : progressCount,
+    total: totalCount,
+    percent: percent,
+    completed: percent === 100 && correctCount === totalCount
+  };
+  saveUserStats();
+}
+
+function getTopicProgress(topicKey) {
+  return State.stats.topicsProgress?.[topicKey] || null;
 }
 
 function getTicketsCompletedCount() {
@@ -640,9 +665,17 @@ function handleTap(e){
     // Если мы в активном вопросе билета (режим ticket + есть элементы вопроса), возвращаемся к списку билетов
     if (d && d.mode === "ticket" && hasQuestionElements) {
       uiTickets();
-    } 
+    }
+    // Если мы в активном вопросе темы (режим topic + есть элементы вопроса), возвращаемся к списку тем
+    else if (d && d.mode === "topic" && hasQuestionElements) {
+      uiTopics();
+    }
     // Если мы в списке билетов (title = "Билеты" и нет элементов вопроса), возвращаемся на главную
     else if (currentTitle === "Билеты" && !hasQuestionElements) {
+      renderHome();
+    }
+    // Если мы в списке тем (title = "Темы" и нет элементов вопроса), возвращаемся на главную
+    else if (currentTitle === "Темы" && !hasQuestionElements) {
       renderHome();
     }
     // Во всех остальных случаях возвращаемся на главную
@@ -1051,11 +1084,15 @@ async function fetchJson(url){
     Экраны
  ======================= */
  function uiTopics(){
+   // Очищаем состояние дуэли при возврате к списку тем
+   clearAdvanceTimer();
+   State.duel = null;
+   
    const list=[...State.topics.keys()].sort((a,b)=>a.localeCompare(b,'ru'));
    const listId = "topics-list";
    
    if(!list.length){ 
-     setView(`<div class="card"><h3>Темы</h3><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); 
+     setView(`<div class="card"><p>❌ Темы не найдены</p></div>`, { subpage: true, title: "Темы" }); 
      return; 
    }
    
@@ -1064,7 +1101,15 @@ async function fetchJson(url){
        <input type="text" id="search-topics" class="search-input" placeholder="Поиск тем..." data-search-target="${listId}" />
      </div>
      <div class="card"><div class="grid auto topics-grid" id="${listId}">
-       ${list.map(t=>`<button type="button" class="btn topic-btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
+       ${list.map(t=>{
+         const progress = getTopicProgress(t);
+         const progressPercent = progress ? progress.percent : 0;
+         const isCompleted = progress && progress.completed;
+         const borderClass = isCompleted ? 'topic-completed' : progressPercent > 0 ? 'topic-partial' : '';
+         // Добавляем style с CSS переменной для процента прогресса
+         const progressStyle = progressPercent > 0 && !isCompleted ? `style="--progress-width: ${progressPercent}%"` : '';
+         return `<button type="button" class="btn topic-btn ${borderClass}" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}" ${progressStyle}>${esc(t)}</button>`;
+       }).join("")}
      </div></div>
    `;
    
@@ -1423,10 +1468,13 @@ async function uiPenalties(){
      }
    }
 
-   // Сохраняем прогресс билета в реальном времени
+   // Сохраняем прогресс билета или темы в реальном времени
    if(d.mode === "ticket" && d.ticketLabel) {
      const answeredCount = d.answers.filter(a => a && a.status).length;
      saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount);
+   } else if(d.mode === "topic" && d.topic) {
+     const answeredCount = d.answers.filter(a => a && a.status).length;
+     saveTopicProgress(d.topic, d.me, d.q.length, answeredCount);
    }
 
    // Активируем кнопку "Следующий" после любого ответа
@@ -1472,9 +1520,11 @@ async function uiPenalties(){
    clearAdvanceTimer();
    d.completed = true;
    
-   // Сохраняем прогресс билета
+   // Сохраняем прогресс билета или темы
    if (d.mode === "ticket" && d.ticketLabel) {
      saveTicketProgress(d.ticketLabel, d.me, d.q.length);
+   } else if (d.mode === "topic" && d.topic) {
+     saveTopicProgress(d.topic, d.me, d.q.length);
    }
    
    // Обновляем статистику
