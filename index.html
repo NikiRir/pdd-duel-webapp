@@ -8,8 +8,8 @@
    <link rel="preconnect" href="https://fonts.googleapis.com" />
    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="preload" href="style.css?v=47" as="style" />
-  <link rel="stylesheet" href="style.css?v=47" />
+  <link rel="preload" href="style.css?v=48" as="style" />
+  <link rel="stylesheet" href="style.css?v=48" />
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
  </head>
  
@@ -33,11 +33,49 @@
    </noscript>
  
    <div class="app">
-     <section class="hero">
-       <h1>ПДД ДУЭЛИ</h1>
-       <p>Реальные билеты ГИБДД для подготовки к экзамену</p>
+     <section class="news-carousel">
+       <button class="carousel-arrow carousel-arrow-prev" aria-label="Предыдущий слайд">‹</button>
+       <div class="carousel-container">
+         <div class="carousel-track">
+           <div class="carousel-slide active">
+             <div class="carousel-content">
+               <div class="carousel-icon">🚗</div>
+               <h3>Реальные билеты ГИБДД</h3>
+               <p>Актуальные вопросы из официальной базы экзамена</p>
+             </div>
+           </div>
+           <div class="carousel-slide">
+             <div class="carousel-content">
+               <div class="carousel-icon">⚡</div>
+               <h3>Быстрая дуэль</h3>
+               <p>Соревнуйся в скорости и знаниях с другими игроками</p>
+             </div>
+           </div>
+           <div class="carousel-slide">
+             <div class="carousel-content">
+               <div class="carousel-icon">📚</div>
+               <h3>Тренировка по темам</h3>
+               <p>Изучай правила дорожного движения по категориям</p>
+             </div>
+           </div>
+           <div class="carousel-slide">
+             <div class="carousel-content">
+               <div class="carousel-icon">🎯</div>
+               <h3>Подготовка к экзамену</h3>
+               <p>Проверь свои знания перед сдачей в ГИБДД</p>
+             </div>
+           </div>
+         </div>
+       </div>
+       <button class="carousel-arrow carousel-arrow-next" aria-label="Следующий слайд">›</button>
+       <div class="carousel-dots">
+         <button class="carousel-dot active" data-slide="0" aria-label="Слайд 1"></button>
+         <button class="carousel-dot" data-slide="1" aria-label="Слайд 2"></button>
+         <button class="carousel-dot" data-slide="2" aria-label="Слайд 3"></button>
+         <button class="carousel-dot" data-slide="3" aria-label="Слайд 4"></button>
+       </div>
      </section>
- 
+
      <nav>
        <button id="quick" class="btn btn-primary" data-action="quick">⚡ Быстрая дуэль</button>
        <button id="topics" class="btn" data-action="topics">📚 Темы</button>
@@ -64,6 +102,6 @@
      </div>
    </div>
    
-  <script src="script.js?v=35"></script>
+  <script src="script.js?v=36"></script>
  </body>
  </html>

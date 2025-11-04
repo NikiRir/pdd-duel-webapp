@@ -192,6 +192,7 @@ async function boot(){
         try {
           renderHome();
           updateStatsCounters();
+          initCarousel();
         } catch(e) {
           console.error("Ошибка рендеринга:", e);
         }
@@ -237,6 +238,7 @@ async function boot(){
     try {
       renderHome();
       updateStatsCounters();
+      initCarousel();
     } catch(err) {
       console.error("Ошибка при рендеринге:", err);
     }
@@ -256,6 +258,7 @@ async function boot(){
         hydrateFallback();
         renderHome();
         updateStatsCounters();
+        initCarousel();
       } catch(finalErr) {
         console.error("Критическая ошибка применения fallback:", finalErr);
       }
@@ -329,22 +332,139 @@ async function boot(){
  /* =======================
     Меню
  ======================= */
- function bindMenu(){
-   if (menuBound) return;
-   qsa("[data-action]").forEach(btn=>{
-     btn.addEventListener("click", e=>{
-       const act = e.currentTarget.dataset.action;
-       setActive(e.currentTarget.id);
-       if (act==="quick")    startDuel({mode:"quick"});
-       if (act==="topics")   uiTopics();
-       if (act==="tickets")  uiTickets();
-       if (act==="markup")   uiMarkup();
-       if (act==="penalties")uiPenalties();
-       if (act==="stats")    uiStats();
-     }, { passive:true });
-   });
-   menuBound = true;
- }
+function bindMenu(){
+  if (menuBound) return;
+  qsa("[data-action]").forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      const act = e.currentTarget.dataset.action;
+      setActive(e.currentTarget.id);
+      if (act==="quick")    startDuel({mode:"quick"});
+      if (act==="topics")   uiTopics();
+      if (act==="tickets")  uiTickets();
+      if (act==="markup")   uiMarkup();
+      if (act==="penalties")uiPenalties();
+      if (act==="stats")    uiStats();
+    }, { passive:true });
+  });
+  menuBound = true;
+}
+
+/* =======================
+   Карусель
+======================= */
+let carouselInitialized = false;
+let currentCarouselSlide = 0;
+let carouselAutoPlayInterval = null;
+
+function initCarousel() {
+  if (carouselInitialized) return;
+  
+  const slides = qsa(".carousel-slide");
+  const dots = qsa(".carousel-dot");
+  const prevBtn = qs(".carousel-arrow-prev");
+  const nextBtn = qs(".carousel-arrow-next");
+  
+  if (!slides.length || !dots.length) return;
+  
+  function updateCarousel(index) {
+    // Обновляем слайды
+    slides.forEach((slide, i) => {
+      slide.classList.toggle("active", i === index);
+    });
+    
+    // Обновляем точки
+    dots.forEach((dot, i) => {
+      dot.classList.toggle("active", i === index);
+    });
+    
+    currentCarouselSlide = index;
+  }
+  
+  function nextSlide() {
+    const next = (currentCarouselSlide + 1) % slides.length;
+    updateCarousel(next);
+  }
+  
+  function prevSlide() {
+    const prev = (currentCarouselSlide - 1 + slides.length) % slides.length;
+    updateCarousel(prev);
+  }
+  
+  // Обработчики для стрелок
+  if (prevBtn) {
+    prevBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      prevSlide();
+      resetAutoPlay();
+    }, { passive: false });
+  }
+  
+  if (nextBtn) {
+    nextBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      nextSlide();
+      resetAutoPlay();
+    }, { passive: false });
+  }
+  
+  // Обработчики для точек
+  dots.forEach((dot, index) => {
+    dot.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      updateCarousel(index);
+      resetAutoPlay();
+    }, { passive: false });
+  });
+  
+  // Автоматическое листание (каждые 5 секунд)
+  function startAutoPlay() {
+    carouselAutoPlayInterval = setInterval(() => {
+      nextSlide();
+    }, 5000);
+  }
+  
+  function resetAutoPlay() {
+    if (carouselAutoPlayInterval) {
+      clearInterval(carouselAutoPlayInterval);
+    }
+    startAutoPlay();
+  }
+  
+  // Свайпы для мобильных устройств
+  let touchStartX = 0;
+  let touchEndX = 0;
+  
+  const carouselContainer = qs(".carousel-container");
+  if (carouselContainer) {
+    carouselContainer.addEventListener("touchstart", (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+    
+    carouselContainer.addEventListener("touchend", (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+      resetAutoPlay();
+    }, { passive: true });
+  }
+  
+  function handleSwipe() {
+    const swipeThreshold = 50;
+    if (touchEndX < touchStartX - swipeThreshold) {
+      nextSlide();
+    }
+    if (touchEndX > touchStartX + swipeThreshold) {
+      prevSlide();
+    }
+  }
+  
+  // Инициализация
+  updateCarousel(0);
+  startAutoPlay();
+  carouselInitialized = true;
+}
  
  /* =======================
     Делегация событий
