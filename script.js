@@ -1015,11 +1015,10 @@ async function fetchJson(url){
      questions: meta.questions
    })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
    if(!tickets.length){
-     setView(`<div class="card"><h3>Билеты</h3><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
+     setView(`<div class="card"><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
      return;
    }
    setView(`
-     <div class="card"><h3>Билеты</h3></div>
      <div class="card"><div class="grid auto">
        ${tickets.map(t=>`<button type="button" class="answer" data-ticket="${esc(t.key)}">${esc(t.label)}</button>`).join("")}
      </div></div>
@@ -1045,7 +1044,7 @@ async function uiMarkup(){
   // Если данные уже загружены, показываем сразу
   if(!State.markup) {
     // Показываем placeholder сразу для мгновенного отклика
-    setView(`<div class="card"><h3>Разметка</h3></div><div class="card"><input type="text" class="search-input" placeholder="🔍 Поиск разметки..." disabled /></div><div><div class="card"><h3>Загрузка...</h3></div></div>`, { subpage: true, title: "Разметка" });
+    setView(`<div class="card"><input type="text" class="search-input" placeholder="🔍 Поиск разметки..." disabled /></div><div><div class="card"><h3>Загрузка...</h3></div></div>`, { subpage: true, title: "Разметка" });
     
     // Загружаем в фоне
     if(!State.markupLoading) {
@@ -1063,14 +1062,13 @@ async function uiMarkup(){
   const markup = State.markup;
   
   if(!markup || typeof markup !== "object") {
-    setView(`<div class="card"><h3>Разметка</h3><p>❌ Данные разметки не найдены</p></div>`, { subpage: true, title: "Разметка" });
+    setView(`<div class="card"><p>❌ Данные разметки не найдены</p></div>`, { subpage: true, title: "Разметка" });
     return;
   }
 
   const categories = Object.keys(markup);
   const listId = "markup-list";
   let html = `
-    <div class="card"><h3>Разметка</h3></div>
     <div class="card">
       <input type="text" id="search-markup" class="search-input" placeholder="🔍 Поиск разметки..." data-search-target="${listId}" />
     </div>
@@ -1129,9 +1127,6 @@ function uiStats(){
   
   setView(`
     <div class="card">
-      <h3>Статистика</h3>
-    </div>
-    <div class="card">
       <div class="grid auto">
         <div class="stat-item">
           <div class="stat-value">${formatNumber(questionsCount)}</div>
@@ -1154,7 +1149,7 @@ async function uiPenalties(){
   // Если данные уже загружены, показываем сразу
   if(!State.penalties || State.penalties.length === 0) {
     // Показываем placeholder сразу для мгновенного отклика
-    setView(`<div class="card penalties-card"><h3>Штрафы</h3></div><div class="card"><input type="text" class="search-input" placeholder="🔍 Поиск штрафов..." disabled /></div><div class="penalties-grid"><div class="penalty"><h4>Загрузка...</h4></div></div>`, { subpage: true, title: "Штрафы" });
+    setView(`<div class="card"><input type="text" class="search-input" placeholder="🔍 Поиск штрафов..." disabled /></div><div class="penalties-grid"><div class="penalty"><h4>Загрузка...</h4></div></div>`, { subpage: true, title: "Штрафы" });
     
     // Загружаем в фоне
     if(!State.penaltiesLoading) {
@@ -1173,14 +1168,11 @@ async function uiPenalties(){
   const listId = "penalties-list";
   
   if(!items.length) {
-    setView(`<div class="card"><h3>Штрафы</h3><p>❌ Данные о штрафах не найдены</p></div>`, { subpage: true, title: "Штрафы" });
+    setView(`<div class="card"><p>❌ Данные о штрафах не найдены</p></div>`, { subpage: true, title: "Штрафы" });
     return;
   }
 
   const html = `
-    <div class="card penalties-card">
-      <h3>Штрафы</h3>
-    </div>
     <div class="card">
       <input type="text" id="search-penalties" class="search-input" placeholder="🔍 Поиск штрафов..." data-search-target="${listId}" />
     </div>
