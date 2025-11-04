@@ -156,7 +156,7 @@ location ~* \.(json)$ {
    - Отправьте `/newapp` боту @BotFather
    - Выберите вашего бота
    - Укажите название: "ПДД ДУЭЛИ"
-   - Укажите URL: `https://ваш-домен.com/index.html`
+   - Укажите URL: `https://nikirir.github.io/pdd-duel-webapp/index.html`
    - Готово! Теперь в боте будет кнопка "Menu" которая открывает Web App
 
 ### Вариант 2: Запуск бота с командой /start
