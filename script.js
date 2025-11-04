@@ -23,6 +23,25 @@ function getTelegramUserId() {
   }
 }
 
+// Получаем данные пользователя из Telegram
+function getTelegramUser() {
+  try {
+    const user = TG?.initDataUnsafe?.user || TG?.initData?.user || null;
+    if (user) {
+      return {
+        id: user.id,
+        username: user.username || `User${user.id}`,
+        firstName: user.first_name || '',
+        lastName: user.last_name || '',
+        photoUrl: user.photo_url || null
+      };
+    }
+    return null;
+  } catch(e) {
+    return null;
+  }
+}
+
 // Получаем ключ для localStorage с учетом ID пользователя
 function getStorageKey(baseKey) {
   const userId = getTelegramUserId();
@@ -60,7 +79,8 @@ function getStorageKey(baseKey) {
    // Настройки пользователя
    settings: {
      showDifficulty: false,
-     hideCompletedTickets: false
+     hideCompletedTickets: false,
+     hideFromTop: false
    },
    // Глобальная статистика по билетам для расчета сложности
    ticketsDifficultyStats: {}
@@ -277,7 +297,7 @@ async function boot(){
    // Убрали scrollIntoView - теперь контент показывается как полноэкранная страница
  }
  
- function setView(html, { subpage = true, title = "", showSettings = false } = {}){
+ function setView(html, { subpage = true, title = "", showSettings = false, settingsContext = null } = {}){
    const host = document.getElementById("screen");
    if(!host) return;
    
@@ -285,7 +305,14 @@ async function boot(){
      toggleSubpage(true);
      
      // Добавляем кнопку настроек в header если нужно
-     const settingsBtn = showSettings ? `<button type="button" class="subpage-settings-btn" id="subpage-settings-btn" data-settings>⚙️</button>` : '';
+     const settingsBtn = showSettings ? `<button type="button" class="subpage-settings-btn" id="subpage-settings-btn" data-settings data-settings-context="${settingsContext || ''}">⚙️</button>` : '';
+     
+     // Сохраняем контекст настроек в data-атрибуте
+     if (settingsContext) {
+       host.setAttribute('data-settings-context', settingsContext);
+     } else {
+       host.removeAttribute('data-settings-context');
+     }
      
      // Создаем структуру правильно: заголовок отдельно, контент отдельно
      host.innerHTML = `
@@ -315,7 +342,8 @@ async function boot(){
            settingsBtn.addEventListener("click", (e) => {
              e.preventDefault();
              e.stopPropagation();
-             uiSettings();
+             const context = host.getAttribute('data-settings-context');
+             uiSettings(context);
            }, { passive: true });
          }
        });
@@ -324,6 +352,7 @@ async function boot(){
      toggleSubpage(false);
      host.className = "screen screen--hidden";
      host.innerHTML = "";
+     host.removeAttribute('data-settings-context');
    }
  }
 function renderHome(){
@@ -369,13 +398,25 @@ function bindMenu(){
     }, { passive:true });
   });
   
-  // Кнопка настроек
+  // Кнопка настроек в главном меню
   const settingsBtn = qs("#settings-btn");
   if (settingsBtn) {
     settingsBtn.addEventListener("click", (e) => {
-      toast("⚙ Настройки пока в разработке");
+      e.preventDefault();
+      e.stopPropagation();
+      uiMainSettings();
     }, { passive: true });
   }
+  
+  // Кнопка "Место в топе" (через делегацию)
+  document.addEventListener("click", (e) => {
+    const topCard = e.target.closest('[data-action="top"]');
+    if (topCard) {
+      e.preventDefault();
+      e.stopPropagation();
+      uiTopPlayers();
+    }
+  }, { passive: true });
   
   menuBound = true;
 }
@@ -602,6 +643,17 @@ let statsRotationInterval = null;
 let currentStatsView = 0; // 0 = games, 1 = tickets
 
 function updateStatsDisplay() {
+  // Сохраняем данные для топа при обновлении статистики
+  saveUserTopData();
+  
+  // Вычисляем место в топе
+  const players = getAllPlayersTopData();
+  const currentUserId = getTelegramUserId();
+  if (currentUserId) {
+    const userPlace = players.findIndex(p => p.userId === currentUserId) + 1;
+    State.stats.topPlace = userPlace > 0 ? userPlace : null;
+  }
+  
   const gamesEl = qs("#games-played");
   const levelEl = qs("#experience-level");
   const topPlaceEl = qs("#top-place");
@@ -628,6 +680,18 @@ function updateStatsDisplay() {
   if (topPlaceEl) {
     topPlaceEl.textContent = State.stats.topPlace || "-";
   }
+  
+  // Делаем карточку "Место в топе" кликабельной
+  const topPlaceCard = topPlaceEl?.closest('.stat-card-large');
+  if (topPlaceCard) {
+    topPlaceCard.style.cursor = 'pointer';
+    topPlaceCard.setAttribute('data-action', 'top');
+    topPlaceCard.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uiTopPlayers();
+    }, { passive: true });
+  }
 }
 
 function startStatsRotation() {
@@ -650,6 +714,107 @@ function incrementGamesPlayed() {
   State.stats.gamesPlayed++;
   updateStatsDisplay();
   saveUserStats();
+  // Сохраняем данные пользователя для топа
+  saveUserTopData();
+}
+
+// Сохраняет данные пользователя для отображения в топе
+function saveUserTopData() {
+  try {
+    const user = getTelegramUser();
+    if (!user) return;
+    
+    const userId = user.id;
+    const key = `pdd-duel-topdata-${userId}`;
+    const stats = State.stats;
+    
+    // Вычисляем винрейт (процент правильных ответов)
+    let winRate = 0;
+    if (stats.gamesPlayed > 0) {
+      // Подсчитываем общее количество правильных ответов
+      let totalCorrect = 0;
+      let totalQuestions = 0;
+      
+      // Из билетов
+      if (stats.ticketsProgress) {
+        Object.values(stats.ticketsProgress).forEach(progress => {
+          if (progress.completed) {
+            totalCorrect += progress.correct || 0;
+            totalQuestions += progress.total || 0;
+          }
+        });
+      }
+      
+      // Из тем
+      if (stats.topicsProgress) {
+        Object.values(stats.topicsProgress).forEach(progress => {
+          if (progress.completed) {
+            totalCorrect += progress.correct || 0;
+            totalQuestions += progress.total || 0;
+          }
+        });
+      }
+      
+      if (totalQuestions > 0) {
+        winRate = Math.round((totalCorrect / totalQuestions) * 100);
+      }
+    }
+    
+    const topData = {
+      userId: userId,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      photoUrl: user.photoUrl,
+      gamesPlayed: stats.gamesPlayed,
+      winRate: winRate,
+      experience: stats.experience,
+      level: stats.level,
+      lastUpdate: Date.now()
+    };
+    
+    localStorage.setItem(key, JSON.stringify(topData));
+  } catch(e) {
+    console.error("Ошибка сохранения данных для топа:", e);
+  }
+}
+
+// Собирает данные всех игроков для топа
+function getAllPlayersTopData() {
+  const players = [];
+  try {
+    // Проходим по всем ключам в localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('pdd-duel-topdata-')) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          if (data && data.userId && data.gamesPlayed > 0) {
+            // Проверяем, не скрыт ли пользователь из топа
+            const settingsKey = `pdd-duel-settings-${data.userId}`;
+            const settings = localStorage.getItem(settingsKey);
+            if (settings) {
+              const userSettings = JSON.parse(settings);
+              if (userSettings.hideFromTop) {
+                continue; // Пропускаем этого пользователя
+              }
+            }
+            players.push(data);
+          }
+        } catch(e) {
+          console.warn("Ошибка парсинга данных игрока:", e);
+        }
+      }
+    }
+    
+    // Сортируем по количеству выигранных игр (по убыванию)
+    players.sort((a, b) => b.gamesPlayed - a.gamesPlayed);
+    
+    return players;
+  } catch(e) {
+    console.error("Ошибка сбора данных топа:", e);
+    return [];
+  }
 }
 
 async function updateOnlineCount() {
@@ -822,12 +987,26 @@ function handleTap(e){
     else if (d && d.mode === "topic" && hasQuestionElements) {
       uiTopics();
     }
+    // Если мы в настройках, проверяем контекст
+    else if (currentTitle === "Настройки") {
+      const host = qs("#screen");
+      const context = host?.getAttribute('data-settings-context');
+      if (context === "tickets") {
+        uiTickets();
+      } else {
+        renderHome();
+      }
+    }
     // Если мы в списке билетов (title = "Билеты" и нет элементов вопроса), возвращаемся на главную
     else if (currentTitle === "Билеты" && !hasQuestionElements) {
       renderHome();
     }
     // Если мы в списке тем (title = "Темы" и нет элементов вопроса), возвращаемся на главную
     else if (currentTitle === "Темы" && !hasQuestionElements) {
+      renderHome();
+    }
+    // Если мы в топе игроков, возвращаемся на главную
+    else if (currentTitle === "Топ игроков") {
       renderHome();
     }
     // Во всех остальных случаях возвращаемся на главную
@@ -1235,7 +1414,100 @@ async function fetchJson(url){
 /* =======================
    Экраны
 ======================= */
-function uiSettings(){
+function uiMainSettings(){
+  const hideFromTop = State.settings.hideFromTop || false;
+  
+  setView(`
+    <div class="card">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <label style="display: flex; align-items: center; justify-content: space-between; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; background: var(--bg-card); transition: all var(--transition);" for="setting-hide-from-top" class="settings-toggle-label-main">
+          <span style="font-weight: 500; font-size: 15px; color: var(--text);">Не показывать меня в топе</span>
+          <div style="position: relative; width: 48px; height: 26px; background: ${hideFromTop ? 'var(--accent)' : 'var(--border)'}; border-radius: 13px; transition: all var(--transition); cursor: pointer;">
+            <div style="position: absolute; top: 2px; left: ${hideFromTop ? '24px' : '2px'}; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+          </div>
+          <input type="checkbox" id="setting-hide-from-top" ${hideFromTop ? 'checked' : ''} style="position: absolute; opacity: 0; pointer-events: none;" />
+        </label>
+      </div>
+    </div>
+  `, { subpage: true, title: "Настройки" });
+  
+  scheduleFrame(() => {
+    const checkbox = qs("#setting-hide-from-top");
+    const label = qs(".settings-toggle-label-main");
+    
+    if (checkbox && label) {
+      label.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        checkbox.checked = !checkbox.checked;
+        State.settings.hideFromTop = checkbox.checked;
+        saveUserSettings();
+        
+        const toggle = label.querySelector("div > div");
+        const bg = label.querySelector("div");
+        if (toggle && bg) {
+          toggle.style.left = checkbox.checked ? '24px' : '2px';
+          bg.style.background = checkbox.checked ? 'var(--accent)' : 'var(--border)';
+        }
+        
+        // Обновляем место в топе
+        updateStatsDisplay();
+      }, { passive: true });
+    }
+  });
+}
+
+function uiTopPlayers(){
+  const players = getAllPlayersTopData();
+  
+  if (!players.length) {
+    setView(`
+      <div class="card">
+        <p style="text-align: center; color: var(--muted);">Пока нет игроков в топе</p>
+      </div>
+    `, { subpage: true, title: "Топ игроков" });
+    return;
+  }
+  
+  const currentUserId = getTelegramUserId();
+  
+  const playersHtml = players.map((player, index) => {
+    const isCurrentUser = currentUserId && player.userId === currentUserId;
+    const place = index + 1;
+    const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
+    
+    // Получаем имя пользователя
+    const displayName = player.username || 
+                       (player.firstName ? `${player.firstName} ${player.lastName || ''}`.trim() : `User${player.userId}`) ||
+                       `User${player.userId}`;
+    
+    return `
+      <div class="card" style="${isCurrentUser ? 'border: 2px solid var(--accent); background: rgba(0, 149, 246, 0.05);' : ''}">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 24px; font-weight: 700; min-width: 40px; text-align: center;">${medal}</div>
+          ${player.photoUrl ? 
+            `<img src="${esc(player.photoUrl)}" alt="${esc(displayName)}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border);" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />` : 
+            ''
+          }
+          <div style="display: ${player.photoUrl ? 'none' : 'flex'}; width: 48px; height: 48px; border-radius: 50%; background: var(--accent-transparent); align-items: center; justify-content: center; font-size: 20px; font-weight: 700; color: var(--accent);">
+            ${displayName.charAt(0).toUpperCase()}
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 600; font-size: 15px; color: var(--text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(displayName)}${isCurrentUser ? ' (Вы)' : ''}</div>
+            <div style="display: flex; gap: 16px; font-size: 13px; color: var(--muted);">
+              <span>Винрейт: <strong style="color: var(--text);">${player.winRate}%</strong></span>
+              <span>Игр: <strong style="color: var(--text);">${player.gamesPlayed}</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  setView(playersHtml, { subpage: true, title: "Топ игроков" });
+}
+
+function uiSettings(context = null){
   const showDifficulty = State.settings.showDifficulty || false;
   const hideCompleted = State.settings.hideCompletedTickets || false;
   
@@ -1258,7 +1530,7 @@ function uiSettings(){
         </label>
       </div>
     </div>
-  `, { subpage: true, title: "Настройки" });
+  `, { subpage: true, title: "Настройки", settingsContext: context });
   
   scheduleFrame(() => {
     const checkbox1 = qs("#setting-show-difficulty");
@@ -1401,7 +1673,7 @@ function uiTopics(){
          </button>`;
        }).join("")}
      </div></div>
-   `, { subpage: true, title: "Билеты", showSettings: true });
+     `, { subpage: true, title: "Билеты", showSettings: true, settingsContext: "tickets" });
  }
  
 async function loadMarkup(){
