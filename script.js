@@ -200,7 +200,6 @@ async function boot(){
     try {
       loadUserStats();
       updateStatsDisplay();
-      updateOnlineCount();
       renderHome();
       updateStatsCounters();
     } catch(err) {
@@ -259,7 +258,7 @@ async function boot(){
      // Создаем структуру правильно: заголовок отдельно, контент отдельно
      host.innerHTML = `
        <header class="subpage-header">
-         <button type="button" class="back-btn" data-back>← Назад</button>
+         <button type="button" class="back-btn" data-back>Назад</button>
          <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
        </header>
        <div class="view-content-wrapper">
@@ -424,53 +423,7 @@ function incrementGamesPlayed() {
 }
 
 async function updateOnlineCount() {
-  try {
-    // Отправляем ping о том, что пользователь онлайн
-    const userId = TG?.initDataUnsafe?.user?.id || Date.now().toString();
-    const timestamp = Date.now();
-    
-    // Сохраняем наш ping в localStorage
-    const pingKey = `pdd-duel-ping-${userId}`;
-    localStorage.setItem(pingKey, timestamp.toString());
-    
-    // Считаем количество активных пользователей (пинг за последние 5 минут)
-    let activeCount = 0;
-    const now = Date.now();
-    const fiveMinutes = 5 * 60 * 1000;
-    
-    // Проверяем все записи в localStorage
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('pdd-duel-ping-')) {
-        const pingTime = parseInt(localStorage.getItem(key) || '0');
-        if (now - pingTime < fiveMinutes) {
-          activeCount++;
-        } else {
-          // Удаляем старые записи
-          localStorage.removeItem(key);
-        }
-      }
-    }
-    
-    // Минимальное значение - хотя бы мы сами
-    if (activeCount === 0) activeCount = 1;
-    
-    State.onlineCount = activeCount;
-    const onlineEl = qs("#online-count");
-    if (onlineEl) {
-      onlineEl.textContent = activeCount;
-    }
-  } catch(e) {
-    console.error("Ошибка обновления онлайн:", e);
-    // Fallback на минимальное значение
-    const onlineEl = qs("#online-count");
-    if (onlineEl) {
-      onlineEl.textContent = "1";
-    }
-  }
-  
-  // Обновляем каждые 30 секунд
-  setTimeout(updateOnlineCount, 30000);
+  // Онлайн счетчик отключен - нужен реальный API
 }
 
 /* =======================
@@ -1035,9 +988,8 @@ async function fetchJson(url){
    }
    
    const html = `
-     <div class="card"><h3>Темы</h3></div>
      <div class="card">
-       <input type="text" id="search-topics" class="search-input" placeholder="🔍 Поиск тем..." data-search-target="${listId}" />
+       <input type="text" id="search-topics" class="search-input" placeholder="Поиск тем..." data-search-target="${listId}" />
      </div>
      <div class="card"><div class="grid auto topics-grid" id="${listId}">
        ${list.map(t=>`<button type="button" class="btn topic-btn" data-search-text="${esc(t.toLowerCase())}" data-t="${esc(t)}">${esc(t)}</button>`).join("")}
