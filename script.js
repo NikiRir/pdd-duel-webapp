@@ -258,18 +258,22 @@ async function boot(){
    // Убрали scrollIntoView - теперь контент показывается как полноэкранная страница
  }
  
- function setView(html, { subpage = true, title = "" } = {}){
+ function setView(html, { subpage = true, title = "", showSettings = false } = {}){
    const host = document.getElementById("screen");
    if(!host) return;
    
    if (subpage) {
      toggleSubpage(true);
      
+     // Добавляем кнопку настроек в header если нужно
+     const settingsBtn = showSettings ? `<button type="button" class="subpage-settings-btn" id="subpage-settings-btn" data-settings>⚙️</button>` : '';
+     
      // Создаем структуру правильно: заголовок отдельно, контент отдельно
      host.innerHTML = `
        <header class="subpage-header">
          <button type="button" class="back-btn" data-back>Назад</button>
          <h2 class="subpage-title">${esc((title || "ПДД ДУЭЛИ").trim())}</h2>
+         ${settingsBtn}
        </header>
        <div class="view-content-wrapper">
          <div class="view-content">
@@ -282,6 +286,20 @@ async function boot(){
      const wrapper = host.querySelector(".view-content-wrapper");
      if(wrapper) {
        wrapper.scrollTop = 0;
+     }
+     
+     // Привязываем кнопку настроек если есть
+     if (showSettings) {
+       scheduleFrame(() => {
+         const settingsBtn = qs("#subpage-settings-btn");
+         if (settingsBtn) {
+           settingsBtn.addEventListener("click", (e) => {
+             e.preventDefault();
+             e.stopPropagation();
+             uiSettings();
+           }, { passive: true });
+         }
+       });
      }
    } else {
      toggleSubpage(false);
@@ -1182,33 +1200,43 @@ function uiSettings(){
   
   setView(`
     <div class="card">
-      <h3 style="margin-bottom: 16px;">Настройки</h3>
       <div style="display: flex; flex-direction: column; gap: 12px;">
-        <label style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer;" for="setting-show-difficulty">
-          <span style="font-weight: 500;">Показывать уровень сложности</span>
-          <input type="checkbox" id="setting-show-difficulty" ${showDifficulty ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;" />
+        <label style="display: flex; align-items: center; justify-content: space-between; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; background: var(--bg-card); transition: all var(--transition);" for="setting-show-difficulty" class="settings-toggle-label">
+          <span style="font-weight: 500; font-size: 15px; color: var(--text);">Показывать уровень сложности</span>
+          <div style="position: relative; width: 48px; height: 26px; background: ${showDifficulty ? 'var(--accent)' : 'var(--border)'}; border-radius: 13px; transition: all var(--transition); cursor: pointer;">
+            <div style="position: absolute; top: 2px; left: ${showDifficulty ? '24px' : '2px'}; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+          </div>
+          <input type="checkbox" id="setting-show-difficulty" ${showDifficulty ? 'checked' : ''} style="position: absolute; opacity: 0; pointer-events: none;" />
         </label>
-      </div>
-      <div style="margin-top: 20px;">
-        <button type="button" class="btn btn-primary" id="settings-save-btn" style="width: 100%;">Сохранить</button>
       </div>
     </div>
   `, { subpage: true, title: "Настройки" });
   
   scheduleFrame(() => {
     const checkbox = qs("#setting-show-difficulty");
-    const saveBtn = qs("#settings-save-btn");
+    const label = qs(".settings-toggle-label");
     
-    if (saveBtn) {
-      saveBtn.addEventListener("click", (e) => {
+    if (checkbox && label) {
+      // Обработчик клика на label
+      label.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (checkbox) {
-          State.settings.showDifficulty = checkbox.checked;
-          saveUserSettings();
-          toast("✓ Настройки сохранены");
-          uiTickets(); // Возвращаемся к списку билетов
+        checkbox.checked = !checkbox.checked;
+        State.settings.showDifficulty = checkbox.checked;
+        saveUserSettings();
+        
+        // Обновляем визуальное состояние переключателя
+        const toggle = label.querySelector("div > div");
+        const bg = label.querySelector("div");
+        if (toggle && bg) {
+          toggle.style.left = checkbox.checked ? '24px' : '2px';
+          bg.style.background = checkbox.checked ? 'var(--accent)' : 'var(--border)';
         }
+        
+        // Возвращаемся к списку билетов для обновления отображения
+        setTimeout(() => {
+          uiTickets();
+        }, 200);
       }, { passive: true });
     }
   });
@@ -1267,19 +1295,13 @@ function uiTopics(){
      questions: meta.questions
    })).sort((a,b)=> a.order - b.order || a.label.localeCompare(b.label,'ru'));
    if(!tickets.length){
-     setView(`<div class="card"><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
+     setView(`<div class="card"><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты", showSettings: true });
      return;
    }
    
    const showDifficulty = State.settings.showDifficulty || false;
    
    setView(`
-     <div class="card" style="margin-bottom: 12px;">
-       <button type="button" class="btn" id="tickets-settings-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
-         <span>⚙️</span>
-         <span>Настройки</span>
-       </button>
-     </div>
      <div class="card"><div class="grid auto">
        ${tickets.map(t=>{
          const progress = getTicketProgress(t.label);
@@ -1304,19 +1326,7 @@ function uiTopics(){
          </button>`;
        }).join("")}
      </div></div>
-   `, { subpage: true, title: "Билеты" });
-   
-   // Привязываем кнопку настроек
-   scheduleFrame(() => {
-     const settingsBtn = qs("#tickets-settings-btn");
-     if (settingsBtn) {
-       settingsBtn.addEventListener("click", (e) => {
-         e.preventDefault();
-         e.stopPropagation();
-         uiSettings();
-       }, { passive: true });
-     }
-   });
+   `, { subpage: true, title: "Билеты", showSettings: true });
  }
  
 async function loadMarkup(){
