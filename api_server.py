@@ -151,6 +151,42 @@ def get_progress():
             'error': str(e)
         }), 400
 
+@app.route('/api/top/players', methods=['GET'])
+def get_top_players():
+    """Получить топ игроков из базы данных"""
+    try:
+        top_users = db.get_top_users(limit=None)  # Получаем всех пользователей
+        
+        players = []
+        for user in top_users:
+            # user может быть с photo_url или без (в зависимости от версии БД)
+            if len(user) >= 8:
+                user_id, username, first_name, photo_url, wins, losses, total_games, win_rate = user
+            else:
+                user_id, username, first_name, wins, losses, total_games, win_rate = user
+                photo_url = None
+            players.append({
+                'user_id': user_id,
+                'username': username,
+                'first_name': first_name,
+                'photo_url': photo_url,
+                'wins': wins,
+                'losses': losses,
+                'total_games': total_games,
+                'win_rate': win_rate
+            })
+        
+        return jsonify({
+            'success': True,
+            'players': players
+        })
+    except Exception as e:
+        print(f"❌ Ошибка получения топа игроков: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""

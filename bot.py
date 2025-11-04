@@ -57,17 +57,27 @@ async def cmd_start(message: Message):
 
 @dp.callback_query(F.data == "top_players")
 async def show_top_players(callback: types.CallbackQuery):
-    top_users = db.get_top_users(10)
+    # Получаем всех пользователей (без лимита)
+    top_users = db.get_top_users(limit=None)
     
     if not top_users:
-        await callback.answer("Пока нет данных о игроках")
+        await callback.answer("Пока нет игроков")
         return
     
     text = "🏆 Топ игроков по винрейту:\n\n"
-    for i, user in enumerate(top_users, 1):
-        user_id, username, first_name, wins, losses, total_games, win_rate = user
+    # Показываем максимум 50 игроков в Telegram
+    for i, user in enumerate(top_users[:50], 1):
+        # user может быть с photo_url или без (в зависимости от версии БД)
+        if len(user) >= 8:
+            user_id, username, first_name, photo_url, wins, losses, total_games, win_rate = user
+        else:
+            user_id, username, first_name, wins, losses, total_games, win_rate = user
         name = first_name or username or f"Игрок {user_id}"
-        text += f"{i}. {name} - {win_rate}% ({wins}/{total_games})\n"
+        games_text = f"({wins}/{total_games})" if total_games > 0 else "(0/0)"
+        text += f"{i}. {name} - {win_rate}% {games_text}\n"
+    
+    if len(top_users) > 50:
+        text += f"\n... и еще {len(top_users) - 50} игроков"
     
     await callback.message.answer(text)
 

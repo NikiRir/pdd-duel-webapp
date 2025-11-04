@@ -22,9 +22,16 @@ class Database:
                 user_id INTEGER PRIMARY KEY,
                 username TEXT,
                 first_name TEXT,
+                photo_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Добавляем колонку photo_url если её нет (для существующих баз)
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN photo_url TEXT")
+        except sqlite3.OperationalError:
+            pass  # Колонка уже существует
         
         # Таблица игр
         cursor.execute("""
@@ -45,7 +52,7 @@ class Database:
         conn.commit()
         conn.close()
     
-    def get_or_create_user(self, user_id: int, username: Optional[str] = None, first_name: Optional[str] = None):
+    def get_or_create_user(self, user_id: int, username: Optional[str] = None, first_name: Optional[str] = None, photo_url: Optional[str] = None):
         """Получить пользователя или создать нового"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -57,28 +64,36 @@ class Database:
         if not user:
             # Создаем нового пользователя
             cursor.execute(
-                "INSERT INTO users (user_id, username, first_name) VALUES (?, ?, ?)",
-                (user_id, username, first_name)
+                "INSERT INTO users (user_id, username, first_name, photo_url) VALUES (?, ?, ?, ?)",
+                (user_id, username, first_name, photo_url)
+            )
+            conn.commit()
+        else:
+            # Обновляем данные пользователя если они изменились
+            cursor.execute(
+                "UPDATE users SET username = COALESCE(?, username), first_name = COALESCE(?, first_name), photo_url = COALESCE(?, photo_url) WHERE user_id = ?",
+                (username, first_name, photo_url, user_id)
             )
             conn.commit()
         
         conn.close()
         return user_id
     
-    def get_top_users(self, limit: int = 10) -> List[Tuple]:
-        """Получить топ игроков по винрейту"""
+    def get_top_users(self, limit: int = None) -> List[Tuple]:
+        """Получить топ игроков по винрейту (все пользователи, даже без игр)"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Вычисляем статистику для каждого пользователя
-        cursor.execute("""
+        # Вычисляем статистику для каждого пользователя (включая тех, кто не играл)
+        query = """
             SELECT 
                 u.user_id,
                 u.username,
                 u.first_name,
-                COUNT(CASE WHEN g.winner_id = u.user_id THEN 1 END) as wins,
-                COUNT(CASE WHEN g.winner_id != u.user_id AND g.winner_id IS NOT NULL THEN 1 END) as losses,
-                COUNT(g.game_id) as total_games,
+                u.photo_url,
+                COALESCE(COUNT(CASE WHEN g.winner_id = u.user_id THEN 1 END), 0) as wins,
+                COALESCE(COUNT(CASE WHEN g.winner_id != u.user_id AND g.winner_id IS NOT NULL THEN 1 END), 0) as losses,
+                COALESCE(COUNT(g.game_id), 0) as total_games,
                 CASE 
                     WHEN COUNT(g.game_id) > 0 THEN 
                         ROUND(COUNT(CASE WHEN g.winner_id = u.user_id THEN 1 END) * 100.0 / COUNT(g.game_id), 2)
@@ -87,10 +102,14 @@ class Database:
             FROM users u
             LEFT JOIN games g ON (g.user_id = u.user_id OR g.opponent_id = u.user_id)
             GROUP BY u.user_id
-            HAVING total_games >= 5
-            ORDER BY win_rate DESC, total_games DESC
-            LIMIT ?
-        """, (limit,))
+            ORDER BY win_rate DESC, total_games DESC, u.user_id ASC
+        """
+        
+        if limit:
+            query += " LIMIT ?"
+            cursor.execute(query, (limit,))
+        else:
+            cursor.execute(query)
         
         results = cursor.fetchall()
         conn.close()

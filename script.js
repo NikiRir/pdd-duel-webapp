@@ -290,6 +290,8 @@ async function boot(){
       startStatsRotation();
       renderHome();
       updateStatsCounters();
+      // Сохраняем данные пользователя для топа (даже если игр = 0)
+      saveUserTopData();
     } catch(err) {
       console.error("Ошибка при рендеринге:", err);
     }
@@ -312,6 +314,8 @@ async function boot(){
         startStatsRotation();
         renderHome();
         updateStatsCounters();
+        // Сохраняем данные пользователя для топа (даже если игр = 0)
+        saveUserTopData();
       } catch(finalErr) {
         console.error("Критическая ошибка применения fallback:", finalErr);
       }
@@ -747,11 +751,34 @@ function incrementGamesPlayed() {
   saveUserTopData();
 }
 
-// Сохраняет данные пользователя для отображения в топе
+// Сохраняет данные пользователя для отображения в топе (даже если игр = 0)
 function saveUserTopData() {
   try {
     const user = getTelegramUser();
-    if (!user) return;
+    if (!user) {
+      // Если нет данных пользователя, все равно создаем запись для отображения в топе
+      const userId = getTelegramUserId();
+      if (!userId) return;
+      
+      const key = `pdd-duel-topdata-${userId}`;
+      const topData = {
+        userId: userId,
+        username: null,
+        firstName: null,
+        lastName: '',
+        photoUrl: null,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+        winRate: 0,
+        experience: 0,
+        level: 1,
+        lastUpdate: Date.now()
+      };
+      
+      localStorage.setItem(key, JSON.stringify(topData));
+      return;
+    }
     
     const userId = user.id;
     const key = `pdd-duel-topdata-${userId}`;
@@ -759,6 +786,9 @@ function saveUserTopData() {
     
     // Вычисляем винрейт (процент правильных ответов)
     let winRate = 0;
+    let wins = 0;
+    let losses = 0;
+    
     if (stats.gamesPlayed > 0) {
       // Подсчитываем общее количество правильных ответов
       let totalCorrect = 0;
@@ -787,6 +817,10 @@ function saveUserTopData() {
       if (totalQuestions > 0) {
         winRate = Math.round((totalCorrect / totalQuestions) * 100);
       }
+      
+      // Примерная оценка побед/поражений (можно улучшить при наличии данных о дуэлях)
+      wins = Math.floor(stats.gamesPlayed * (winRate / 100));
+      losses = stats.gamesPlayed - wins;
     }
     
     const topData = {
@@ -795,10 +829,12 @@ function saveUserTopData() {
       firstName: user.firstName,
       lastName: user.lastName,
       photoUrl: user.photoUrl,
-      gamesPlayed: stats.gamesPlayed,
+      gamesPlayed: stats.gamesPlayed || 0,
+      wins: wins,
+      losses: losses,
       winRate: winRate,
-      experience: stats.experience,
-      level: stats.level,
+      experience: stats.experience || 0,
+      level: stats.level || 1,
       lastUpdate: Date.now()
     };
     
@@ -809,16 +845,51 @@ function saveUserTopData() {
 }
 
 // Собирает данные всех игроков для топа
-function getAllPlayersTopData() {
+async function getAllPlayersTopData() {
   const players = [];
   try {
-    // Проходим по всем ключам в localStorage
+    // Сначала пытаемся получить данные из API сервера (база данных бота)
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/top/players`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.players) {
+          // Преобразуем данные из API в формат для отображения
+          const apiPlayers = data.players.map(player => ({
+            userId: player.user_id,
+            username: player.username,
+            firstName: player.first_name,
+            lastName: '',
+            photoUrl: player.photo_url || null, // Фото из базы данных
+            gamesPlayed: player.total_games || 0,
+            wins: player.wins || 0,
+            losses: player.losses || 0,
+            winRate: player.win_rate || 0,
+            experience: 0,
+            level: 1
+          }));
+          
+          // Добавляем API игроков
+          players.push(...apiPlayers);
+        }
+      }
+    } catch(apiError) {
+      console.warn("⚠️ Не удалось получить топ из API, используем localStorage:", apiError);
+    }
+    
+    // Также собираем данные из localStorage (для совместимости)
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && key.startsWith('pdd-duel-topdata-')) {
         try {
           const data = JSON.parse(localStorage.getItem(key));
-          if (data && data.userId && data.gamesPlayed > 0) {
+          if (data && data.userId) {
             // Проверяем, не скрыт ли пользователь из топа
             const settingsKey = `pdd-duel-settings-${data.userId}`;
             const settings = localStorage.getItem(settingsKey);
@@ -828,7 +899,25 @@ function getAllPlayersTopData() {
                 continue; // Пропускаем этого пользователя
               }
             }
-            players.push(data);
+            
+            // Проверяем, нет ли уже этого игрока из API
+            const existingIndex = players.findIndex(p => p.userId === data.userId);
+            if (existingIndex === -1) {
+              // Добавляем игрока даже если gamesPlayed = 0
+              players.push({
+                userId: data.userId,
+                username: data.username,
+                firstName: data.firstName,
+                lastName: data.lastName || '',
+                photoUrl: data.photoUrl,
+                gamesPlayed: data.gamesPlayed || 0,
+                wins: data.wins || 0,
+                losses: data.losses || 0,
+                winRate: data.winRate || 0,
+                experience: data.experience || 0,
+                level: data.level || 1
+              });
+            }
           }
         } catch(e) {
           console.warn("Ошибка парсинга данных игрока:", e);
@@ -836,8 +925,23 @@ function getAllPlayersTopData() {
       }
     }
     
-    // Сортируем по количеству выигранных игр (по убыванию)
-    players.sort((a, b) => b.gamesPlayed - a.gamesPlayed);
+    // Сортируем: сначала по винрейту (убывание), потом по количеству игр (убывание), потом по ID (возрастание)
+    players.sort((a, b) => {
+      // Сначала игроки с играми
+      if (a.gamesPlayed > 0 && b.gamesPlayed === 0) return -1;
+      if (a.gamesPlayed === 0 && b.gamesPlayed > 0) return 1;
+      
+      // Если оба играли или оба не играли
+      if (a.gamesPlayed > 0 && b.gamesPlayed > 0) {
+        // Сначала по винрейту
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        // Потом по количеству игр
+        if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+      }
+      
+      // В конце по ID (для стабильной сортировки)
+      return a.userId - b.userId;
+    });
     
     return players;
   } catch(e) {
@@ -986,7 +1090,7 @@ function handleTap(e){
   if (topCard) {
     e.preventDefault();
     e.stopPropagation();
-    uiTopPlayers();
+    uiTopPlayers().catch(e => console.error("Ошибка загрузки топа:", e));
     return;
   }
   
@@ -1506,8 +1610,8 @@ function uiMainSettings(){
   });
 }
 
-function uiTopPlayers(){
-  const players = getAllPlayersTopData();
+async function uiTopPlayers(){
+  const players = await getAllPlayersTopData();
   
   if (!players.length) {
     setView(`
@@ -1544,8 +1648,9 @@ function uiTopPlayers(){
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 600; font-size: 15px; color: var(--text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(displayName)}${isCurrentUser ? ' (Вы)' : ''}</div>
             <div style="display: flex; gap: 16px; font-size: 13px; color: var(--muted);">
-              <span>Винрейт: <strong style="color: var(--text);">${player.winRate}%</strong></span>
-              <span>Игр: <strong style="color: var(--text);">${player.gamesPlayed}</strong></span>
+              <span>Винрейт: <strong style="color: var(--text);">${player.winRate || 0}%</strong></span>
+              <span>Побед: <strong style="color: var(--text);">${player.wins || 0}</strong></span>
+              <span>Игр: <strong style="color: var(--text);">${player.gamesPlayed || 0}</strong></span>
             </div>
           </div>
         </div>
