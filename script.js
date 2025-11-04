@@ -57,13 +57,9 @@ const FALLBACK_QUESTION_BANK = [
  /* =======================
     Лоадер
 ======================= */
-function showLoader(text = "Загрузка...", subtext = "") {
+function showLoader() {
   const overlay = qs("#loader-overlay");
-  const loaderText = qs(".loader-text");
-  const loaderSubtext = qs(".loader-subtext");
-  if(overlay && loaderText) {
-    loaderText.textContent = text;
-    if(loaderSubtext) loaderSubtext.textContent = subtext;
+  if(overlay) {
     overlay.classList.add("active");
   }
 }
@@ -79,11 +75,9 @@ function hideLoader() {
   }
 }
 
-function updateLoaderProgress(percent, subtext = "") {
+function updateLoaderProgress(percent) {
   const progress = qs("#loader-progress");
-  const loaderSubtext = qs(".loader-subtext");
   if(progress) progress.style.width = `${Math.min(100, Math.max(0, percent))}%`;
-  if(loaderSubtext && subtext) loaderSubtext.textContent = subtext;
 }
 
  /* =======================
@@ -131,7 +125,7 @@ async function boot(){
     loadMarkup().catch(() => {})
   ]).catch(() => {});
   
-  showLoader("Загрузка билетов...", "Подготовка данных");
+  showLoader();
   
   // Добавляем общий таймаут для boot (максимум 35 секунд)
   const bootTimeout = new Promise((_, reject) => {
@@ -168,9 +162,9 @@ async function boot(){
 
       try {
         console.log("📥 Начинаем загрузку билетов...");
-        updateLoaderProgress(20, "Загрузка списка билетов...");
+        updateLoaderProgress(20);
         await Promise.race([loadTickets(), loadTimeout]);
-        updateLoaderProgress(90, "Обработка данных...");
+        updateLoaderProgress(90);
         console.log("✓ Билеты загружены, вопросов:", State.pool.length);
         hasQuestions = State.pool.length > 0;
       } catch(e) {
@@ -221,7 +215,7 @@ async function boot(){
       }
     }
   } finally {
-    updateLoaderProgress(100, "Готово!");
+    updateLoaderProgress(100);
     setTimeout(() => {
       hideLoader();
     }, 500);
@@ -480,7 +474,7 @@ async function loadTickets(){
     // Обновляем прогресс загрузки
     const updateProgress = () => {
       const percent = 20 + Math.floor((loaded / total) * 70);
-      updateLoaderProgress(percent, `Загружено ${loaded} из ${total} файлов...`);
+      updateLoaderProgress(percent);
     };
 
     // Ограничиваем количество одновременных загрузок
