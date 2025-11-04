@@ -247,15 +247,14 @@ body {
 }
 
 .nav-btn-primary {
-  background: var(--gradient-hero);
-  color: white;
-  font-size: 16px;
-  font-weight: 700;
+  background: var(--gradient-card);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
   text-align: center;
   justify-content: center;
-  border: none;
-  box-shadow: var(--shadow-md);
-  letter-spacing: 0.3px;
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 .nav-btn:hover {
@@ -266,8 +265,9 @@ body {
 }
 
 .nav-btn-primary:hover {
-  background: var(--gradient-accent);
-  box-shadow: var(--shadow-lg);
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 1);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 

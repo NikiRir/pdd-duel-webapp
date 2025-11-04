@@ -13,6 +13,24 @@ try {
   if (TG && typeof TG.ready === "function") TG.ready();
   if (TG && typeof TG.expand === "function") TG.expand();
 } catch(_) {}
+
+// Получаем ID пользователя Telegram
+function getTelegramUserId() {
+  try {
+    return TG?.initDataUnsafe?.user?.id || TG?.initData?.user?.id || null;
+  } catch(e) {
+    return null;
+  }
+}
+
+// Получаем ключ для localStorage с учетом ID пользователя
+function getStorageKey(baseKey) {
+  const userId = getTelegramUserId();
+  if (userId) {
+    return `${baseKey}-${userId}`;
+  }
+  return baseKey; // Fallback для тестирования вне Telegram
+}
  
  const State = {
    pool: [],
@@ -394,7 +412,8 @@ function switchTab(tabName) {
 ======================= */
 function loadUserStats() {
   try {
-    const saved = localStorage.getItem("pdd-duel-stats");
+    const key = getStorageKey("pdd-duel-stats");
+    const saved = localStorage.getItem(key);
     if (saved) {
       const stats = JSON.parse(saved);
       State.stats = {
@@ -417,7 +436,8 @@ function loadUserStats() {
   
   // Загружаем настройки
   try {
-    const savedSettings = localStorage.getItem("pdd-duel-settings");
+    const settingsKey = getStorageKey("pdd-duel-settings");
+    const savedSettings = localStorage.getItem(settingsKey);
     if (savedSettings) {
       State.settings = JSON.parse(savedSettings);
     }
@@ -431,7 +451,8 @@ function loadUserStats() {
 
 function saveUserSettings() {
   try {
-    localStorage.setItem("pdd-duel-settings", JSON.stringify(State.settings));
+    const key = getStorageKey("pdd-duel-settings");
+    localStorage.setItem(key, JSON.stringify(State.settings));
   } catch(e) {
     console.error("Ошибка сохранения настроек:", e);
   }
@@ -439,7 +460,8 @@ function saveUserSettings() {
 
 function loadTicketsDifficultyStats() {
   try {
-    const saved = localStorage.getItem("pdd-duel-tickets-difficulty");
+    const key = getStorageKey("pdd-duel-tickets-difficulty");
+    const saved = localStorage.getItem(key);
     if (saved) {
       State.ticketsDifficultyStats = JSON.parse(saved);
     } else {
@@ -453,7 +475,8 @@ function loadTicketsDifficultyStats() {
 
 function saveTicketsDifficultyStats() {
   try {
-    localStorage.setItem("pdd-duel-tickets-difficulty", JSON.stringify(State.ticketsDifficultyStats));
+    const key = getStorageKey("pdd-duel-tickets-difficulty");
+    localStorage.setItem(key, JSON.stringify(State.ticketsDifficultyStats));
   } catch(e) {
     console.error("Ошибка сохранения статистики сложности:", e);
   }
@@ -515,7 +538,8 @@ function getTicketDifficulty(ticketLabel) {
 
 function saveUserStats() {
   try {
-    localStorage.setItem("pdd-duel-stats", JSON.stringify(State.stats));
+    const key = getStorageKey("pdd-duel-stats");
+    localStorage.setItem(key, JSON.stringify(State.stats));
   } catch(e) {
     console.error("Ошибка сохранения статистики:", e);
   }
@@ -1257,10 +1281,6 @@ function uiSettings(){
           toggle.style.left = checkbox1.checked ? '24px' : '2px';
           bg.style.background = checkbox1.checked ? 'var(--accent)' : 'var(--border)';
         }
-        
-        setTimeout(() => {
-          uiTickets();
-        }, 200);
       }, { passive: true });
     }
     
@@ -1279,10 +1299,6 @@ function uiSettings(){
           toggle.style.left = checkbox2.checked ? '24px' : '2px';
           bg.style.background = checkbox2.checked ? 'var(--accent)' : 'var(--border)';
         }
-        
-        setTimeout(() => {
-          uiTickets();
-        }, 200);
       }, { passive: true });
     }
   });
