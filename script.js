@@ -38,7 +38,13 @@ try {
      ticketsProgress: {},
      topicsProgress: {}
    },
-   onlineCount: 0
+   onlineCount: 0,
+   // Настройки пользователя
+   settings: {
+     showDifficulty: false
+   },
+   // Глобальная статистика по билетам для расчета сложности
+   ticketsDifficultyStats: {}
  };
  
  let delegationBound = false;
@@ -388,6 +394,88 @@ function loadUserStats() {
     console.error("Ошибка загрузки статистики:", e);
     State.stats.ticketsProgress = {};
     State.stats.topicsProgress = {};
+  }
+  
+  // Загружаем настройки
+  try {
+    const savedSettings = localStorage.getItem("pdd-duel-settings");
+    if (savedSettings) {
+      State.settings = JSON.parse(savedSettings);
+    }
+  } catch(e) {
+    console.error("Ошибка загрузки настроек:", e);
+  }
+  
+  // Загружаем глобальную статистику сложности билетов
+  loadTicketsDifficultyStats();
+}
+
+function saveUserSettings() {
+  try {
+    localStorage.setItem("pdd-duel-settings", JSON.stringify(State.settings));
+  } catch(e) {
+    console.error("Ошибка сохранения настроек:", e);
+  }
+}
+
+function loadTicketsDifficultyStats() {
+  try {
+    const saved = localStorage.getItem("pdd-duel-tickets-difficulty");
+    if (saved) {
+      State.ticketsDifficultyStats = JSON.parse(saved);
+    } else {
+      State.ticketsDifficultyStats = {};
+    }
+  } catch(e) {
+    console.error("Ошибка загрузки статистики сложности:", e);
+    State.ticketsDifficultyStats = {};
+  }
+}
+
+function saveTicketsDifficultyStats() {
+  try {
+    localStorage.setItem("pdd-duel-tickets-difficulty", JSON.stringify(State.ticketsDifficultyStats));
+  } catch(e) {
+    console.error("Ошибка сохранения статистики сложности:", e);
+  }
+}
+
+// Обновляет статистику сложности билета на основе ответов пользователя
+function updateTicketDifficultyStats(ticketLabel, correctCount, totalCount) {
+  if (!State.ticketsDifficultyStats[ticketLabel]) {
+    State.ticketsDifficultyStats[ticketLabel] = {
+      totalAttempts: 0,
+      totalCorrect: 0,
+      totalQuestions: 0
+    };
+  }
+  
+  const stats = State.ticketsDifficultyStats[ticketLabel];
+  stats.totalAttempts += 1;
+  stats.totalCorrect += correctCount;
+  stats.totalQuestions += totalCount;
+  
+  saveTicketsDifficultyStats();
+}
+
+// Вычисляет уровень сложности билета на основе статистики
+function getTicketDifficulty(ticketLabel) {
+  const stats = State.ticketsDifficultyStats[ticketLabel];
+  if (!stats || stats.totalAttempts === 0) {
+    return null; // Недостаточно данных
+  }
+  
+  // Процент правильных ответов
+  const correctPercent = (stats.totalCorrect / stats.totalQuestions) * 100;
+  
+  if (correctPercent >= 75) {
+    return { text: "Легко", level: "easy" };
+  } else if (correctPercent >= 50) {
+    return { text: "Средне", level: "medium" };
+  } else if (correctPercent >= 25) {
+    return { text: "Сложно", level: "hard" };
+  } else {
+    return { text: "Невозможно", level: "impossible" };
   }
 }
 
@@ -1086,10 +1174,47 @@ async function fetchJson(url){
    return `images/${withoutDots}`;
  }
  
- /* =======================
-    Экраны
- ======================= */
- function uiTopics(){
+/* =======================
+   Экраны
+======================= */
+function uiSettings(){
+  const showDifficulty = State.settings.showDifficulty || false;
+  
+  setView(`
+    <div class="card">
+      <h3 style="margin-bottom: 16px;">Настройки</h3>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <label style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer;" for="setting-show-difficulty">
+          <span style="font-weight: 500;">Показывать уровень сложности</span>
+          <input type="checkbox" id="setting-show-difficulty" ${showDifficulty ? 'checked' : ''} style="width: 20px; height: 20px; cursor: pointer;" />
+        </label>
+      </div>
+      <div style="margin-top: 20px;">
+        <button type="button" class="btn btn-primary" id="settings-save-btn" style="width: 100%;">Сохранить</button>
+      </div>
+    </div>
+  `, { subpage: true, title: "Настройки" });
+  
+  scheduleFrame(() => {
+    const checkbox = qs("#setting-show-difficulty");
+    const saveBtn = qs("#settings-save-btn");
+    
+    if (saveBtn) {
+      saveBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (checkbox) {
+          State.settings.showDifficulty = checkbox.checked;
+          saveUserSettings();
+          toast("✓ Настройки сохранены");
+          uiTickets(); // Возвращаемся к списку билетов
+        }
+      }, { passive: true });
+    }
+  });
+}
+
+function uiTopics(){
    // Очищаем состояние дуэли при возврате к списку тем
    clearAdvanceTimer();
    State.duel = null;
@@ -1145,7 +1270,16 @@ async function fetchJson(url){
      setView(`<div class="card"><p>❌ Билеты не найдены</p></div>`, { subpage: true, title: "Билеты" });
      return;
    }
+   
+   const showDifficulty = State.settings.showDifficulty || false;
+   
    setView(`
+     <div class="card" style="margin-bottom: 12px;">
+       <button type="button" class="btn" id="tickets-settings-btn" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+         <span>⚙️</span>
+         <span>Настройки</span>
+       </button>
+     </div>
      <div class="card"><div class="grid auto">
        ${tickets.map(t=>{
          const progress = getTicketProgress(t.label);
@@ -1154,10 +1288,35 @@ async function fetchJson(url){
          const borderClass = isCompleted ? 'ticket-completed' : progressPercent > 0 ? 'ticket-partial' : '';
          // Добавляем style с CSS переменной для процента прогресса
          const progressStyle = progressPercent > 0 && !isCompleted ? `style="--progress-width: ${progressPercent}%"` : '';
-         return `<button type="button" class="answer ticket-btn ${borderClass}" data-ticket="${esc(t.key)}" ${progressStyle}>${esc(t.label)}</button>`;
+         
+         // Получаем уровень сложности
+         let difficultyHtml = '';
+         if (showDifficulty) {
+           const difficulty = getTicketDifficulty(t.label);
+           if (difficulty) {
+             difficultyHtml = `<span class="ticket-difficulty difficulty-${difficulty.level}">${esc(difficulty.text)}</span>`;
+           }
+         }
+         
+         return `<button type="button" class="answer ticket-btn ${borderClass}" data-ticket="${esc(t.key)}" ${progressStyle}>
+           <span class="ticket-label">${esc(t.label)}</span>
+           ${difficultyHtml}
+         </button>`;
        }).join("")}
      </div></div>
    `, { subpage: true, title: "Билеты" });
+   
+   // Привязываем кнопку настроек
+   scheduleFrame(() => {
+     const settingsBtn = qs("#tickets-settings-btn");
+     if (settingsBtn) {
+       settingsBtn.addEventListener("click", (e) => {
+         e.preventDefault();
+         e.stopPropagation();
+         uiSettings();
+       }, { passive: true });
+     }
+   });
  }
  
 async function loadMarkup(){
@@ -1640,6 +1799,8 @@ async function uiPenalties(){
    if (d.mode === "ticket" && d.ticketLabel) {
      const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
      saveTicketProgress(d.ticketLabel, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
+     // Обновляем статистику сложности билета
+     updateTicketDifficultyStats(d.ticketLabel, d.me, d.q.length);
    } else if (d.mode === "topic" && d.topic) {
      const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
      saveTopicProgress(d.topic, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
