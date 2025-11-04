@@ -634,12 +634,15 @@ function handleTap(e){
     const titleEl = qs(".subpage-title");
     const currentTitle = titleEl ? titleEl.textContent.trim() : "";
     
-    // Если мы в активном билете (режим ticket), возвращаемся к списку билетов
-    if (d && d.mode === "ticket") {
+    // Проверяем, есть ли элементы вопроса на экране (значит мы в активном вопросе билета)
+    const hasQuestionElements = qs(".question-progress") || qs(".question-tracker");
+    
+    // Если мы в активном вопросе билета (режим ticket + есть элементы вопроса), возвращаемся к списку билетов
+    if (d && d.mode === "ticket" && hasQuestionElements) {
       uiTickets();
     } 
-    // Если мы в списке билетов (title = "Билеты"), возвращаемся на главную
-    else if (currentTitle === "Билеты") {
+    // Если мы в списке билетов (title = "Билеты" и нет элементов вопроса), возвращаемся на главную
+    else if (currentTitle === "Билеты" && !hasQuestionElements) {
       renderHome();
     }
     // Во всех остальных случаях возвращаемся на главную
@@ -1077,6 +1080,10 @@ async function fetchJson(url){
  }
  
  function uiTickets(){
+   // Очищаем состояние дуэли при возврате к списку билетов
+   clearAdvanceTimer();
+   State.duel = null;
+   
    const tickets = [...State.byTicket.entries()].map(([key, meta]) => ({
      key,
      label: meta.label || key,
