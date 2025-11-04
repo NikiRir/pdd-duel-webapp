@@ -182,6 +182,19 @@ body {
   z-index: 1;
 }
 
+/* Разрешаем клики для карточки "Место в топе" */
+.stat-card-large[data-action="top"] {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  transition: all var(--transition);
+}
+
+.stat-card-large[data-action="top"]:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--accent);
+}
+
 .stat-card-large {
   padding: 22px 14px;
   background: linear-gradient(135deg, rgba(0, 149, 246, 0.1) 0%, rgba(0, 168, 247, 0.08) 100%);

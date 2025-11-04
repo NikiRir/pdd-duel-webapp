@@ -1105,6 +1105,14 @@ function handleClick(e){
    if (State.ignoreClickUntil && Date.now() < State.ignoreClickUntil) {
      return;
    }
+   // Проверяем клик на "Место в топе" ПЕРЕД handleTap
+   const topCard = e.target.closest('[data-action="top"]');
+   if (topCard) {
+     e.preventDefault();
+     e.stopPropagation();
+     uiTopPlayers();
+     return;
+   }
    handleTap(e);
  }
  
