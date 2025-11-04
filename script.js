@@ -83,7 +83,15 @@ function getStorageKey(baseKey) {
      hideFromTop: false
    },
    // Глобальная статистика по билетам для расчета сложности
-   ticketsDifficultyStats: {}
+   ticketsDifficultyStats: {},
+   // Состояние поиска противника для дуэли
+   duelSearch: {
+     active: false,
+     startTime: null,
+     searchInterval: null,
+     opponentId: null,
+     isBot: false
+   }
  };
  
  let delegationBound = false;
@@ -389,7 +397,8 @@ function bindMenu(){
     btn.addEventListener("click", e=>{
       const act = e.currentTarget.dataset.action;
       setActive(e.currentTarget.id);
-      if (act==="quick" || act==="duels")    startDuel({mode:"quick"});
+      if (act==="quick")    startDuel({mode:"quick"});
+      if (act==="duels")    startDuelSearch();
       if (act==="topics")   uiTopics();
       if (act==="tickets")  uiTickets();
       if (act==="markup")   uiMarkup();
@@ -1042,7 +1051,10 @@ function handleTap(e){
     e.preventDefault();
     e.stopPropagation();
     const currentDuel = State.duel;
-    if (currentDuel && currentDuel.topic){
+    if (currentDuel && currentDuel.mode === "duel") {
+      // Если это была дуэль, возвращаемся к поиску
+      startDuelSearch();
+    } else if (currentDuel && currentDuel.topic){
       startDuel({ mode: "topic", topic: currentDuel.topic });
     } else {
       startDuel({ mode: "quick" });
@@ -1851,9 +1863,253 @@ async function uiPenalties(){
 }
  
  /* =======================
+    Поиск противника для дуэли
+ ======================= */
+const DUEL_SEARCH_KEY = "pdd-duel-search-queue";
+const DUEL_SEARCH_TIMEOUT = 20000; // 20 секунд
+
+function startDuelSearch() {
+  const currentUserId = getTelegramUserId();
+  if (!currentUserId) {
+    toast("❌ Требуется авторизация через Telegram");
+    return;
+  }
+  
+  // Останавливаем предыдущий поиск если есть
+  stopDuelSearch();
+  
+  State.duelSearch.active = true;
+  State.duelSearch.startTime = Date.now();
+  State.duelSearch.opponentId = null;
+  State.duelSearch.isBot = false;
+  
+  // Добавляем себя в очередь поиска
+  addToSearchQueue(currentUserId);
+  
+  // Показываем экран поиска
+  showDuelSearchScreen();
+  
+  // Начинаем проверку каждую секунду
+  State.duelSearch.searchInterval = setInterval(() => {
+    checkForOpponent(currentUserId);
+    
+    // Проверяем, прошло ли 20 секунд
+    const elapsed = Date.now() - State.duelSearch.startTime;
+    if (elapsed >= DUEL_SEARCH_TIMEOUT && !State.duelSearch.opponentId) {
+      showBotButton();
+    }
+  }, 1000);
+}
+
+function stopDuelSearch() {
+  if (State.duelSearch.searchInterval) {
+    clearInterval(State.duelSearch.searchInterval);
+    State.duelSearch.searchInterval = null;
+  }
+  State.duelSearch.active = false;
+  removeFromSearchQueue();
+}
+
+function addToSearchQueue(userId) {
+  try {
+    const queue = getSearchQueue();
+    // Удаляем старые записи (старше 30 секунд)
+    const now = Date.now();
+    const activeQueue = queue.filter(entry => now - entry.timestamp < 30000);
+    
+    // Добавляем себя только если еще нет в очереди
+    if (!activeQueue.find(entry => entry.userId === userId)) {
+      activeQueue.push({
+        userId: userId,
+        timestamp: now
+      });
+      localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(activeQueue));
+    }
+  } catch(e) {
+    console.error("Ошибка добавления в очередь:", e);
+  }
+}
+
+function removeFromSearchQueue() {
+  try {
+    const currentUserId = getTelegramUserId();
+    if (!currentUserId) return;
+    
+    const queue = getSearchQueue();
+    const filtered = queue.filter(entry => entry.userId !== currentUserId);
+    localStorage.setItem(DUEL_SEARCH_KEY, JSON.stringify(filtered));
+  } catch(e) {
+    console.error("Ошибка удаления из очереди:", e);
+  }
+}
+
+function getSearchQueue() {
+  try {
+    const data = localStorage.getItem(DUEL_SEARCH_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function checkForOpponent(currentUserId) {
+  try {
+    const queue = getSearchQueue();
+    const now = Date.now();
+    
+    // Ищем другого игрока (не себя и не старше 30 секунд)
+    const opponent = queue.find(entry => 
+      entry.userId !== currentUserId && 
+      (now - entry.timestamp) < 30000
+    );
+    
+    if (opponent) {
+      // Найден противник!
+      State.duelSearch.opponentId = opponent.userId;
+      State.duelSearch.isBot = false;
+      stopDuelSearch();
+      startRealDuel(opponent.userId);
+    }
+  } catch(e) {
+    console.error("Ошибка проверки противника:", e);
+  }
+}
+
+function showDuelSearchScreen() {
+  updateDuelSearchScreen();
+  
+  // Привязываем обработчики
+  scheduleFrame(() => {
+    const botBtn = qs("#duel-bot-btn");
+    if (botBtn) {
+      botBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startBotDuel();
+      }, { passive: true });
+    }
+    
+    const cancelBtn = qs("#cancel-duel-search");
+    if (cancelBtn) {
+      cancelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        stopDuelSearch();
+        renderHome();
+      }, { passive: true });
+    }
+  });
+}
+
+function updateDuelSearchScreen() {
+  if (!State.duelSearch.active) return;
+  
+  const elapsed = Math.floor((Date.now() - State.duelSearch.startTime) / 1000);
+  const timeLeft = Math.max(0, Math.floor(DUEL_SEARCH_TIMEOUT / 1000) - elapsed);
+  const showBotButton = timeLeft <= 0;
+  
+  setView(`
+    <div class="card" style="text-align: center; padding: 40px 20px;">
+      <div style="font-size: 48px; margin-bottom: 20px;">⚔️</div>
+      <h3 style="margin-bottom: 12px;">Поиск противника...</h3>
+      <p style="color: var(--muted); margin-bottom: 24px;">
+        Ищем для вас соперника
+      </p>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 24px;">
+        <div class="search-dot" style="animation-delay: 0s;"></div>
+        <div class="search-dot" style="animation-delay: 0.2s;"></div>
+        <div class="search-dot" style="animation-delay: 0.4s;"></div>
+      </div>
+      <div id="search-timer" style="font-size: 14px; color: var(--muted); margin-bottom: 20px;">
+        Прошло: ${elapsed} сек
+      </div>
+      ${showBotButton ? `
+        <button class="btn btn-primary" id="duel-bot-btn" style="width: 100%; margin-top: 20px;">
+          🤖 Играть против робота
+        </button>
+      ` : ''}
+      <button class="btn" id="cancel-duel-search" style="width: 100%; margin-top: 12px;">
+        Отмена
+      </button>
+    </div>
+  `, { subpage: true, title: "Дуэль" });
+  
+  // Привязываем обработчики после обновления
+  scheduleFrame(() => {
+    const botBtn = qs("#duel-bot-btn");
+    if (botBtn && !botBtn.hasAttribute("data-listener")) {
+      botBtn.setAttribute("data-listener", "true");
+      botBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startBotDuel();
+      }, { passive: true });
+    }
+    
+    const cancelBtn = qs("#cancel-duel-search");
+    if (cancelBtn && !cancelBtn.hasAttribute("data-listener")) {
+      cancelBtn.setAttribute("data-listener", "true");
+      cancelBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        stopDuelSearch();
+        renderHome();
+      }, { passive: true });
+    }
+  });
+}
+
+function showBotButton() {
+  // Обновляем экран, чтобы показать кнопку бота
+  const elapsed = Math.floor((Date.now() - State.duelSearch.startTime) / 1000);
+  
+  const searchContent = qs(".view-content");
+  if (searchContent) {
+    const botBtnHtml = `
+      <button class="btn btn-primary" id="duel-bot-btn" style="width: 100%; margin-top: 20px;">
+        🤖 Играть против робота
+      </button>
+    `;
+    
+    const existingBtn = qs("#duel-bot-btn");
+    if (!existingBtn) {
+      const card = searchContent.querySelector(".card");
+      if (card) {
+        card.insertAdjacentHTML("beforeend", botBtnHtml);
+        const botBtn = qs("#duel-bot-btn");
+        if (botBtn) {
+          botBtn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            startBotDuel();
+          }, { passive: true });
+        }
+      }
+    }
+  }
+}
+
+function startBotDuel() {
+  stopDuelSearch();
+  State.duelSearch.isBot = true;
+  State.duelSearch.opponentId = null;
+  
+  // Запускаем обычную дуэль, но помечаем как против бота
+  startDuel({ mode: "duel", isBot: true });
+}
+
+function startRealDuel(opponentId) {
+  State.duelSearch.isBot = false;
+  State.duelSearch.opponentId = opponentId;
+  
+  // Запускаем дуэль против реального игрока
+  startDuel({ mode: "duel", opponentId: opponentId, isBot: false });
+}
+
+ /* =======================
     Викторина
  ======================= */
- function startDuel({mode,topic=null}){
+ function startDuel({mode,topic=null,isBot=false,opponentId=null}){
    clearAdvanceTimer();
    const src = topic ? (State.topics.get(topic)||[]) : State.pool;
    if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
@@ -1912,7 +2168,9 @@ async function uiPenalties(){
      q,
      answers: answers,
      furthest: Math.max(startIndex, answers.filter(a => a && a.status).length - 1),
-     completed: false
+     completed: false,
+     isBot: isBot || false,
+     opponentId: opponentId || null
    };
    renderQuestion(startIndex);
  }
@@ -2157,6 +2415,8 @@ async function uiPenalties(){
    clearAdvanceTimer();
    d.completed = true;
    
+   const isBot = d.isBot || false;
+   
    // Сохраняем финальный прогресс билета или темы (при завершении)
    if (d.mode === "ticket" && d.ticketLabel) {
      const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
@@ -2168,19 +2428,33 @@ async function uiPenalties(){
      saveTopicProgress(d.topic, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
    }
    
-   // Обновляем статистику
-   incrementGamesPlayed();
-   const correctPercent = (d.me / d.q.length) * 100;
-   // Начисляем опыт: 10 очков за игру + бонус за правильные ответы
-   const expGain = 10 + Math.floor(correctPercent / 10);
-   addExperience(expGain);
+   // Обновляем статистику ТОЛЬКО если это не игра против бота
+   let expGain = 0;
+   if (!isBot) {
+     // Против реального игрока - засчитываем в топ
+     incrementGamesPlayed();
+     const correctPercent = (d.me / d.q.length) * 100;
+     // Начисляем опыт: 10 очков за игру + бонус за правильные ответы
+     expGain = 10 + Math.floor(correctPercent / 10);
+     addExperience(expGain);
+   } else {
+     // Для игры против бота только опыт, но не засчитываем в статистику для топа
+     const correctPercent = (d.me / d.q.length) * 100;
+     expGain = 5 + Math.floor(correctPercent / 10); // Меньше опыта за бота
+     addExperience(expGain);
+   }
    
-   const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : "Дуэль");
+   const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : (d.mode === "duel" ? "Дуэль" : "Дуэль"));
+   const botNotice = isBot ? '<p style="color: var(--muted); font-size: 12px; margin-top: 8px;">⚠️ Игра против робота не засчитывается в топ</p>' : '';
+   const opponentType = isBot ? '<p style="color: var(--muted); font-size: 12px;">🤖 Против робота</p>' : '<p style="color: var(--accent); font-size: 12px;">⚔️ Против игрока</p>';
+   
    setView(`
      <div class="card">
        <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
        <p>Верных: <b>${d.me}</b> из ${d.q.length}</p>
+       ${opponentType}
        <p style="color: var(--accent); margin-top: 8px;">+${expGain} опыта</p>
+       ${botNotice}
        <div class="grid two" style="margin-top:10px">
          <button class="btn btn-primary" id="again">Ещё раз</button>
          <button class="btn" id="home">На главную</button>

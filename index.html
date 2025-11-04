@@ -8,8 +8,8 @@
    <link rel="preconnect" href="https://fonts.googleapis.com" />
    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="preload" href="style.css?v=64" as="style" />
-  <link rel="stylesheet" href="style.css?v=64" />
+  <link rel="preload" href="style.css?v=65" as="style" />
+  <link rel="stylesheet" href="style.css?v=65" />
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
  </head>
  
@@ -71,11 +71,11 @@
 
          <!-- Кнопки навигации -->
          <div class="nav-buttons">
-           <button class="nav-btn nav-btn-primary" data-action="tickets">🎫 БИЛЕТЫ</button>
+           <button class="nav-btn" data-action="tickets">🎫 БИЛЕТЫ</button>
            <div class="nav-buttons-grid">
              <button class="nav-btn" data-action="topics">📚 Темы</button>
              <button class="nav-btn" data-action="favorites">⭐ Избранное</button>
-             <button class="nav-btn" data-action="duels">⚔ Дуэли</button>
+             <button class="nav-btn nav-btn-primary" data-action="duels" style="background: var(--gradient-hero); color: white; border: none; box-shadow: var(--shadow-md); font-weight: 700;">⚔ Дуэли</button>
            </div>
          </div>
        </section>
@@ -115,6 +115,6 @@
      </div>
    </div>
    
-  <script src="script.js?v=52"></script>
+  <script src="script.js?v=53"></script>
  </body>
  </html>

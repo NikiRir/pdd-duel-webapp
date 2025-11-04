@@ -270,10 +270,25 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* Специальный стиль для кнопки Дуэли */
+.nav-btn[data-action="duels"] {
+  background: var(--gradient-hero) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: var(--shadow-md) !important;
+  font-weight: 700 !important;
+}
+
 .nav-btn:hover {
   border-color: var(--accent);
   background: rgba(255, 255, 255, 1);
   box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.nav-btn[data-action="duels"]:hover {
+  background: var(--gradient-accent) !important;
+  box-shadow: var(--shadow-lg) !important;
   transform: translateY(-2px);
 }
 
@@ -787,6 +802,25 @@ body {
   50% {
     background-position: 100% 50%;
   }
+}
+
+@keyframes searchPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.search-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: searchPulse 1.4s ease-in-out infinite;
 }
 
 .question-tracker {
