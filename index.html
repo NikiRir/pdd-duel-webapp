@@ -8,8 +8,8 @@
    <link rel="preconnect" href="https://fonts.googleapis.com" />
    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="preload" href="style.css?v=50" as="style" />
-  <link rel="stylesheet" href="style.css?v=50" />
+  <link rel="preload" href="style.css?v=51" as="style" />
+  <link rel="stylesheet" href="style.css?v=51" />
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
  </head>
  
@@ -33,67 +33,89 @@
    </noscript>
  
    <div class="app">
-     <section class="news-carousel">
-       <button class="carousel-arrow carousel-arrow-prev" aria-label="Предыдущий слайд">‹</button>
-       <div class="carousel-container">
-         <div class="carousel-track">
-           <div class="carousel-slide active">
-             <div class="carousel-content">
-               <div class="carousel-icon">🚗</div>
-               <h3>Реальные билеты ГИБДД</h3>
-               <p>Актуальные вопросы из официальной базы экзамена</p>
-             </div>
+     <!-- Шапка -->
+     <header class="app-header">
+       <div class="header-online">
+         <span class="online-indicator"></span>
+         <span id="online-count">0</span>
+       </div>
+       <div class="header-title">
+         <h1>ПДД ДУЭЛИ</h1>
+         <span class="header-checkmark">✓</span>
+       </div>
+       <button class="header-settings" id="settings-btn" aria-label="Настройки">⚙</button>
+     </header>
+
+     <!-- Контент по табам -->
+     <div class="app-content">
+       <!-- Главная -->
+       <section id="home-tab" class="tab-content active">
+         <!-- Статистика -->
+         <div class="stats-grid">
+           <div class="stat-card">
+             <div class="stat-icon">?</div>
+             <div class="stat-value" id="games-played">0</div>
+             <div class="stat-label">игр сыграно</div>
            </div>
-           <div class="carousel-slide">
-             <div class="carousel-content">
-               <div class="carousel-icon">⚡</div>
-               <h3>Быстрая дуэль</h3>
-               <p>Соревнуйся в скорости и знаниях с другими игроками</p>
-             </div>
+           <div class="stat-card stat-card-large">
+             <div class="stat-icon">🏆</div>
+             <div class="stat-value" id="top-place">-</div>
+             <div class="stat-label">место в топе</div>
            </div>
-           <div class="carousel-slide">
-             <div class="carousel-content">
-               <div class="carousel-icon">📚</div>
-               <h3>Тренировка по темам</h3>
-               <p>Изучай правила дорожного движения по категориям</p>
-             </div>
-           </div>
-           <div class="carousel-slide">
-             <div class="carousel-content">
-               <div class="carousel-icon">🎯</div>
-               <h3>Подготовка к экзамену</h3>
-               <p>Проверь свои знания перед сдачей в ГИБДД</p>
-             </div>
+           <div class="stat-card">
+             <div class="stat-icon">⭐</div>
+             <div class="stat-value" id="experience-level">1</div>
+             <div class="stat-label">ОПЫТ/УРОВЕНЬ</div>
            </div>
          </div>
-       </div>
-       <button class="carousel-arrow carousel-arrow-next" aria-label="Следующий слайд">›</button>
-       <div class="carousel-dots">
-         <button class="carousel-dot active" data-slide="0" aria-label="Слайд 1"></button>
-         <button class="carousel-dot" data-slide="1" aria-label="Слайд 2"></button>
-         <button class="carousel-dot" data-slide="2" aria-label="Слайд 3"></button>
-         <button class="carousel-dot" data-slide="3" aria-label="Слайд 4"></button>
-       </div>
-     </section>
 
- 
-    <!-- Один экран. Всегда заменяется. Скролл только внутри. -->
-    <section id="screen" class="screen screen--hidden" aria-live="polite"></section>
+         <!-- Кнопки навигации -->
+         <div class="nav-buttons">
+           <button class="nav-btn nav-btn-primary" data-action="tickets">🎫 БИЛЕТЫ</button>
+           <div class="nav-buttons-grid">
+             <button class="nav-btn" data-action="topics">📚 Темы</button>
+             <button class="nav-btn" data-action="favorites">⭐ Избранное</button>
+             <button class="nav-btn" data-action="duels">⚔ Дуэли</button>
+           </div>
+         </div>
+       </section>
+
+       <!-- Правила -->
+       <section id="rules-tab" class="tab-content">
+         <div class="rules-content">
+           <button class="nav-btn" data-action="penalties">💰 Штрафы</button>
+           <button class="nav-btn" data-action="markup">🚦 Разметка</button>
+           <button class="nav-btn" data-action="stats">📊 Статистика</button>
+         </div>
+       </section>
+
+       <!-- Один экран для дуэлей/вопросов -->
+       <section id="screen" class="screen screen--hidden" aria-live="polite"></section>
+     </div>
+
+     <!-- Нижняя навигация -->
+     <nav class="bottom-nav">
+       <button class="bottom-nav-item active" data-tab="home">
+         <span class="nav-icon">🏠</span>
+         <span class="nav-label">Главная</span>
+       </button>
+       <button class="bottom-nav-item" data-tab="rules">
+         <span class="nav-icon">📖</span>
+         <span class="nav-label">Правила</span>
+       </button>
+     </nav>
    </div>
  
    <div id="toast" class="toast-wrap"></div>
    
    <div id="loader-overlay" class="loader-overlay">
-     <div class="loader-card">
-       <div class="loader-avatar">
-         <img src="" alt="Бот" id="bot-avatar" />
-       </div>
+     <div class="loader-progress-wrapper">
        <div class="loader-progress">
          <div class="loader-progress-bar" id="loader-progress"></div>
        </div>
      </div>
    </div>
    
-  <script src="script.js?v=36"></script>
+  <script src="script.js?v=37"></script>
  </body>
  </html>

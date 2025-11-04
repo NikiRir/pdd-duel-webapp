@@ -29,6 +29,14 @@ try {
    usedFallback: false,
    penaltiesLoading: false,
    markupLoading: false,
+   // Статистика
+   stats: {
+     gamesPlayed: 0,
+     experience: 0,
+     level: 1,
+     topPlace: null
+   },
+   onlineCount: 0
  };
  
  let delegationBound = false;
@@ -61,53 +69,7 @@ function showLoader() {
   const overlay = qs("#loader-overlay");
   if(overlay) {
     overlay.classList.add("active");
-    // Пытаемся загрузить аватарку бота
-    loadBotAvatar();
   }
-}
-
-async function loadBotAvatar() {
-  const avatarImg = qs("#bot-avatar");
-  if (!avatarImg) return;
-  
-  // Пытаемся загрузить аватарку бота через Telegram Bot API
-  // Используем токен бота (в продакшене лучше хранить его на сервере)
-  const BOT_TOKEN = "8390787038:AAHChRwHsSbDKHcXEqS8oJXhi0_ASUSq4P8";
-  
-  try {
-    // Получаем информацию о боте
-    const botInfoResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`);
-    const botInfo = await botInfoResponse.json();
-    
-    if (botInfo.ok && botInfo.result) {
-      // Получаем фото профиля бота
-      const photoResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUserProfilePhotos?user_id=${botInfo.result.id}&limit=1`);
-      const photoData = await photoResponse.json();
-      
-      if (photoData.ok && photoData.result.photos && photoData.result.photos.length > 0) {
-        // Берем самое большое фото
-        const fileId = photoData.result.photos[0][photoData.result.photos[0].length - 1].file_id;
-        const fileResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
-        const fileData = await fileResponse.json();
-        
-        if (fileData.ok) {
-          avatarImg.src = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileData.result.file_path}`;
-          return;
-        }
-      }
-    }
-  } catch(e) {
-    console.log("Не удалось загрузить аватарку через API:", e);
-  }
-  
-  // Если не удалось загрузить через API, пробуем локальный файл
-  // Можно раскомментировать и указать путь к локальному файлу:
-  // avatarImg.src = "images/bot-avatar.png";
-  
-  // Если изображение не загрузилось, оставляем градиентный фон
-  avatarImg.onerror = function() {
-    this.style.display = "none";
-  };
 }
 
 function hideLoader() {
@@ -236,9 +198,11 @@ async function boot(){
     
     // Рендерим интерфейс
     try {
+      loadUserStats();
+      updateStatsDisplay();
+      updateOnlineCount();
       renderHome();
       updateStatsCounters();
-      initCarousel();
     } catch(err) {
       console.error("Ошибка при рендеринге:", err);
     }
@@ -256,9 +220,10 @@ async function boot(){
     if (!State.pool.length) {
       try {
         hydrateFallback();
+        loadUserStats();
+        updateStatsDisplay();
         renderHome();
         updateStatsCounters();
-        initCarousel();
       } catch(finalErr) {
         console.error("Критическая ошибка применения fallback:", finalErr);
       }
@@ -315,10 +280,11 @@ async function boot(){
      host.innerHTML = "";
    }
  }
- function renderHome(){
-   clearAdvanceTimer();
-   setActive(null);
-   setView("", { subpage: false });
+function renderHome(){
+  clearAdvanceTimer();
+  setActive(null);
+  setView("", { subpage: false });
+  switchTab('home');
  }
  
  function setActive(id){
@@ -334,19 +300,140 @@ async function boot(){
  ======================= */
 function bindMenu(){
   if (menuBound) return;
+  
+  // Навигация по табам
+  qsa("[data-tab]").forEach(btn=>{
+    btn.addEventListener("click", e=>{
+      const tab = e.currentTarget.dataset.tab;
+      switchTab(tab);
+    }, { passive:true });
+  });
+  
+  // Кнопки действий
   qsa("[data-action]").forEach(btn=>{
     btn.addEventListener("click", e=>{
       const act = e.currentTarget.dataset.action;
       setActive(e.currentTarget.id);
-      if (act==="quick")    startDuel({mode:"quick"});
+      if (act==="quick" || act==="duels")    startDuel({mode:"quick"});
       if (act==="topics")   uiTopics();
       if (act==="tickets")  uiTickets();
       if (act==="markup")   uiMarkup();
       if (act==="penalties")uiPenalties();
       if (act==="stats")    uiStats();
+      if (act==="favorites") toast("⭐ Избранное пока в разработке");
     }, { passive:true });
   });
+  
+  // Кнопка настроек
+  const settingsBtn = qs("#settings-btn");
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", (e) => {
+      toast("⚙ Настройки пока в разработке");
+    }, { passive: true });
+  }
+  
   menuBound = true;
+}
+
+/* =======================
+   Навигация по табам
+======================= */
+function switchTab(tabName) {
+  // Скрываем все табы
+  qsa(".tab-content").forEach(tab => {
+    tab.classList.remove("active");
+  });
+  
+  // Показываем выбранный таб
+  const tab = qs(`#${tabName}-tab`);
+  if (tab) {
+    tab.classList.add("active");
+  }
+  
+  // Обновляем активную кнопку в нижней навигации
+  qsa(".bottom-nav-item").forEach(item => {
+    item.classList.toggle("active", item.dataset.tab === tabName);
+  });
+  
+  // Скрываем экран если он открыт
+  const screen = qs("#screen");
+  if (screen) {
+    screen.classList.add("screen--hidden");
+  }
+}
+
+/* =======================
+   Статистика пользователя
+======================= */
+function loadUserStats() {
+  try {
+    const saved = localStorage.getItem("pdd-duel-stats");
+    if (saved) {
+      const stats = JSON.parse(saved);
+      State.stats = {
+        gamesPlayed: stats.gamesPlayed || 0,
+        experience: stats.experience || 0,
+        level: stats.level || 1,
+        topPlace: stats.topPlace || null
+      };
+    }
+  } catch(e) {
+    console.error("Ошибка загрузки статистики:", e);
+  }
+}
+
+function saveUserStats() {
+  try {
+    localStorage.setItem("pdd-duel-stats", JSON.stringify(State.stats));
+  } catch(e) {
+    console.error("Ошибка сохранения статистики:", e);
+  }
+}
+
+function updateStatsDisplay() {
+  const gamesEl = qs("#games-played");
+  const levelEl = qs("#experience-level");
+  const topPlaceEl = qs("#top-place");
+  
+  if (gamesEl) {
+    gamesEl.textContent = State.stats.gamesPlayed;
+  }
+  
+  if (levelEl) {
+    // Вычисляем уровень на основе опыта (1 уровень = 100 опыта)
+    const level = Math.floor(State.stats.experience / 100) + 1;
+    State.stats.level = level;
+    levelEl.textContent = `${State.stats.experience}/${level}`;
+  }
+  
+  if (topPlaceEl) {
+    topPlaceEl.textContent = State.stats.topPlace || "-";
+  }
+}
+
+function addExperience(amount) {
+  State.stats.experience += amount;
+  updateStatsDisplay();
+  saveUserStats();
+}
+
+function incrementGamesPlayed() {
+  State.stats.gamesPlayed++;
+  updateStatsDisplay();
+  saveUserStats();
+}
+
+function updateOnlineCount() {
+  // Симуляция онлайн пользователей (можно заменить на реальный API)
+  const onlineCount = Math.floor(Math.random() * 500) + 100;
+  State.onlineCount = onlineCount;
+  const onlineEl = qs("#online-count");
+  if (onlineEl) {
+    onlineEl.textContent = onlineCount;
+  }
+  
+  // Обновляем каждые 30 секунд
+  setTimeout(updateOnlineCount, 30000);
 }
 
 /* =======================
@@ -1287,11 +1374,20 @@ async function uiPenalties(){
    if(!d || d.completed) return;
    clearAdvanceTimer();
    d.completed = true;
+   
+   // Обновляем статистику
+   incrementGamesPlayed();
+   const correctPercent = (d.me / d.q.length) * 100;
+   // Начисляем опыт: 10 очков за игру + бонус за правильные ответы
+   const expGain = 10 + Math.floor(correctPercent / 10);
+   addExperience(expGain);
+   
    const headerTitle = d.mode === "ticket" ? (d.ticketLabel || "Билет") : (d.mode === "topic" && d.topic ? d.topic : "Дуэль");
    setView(`
      <div class="card">
        <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
        <p>Верных: <b>${d.me}</b> из ${d.q.length}</p>
+       <p style="color: var(--accent); margin-top: 8px;">+${expGain} опыта</p>
        <div class="grid two" style="margin-top:10px">
          <button class="btn btn-primary" id="again">Ещё раз</button>
          <button class="btn" id="home">На главную</button>
