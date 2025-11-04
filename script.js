@@ -399,7 +399,7 @@ function saveUserStats() {
   }
 }
 
-function saveTicketProgress(ticketKey, correctCount, totalCount, answeredCount = null) {
+function saveTicketProgress(ticketKey, correctCount, totalCount, answeredCount = null, currentIndex = null, answers = null, questionOrder = null) {
   if (!State.stats.ticketsProgress) {
     State.stats.ticketsProgress = {};
   }
@@ -411,7 +411,10 @@ function saveTicketProgress(ticketKey, correctCount, totalCount, answeredCount =
     answered: answeredCount !== null ? answeredCount : progressCount,
     total: totalCount,
     percent: percent,
-    completed: percent === 100 && correctCount === totalCount
+    completed: percent === 100 && correctCount === totalCount,
+    currentIndex: currentIndex !== null ? currentIndex : 0,
+    answers: answers || [],
+    questionOrder: questionOrder || []
   };
   saveUserStats();
 }
@@ -420,7 +423,7 @@ function getTicketProgress(ticketKey) {
   return State.stats.ticketsProgress?.[ticketKey] || null;
 }
 
-function saveTopicProgress(topicKey, correctCount, totalCount, answeredCount = null) {
+function saveTopicProgress(topicKey, correctCount, totalCount, answeredCount = null, currentIndex = null, answers = null, questionOrder = null) {
   if (!State.stats.topicsProgress) {
     State.stats.topicsProgress = {};
   }
@@ -432,7 +435,10 @@ function saveTopicProgress(topicKey, correctCount, totalCount, answeredCount = n
     answered: answeredCount !== null ? answeredCount : progressCount,
     total: totalCount,
     percent: percent,
-    completed: percent === 100 && correctCount === totalCount
+    completed: percent === 100 && correctCount === totalCount,
+    currentIndex: currentIndex !== null ? currentIndex : 0,
+    answers: answers || [],
+    questionOrder: questionOrder || []
   };
   saveUserStats();
 }
@@ -1330,18 +1336,49 @@ async function uiPenalties(){
    clearAdvanceTimer();
    const src = topic ? (State.topics.get(topic)||[]) : State.pool;
    if(!src.length){ setView(`<div class="card"><h3>Дуэль</h3><p>⚠️ Нет данных</p></div>`, { subpage: true, title: topic || "Дуэль" }); return; }
-   const q = shuffle(src).slice(0,20);
+   
+   // Проверяем, есть ли сохраненный прогресс для темы
+   let savedProgress = null;
+   let startIndex = 0;
+   if (topic) {
+     savedProgress = getTopicProgress(topic);
+     if (savedProgress && !savedProgress.completed && savedProgress.answers && savedProgress.answers.length > 0) {
+       startIndex = savedProgress.currentIndex || 0;
+     }
+   }
+   
+   // Если есть сохраненный прогресс, используем тот же порядок вопросов
+   let q;
+   if (savedProgress && savedProgress.questionOrder && savedProgress.questionOrder.length > 0 && !savedProgress.completed) {
+     // Восстанавливаем порядок вопросов из сохраненного прогресса
+     const questionMap = new Map(src.map((q) => [q.question || q.text || JSON.stringify(q), q]));
+     q = savedProgress.questionOrder.map(qKey => questionMap.get(qKey)).filter(Boolean);
+     if (q.length === 0) {
+       q = shuffle(src).slice(0,20);
+     }
+   } else {
+     q = shuffle(src).slice(0,20);
+   }
+   
+   // Восстанавливаем ответы если есть сохраненный прогресс
+   let answers = Array(q.length).fill(null);
+   let me = 0;
+   if (savedProgress && savedProgress.answers && savedProgress.answers.length > 0) {
+     answers = savedProgress.answers.map(a => a ? { ...a } : null);
+     me = savedProgress.correct || 0;
+   }
+   
    State.duel = {
      mode,
      topic,
-     i:0,
-     me:0,
+     i: startIndex,
+     me: me,
      q,
-     answers: Array(q.length).fill(null),
-     furthest: 0,
+     answers: answers,
+     furthest: Math.max(startIndex, answers.filter(a => a && a.status).length - 1),
      completed: false
    };
-   renderQuestion(0);
+   renderQuestion(startIndex);
  }
  function startTicket(key){
    clearAdvanceTimer();
@@ -1349,19 +1386,46 @@ async function uiPenalties(){
   const arr = (bucket && Array.isArray(bucket.questions)) ? bucket.questions : [];
   const label = bucket && bucket.label ? bucket.label : key;
   if(!arr.length){ setView(`<div class="card"><h3>${esc(label)}</h3><p>⚠️ Нет вопросов</p></div>`, { subpage: true, title: label || "Билет" }); return; }
-   const q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
+  
+  // Проверяем, есть ли сохраненный прогресс для билета
+  const savedProgress = getTicketProgress(label);
+  let startIndex = 0;
+  
+  // Если есть сохраненный прогресс, используем тот же порядок вопросов
+  let q;
+  if (savedProgress && savedProgress.questionOrder && savedProgress.questionOrder.length > 0 && !savedProgress.completed) {
+    // Восстанавливаем порядок вопросов из сохраненного прогресса
+    const questionMap = new Map(arr.map((q) => [q.question || q.text || JSON.stringify(q), q]));
+    q = savedProgress.questionOrder.map(qKey => questionMap.get(qKey)).filter(Boolean);
+    if (q.length === 0) {
+      q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
+    }
+    startIndex = savedProgress.currentIndex || 0;
+  } else {
+    q = arr.length>20 ? shuffle(arr).slice(0,20) : arr.slice(0,20);
+  }
+  
+  // Восстанавливаем ответы если есть сохраненный прогресс
+  let answers = Array(q.length).fill(null);
+  let me = 0;
+  if (savedProgress && savedProgress.answers && savedProgress.answers.length > 0 && !savedProgress.completed) {
+    answers = savedProgress.answers.map(a => a ? { ...a } : null);
+    me = savedProgress.correct || 0;
+    startIndex = savedProgress.currentIndex || 0;
+  }
+  
    State.duel = {
      mode:"ticket",
      topic:null,
-     i:0,
-     me:0,
+     i: startIndex,
+     me: me,
      q,
     ticketLabel: label,
-     answers: Array(q.length).fill(null),
-     furthest: 0,
+     answers: answers,
+     furthest: Math.max(startIndex, answers.filter(a => a && a.status).length - 1),
      completed: false
    };
-   renderQuestion(0);
+   renderQuestion(startIndex);
  }
  
  function renderQuestion(targetIndex){
@@ -1468,13 +1532,17 @@ async function uiPenalties(){
      }
    }
 
-   // Сохраняем прогресс билета или темы в реальном времени
+   // Сохраняем прогресс билета или темы в реальном времени (с текущим индексом и ответами)
    if(d.mode === "ticket" && d.ticketLabel) {
      const answeredCount = d.answers.filter(a => a && a.status).length;
-     saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount);
+     // Сохраняем уникальные идентификаторы вопросов (используем текст вопроса как ключ)
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount, currentIndex, d.answers, questionOrder);
    } else if(d.mode === "topic" && d.topic) {
      const answeredCount = d.answers.filter(a => a && a.status).length;
-     saveTopicProgress(d.topic, d.me, d.q.length, answeredCount);
+     // Сохраняем уникальные идентификаторы вопросов (используем текст вопроса как ключ)
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, currentIndex, d.answers, questionOrder);
    }
 
    // Активируем кнопку "Следующий" после любого ответа
@@ -1520,11 +1588,13 @@ async function uiPenalties(){
    clearAdvanceTimer();
    d.completed = true;
    
-   // Сохраняем прогресс билета или темы
+   // Сохраняем финальный прогресс билета или темы (при завершении)
    if (d.mode === "ticket" && d.ticketLabel) {
-     saveTicketProgress(d.ticketLabel, d.me, d.q.length);
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTicketProgress(d.ticketLabel, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
    } else if (d.mode === "topic" && d.topic) {
-     saveTopicProgress(d.topic, d.me, d.q.length);
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTopicProgress(d.topic, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
    }
    
    // Обновляем статистику
@@ -1691,6 +1761,18 @@ function esc(s){
    const d = State.duel;
    if(!d) return;
    clearAdvanceTimer();
+   
+   // Сохраняем прогресс перед переходом к следующему вопросу
+   if(d.mode === "ticket" && d.ticketLabel) {
+     const answeredCount = d.answers.filter(a => a && a.status).length;
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTicketProgress(d.ticketLabel, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
+   } else if(d.mode === "topic" && d.topic) {
+     const answeredCount = d.answers.filter(a => a && a.status).length;
+     const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
+     saveTopicProgress(d.topic, d.me, d.q.length, answeredCount, d.i, d.answers, questionOrder);
+   }
+   
    if(d.i >= d.q.length - 1){
     const current = d.answers[d.i];
     if(current && current.status){
