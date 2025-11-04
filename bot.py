@@ -36,7 +36,23 @@ def get_main_keyboard():
 
 @dp.message(CommandStart())
 async def cmd_start(message: Message):
-    user = db.get_or_create_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    # Получаем фото пользователя если есть
+    photo_url = None
+    try:
+        photos = await bot.get_user_profile_photos(message.from_user.id, limit=1)
+        if photos.photos:
+            file = await bot.get_file(photos.photos[0][0].file_id)
+            photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+    except Exception as e:
+        logging.warning(f"Не удалось получить фото пользователя: {e}")
+    
+    # Сохраняем/обновляем пользователя в базе данных
+    user = db.get_or_create_user(
+        message.from_user.id, 
+        message.from_user.username, 
+        message.from_user.first_name,
+        photo_url
+    )
     
     welcome_text = f"""🚗 Привет, {message.from_user.first_name or 'друг'}!
 

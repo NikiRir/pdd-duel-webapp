@@ -679,16 +679,20 @@ function getTicketsCompletedCount() {
 let statsRotationInterval = null;
 let currentStatsView = 0; // 0 = games, 1 = tickets
 
-function updateStatsDisplay() {
+async function updateStatsDisplay() {
   // Сохраняем данные для топа при обновлении статистики
   saveUserTopData();
   
-  // Вычисляем место в топе
-  const players = getAllPlayersTopData();
-  const currentUserId = getTelegramUserId();
-  if (currentUserId) {
-    const userPlace = players.findIndex(p => p.userId === currentUserId) + 1;
-    State.stats.topPlace = userPlace > 0 ? userPlace : null;
+  // Вычисляем место в топе (async)
+  try {
+    const players = await getAllPlayersTopData();
+    const currentUserId = getTelegramUserId();
+    if (currentUserId) {
+      const userPlace = players.findIndex(p => p.userId === currentUserId) + 1;
+      State.stats.topPlace = userPlace > 0 ? userPlace : null;
+    }
+  } catch(e) {
+    console.warn("Ошибка обновления места в топе:", e);
   }
   
   const gamesEl = qs("#games-played");
@@ -733,19 +737,19 @@ function startStatsRotation() {
   }
   statsRotationInterval = setInterval(() => {
     currentStatsView = currentStatsView === 0 ? 1 : 0;
-    updateStatsDisplay();
+    updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
   }, 3000); // Переключаем каждые 3 секунды
 }
 
 function addExperience(amount) {
   State.stats.experience += amount;
-  updateStatsDisplay();
+  updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
   saveUserStats();
 }
 
 function incrementGamesPlayed() {
   State.stats.gamesPlayed++;
-  updateStatsDisplay();
+  updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
   saveUserStats();
   // Сохраняем данные пользователя для топа
   saveUserTopData();
@@ -844,83 +848,57 @@ function saveUserTopData() {
   }
 }
 
-// Собирает данные всех игроков для топа
+// Собирает данные всех игроков для топа ТОЛЬКО из базы данных бота (API)
 async function getAllPlayersTopData() {
-  const players = [];
   try {
-    // Сначала пытаемся получить данные из API сервера (база данных бота)
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/top/players`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.players) {
-          // Преобразуем данные из API в формат для отображения
-          const apiPlayers = data.players.map(player => ({
-            userId: player.user_id,
-            username: player.username,
-            firstName: player.first_name,
-            lastName: '',
-            photoUrl: player.photo_url || null, // Фото из базы данных
-            gamesPlayed: player.total_games || 0,
-            wins: player.wins || 0,
-            losses: player.losses || 0,
-            winRate: player.win_rate || 0,
-            experience: 0,
-            level: 1
-          }));
-          
-          // Добавляем API игроков
-          players.push(...apiPlayers);
-        }
+    // Получаем данные ТОЛЬКО из API сервера (база данных бота)
+    const response = await fetch(`${API_BASE_URL}/api/top/players`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch(apiError) {
-      console.warn("⚠️ Не удалось получить топ из API, используем localStorage:", apiError);
+    });
+    
+    if (!response.ok) {
+      console.warn("⚠️ Не удалось получить топ из API:", response.status);
+      return [];
     }
     
-    // Также собираем данные из localStorage (для совместимости)
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('pdd-duel-topdata-')) {
+    const data = await response.json();
+    if (!data.success || !data.players) {
+      console.warn("⚠️ API вернул некорректные данные:", data);
+      return [];
+    }
+    
+    // Преобразуем данные из API в формат для отображения
+    let players = data.players.map(player => ({
+      userId: player.user_id,
+      username: player.username,
+      firstName: player.first_name,
+      lastName: '',
+      photoUrl: player.photo_url || null, // Фото из базы данных
+      gamesPlayed: player.total_games || 0,
+      wins: player.wins || 0,
+      losses: player.losses || 0,
+      winRate: player.win_rate || 0,
+      experience: 0,
+      level: 1
+    }));
+    
+    // Проверяем настройки "Скрыть из топа" из localStorage для текущего пользователя
+    const currentUserId = getTelegramUserId();
+    if (currentUserId) {
+      const settingsKey = `pdd-duel-settings-${currentUserId}`;
+      const settings = localStorage.getItem(settingsKey);
+      if (settings) {
         try {
-          const data = JSON.parse(localStorage.getItem(key));
-          if (data && data.userId) {
-            // Проверяем, не скрыт ли пользователь из топа
-            const settingsKey = `pdd-duel-settings-${data.userId}`;
-            const settings = localStorage.getItem(settingsKey);
-            if (settings) {
-              const userSettings = JSON.parse(settings);
-              if (userSettings.hideFromTop) {
-                continue; // Пропускаем этого пользователя
-              }
-            }
-            
-            // Проверяем, нет ли уже этого игрока из API
-            const existingIndex = players.findIndex(p => p.userId === data.userId);
-            if (existingIndex === -1) {
-              // Добавляем игрока даже если gamesPlayed = 0
-              players.push({
-                userId: data.userId,
-                username: data.username,
-                firstName: data.firstName,
-                lastName: data.lastName || '',
-                photoUrl: data.photoUrl,
-                gamesPlayed: data.gamesPlayed || 0,
-                wins: data.wins || 0,
-                losses: data.losses || 0,
-                winRate: data.winRate || 0,
-                experience: data.experience || 0,
-                level: data.level || 1
-              });
-            }
+          const userSettings = JSON.parse(settings);
+          if (userSettings.hideFromTop) {
+            // Удаляем текущего пользователя из топа если он скрыт
+            players = players.filter(p => p.userId !== currentUserId);
           }
         } catch(e) {
-          console.warn("Ошибка парсинга данных игрока:", e);
+          console.warn("Ошибка парсинга настроек:", e);
         }
       }
     }
@@ -944,8 +922,8 @@ async function getAllPlayersTopData() {
     });
     
     return players;
-  } catch(e) {
-    console.error("Ошибка сбора данных топа:", e);
+  } catch(apiError) {
+    console.error("❌ Ошибка получения топа из API:", apiError);
     return [];
   }
 }
@@ -1604,7 +1582,7 @@ function uiMainSettings(){
         }
         
         // Обновляем место в топе
-        updateStatsDisplay();
+        updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
       }, { passive: true });
     }
   });
@@ -1629,10 +1607,17 @@ async function uiTopPlayers(){
     const place = index + 1;
     const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
     
-    // Получаем имя пользователя
-    const displayName = player.username || 
-                       (player.firstName ? `${player.firstName} ${player.lastName || ''}`.trim() : `User${player.userId}`) ||
-                       `User${player.userId}`;
+    // Получаем имя пользователя из Telegram (username или first_name)
+    // Если нет username, используем first_name, если нет и его - используем ID
+    let displayName = '';
+    if (player.username) {
+      displayName = `@${player.username}`;
+    } else if (player.firstName) {
+      displayName = player.firstName;
+    } else {
+      // Если нет никаких данных, используем ID (но это не должно происходить, так как данные из базы бота)
+      displayName = `ID: ${player.userId}`;
+    }
     
     return `
       <div class="card" style="${isCurrentUser ? 'border: 2px solid var(--accent); background: rgba(0, 149, 246, 0.05);' : ''}">
