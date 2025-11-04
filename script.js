@@ -61,7 +61,53 @@ function showLoader() {
   const overlay = qs("#loader-overlay");
   if(overlay) {
     overlay.classList.add("active");
+    // Пытаемся загрузить аватарку бота
+    loadBotAvatar();
   }
+}
+
+async function loadBotAvatar() {
+  const avatarImg = qs("#bot-avatar");
+  if (!avatarImg) return;
+  
+  // Пытаемся загрузить аватарку бота через Telegram Bot API
+  // Используем токен бота (в продакшене лучше хранить его на сервере)
+  const BOT_TOKEN = "8390787038:AAHChRwHsSbDKHcXEqS8oJXhi0_ASUSq4P8";
+  
+  try {
+    // Получаем информацию о боте
+    const botInfoResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getMe`);
+    const botInfo = await botInfoResponse.json();
+    
+    if (botInfo.ok && botInfo.result) {
+      // Получаем фото профиля бота
+      const photoResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUserProfilePhotos?user_id=${botInfo.result.id}&limit=1`);
+      const photoData = await photoResponse.json();
+      
+      if (photoData.ok && photoData.result.photos && photoData.result.photos.length > 0) {
+        // Берем самое большое фото
+        const fileId = photoData.result.photos[0][photoData.result.photos[0].length - 1].file_id;
+        const fileResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+        const fileData = await fileResponse.json();
+        
+        if (fileData.ok) {
+          avatarImg.src = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileData.result.file_path}`;
+          return;
+        }
+      }
+    }
+  } catch(e) {
+    console.log("Не удалось загрузить аватарку через API:", e);
+  }
+  
+  // Если не удалось загрузить через API, пробуем локальный файл
+  // Можно раскомментировать и указать путь к локальному файлу:
+  // avatarImg.src = "images/bot-avatar.png";
+  
+  // Если изображение не загрузилось, оставляем градиентный фон
+  avatarImg.onerror = function() {
+    this.style.display = "none";
+  };
 }
 
 function hideLoader() {
