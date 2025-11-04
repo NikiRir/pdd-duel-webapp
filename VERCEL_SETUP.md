@@ -2,27 +2,20 @@
 
 ## Текущий статус
 
-✅ **API сервер развернут на Vercel:** `https://pdd-duel-webapp.vercel.app`
+✅ **API сервер настроен для Vercel:** `https://pdd-duel-webapp.vercel.app`
 
 ## Настройка
 
-### Для Serverless Functions (рекомендуется)
+### ✅ Serverless Function создан
 
-Если вы используете Vercel Serverless Functions, создайте структуру:
-
-```
-api/
-  duel/
-    search/
-      join.py
-      check.py
-      leave.py
-    progress/
-      update.py
-      get.py
-```
-
-Или используйте единый файл `api/index.py` который обрабатывает все маршруты.
+Создан файл `api/index.py` который обрабатывает все API маршруты:
+- `/api/duel/search/join` - добавление в очередь поиска
+- `/api/duel/search/check` - проверка противника
+- `/api/duel/search/leave` - выход из очереди
+- `/api/duel/progress/update` - обновление прогресса
+- `/api/duel/progress/get` - получение прогресса
+- `/api/top/players` - получение топа игроков
+- `/health` - проверка работы API
 
 ### Для Python Web App
 

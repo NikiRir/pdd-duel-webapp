@@ -1,0 +1,221 @@
+"""
+Vercel Serverless Function для API
+"""
+import sys
+import os
+
+# Добавляем родительскую директорию в путь для импорта модулей
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from database import Database
+
+app = Flask(__name__)
+# Разрешаем CORS для веб-приложения на GitHub Pages и Vercel
+CORS(app, origins=["https://nikirir.github.io", "https://pdd-duel-webapp.vercel.app", "http://localhost:*"])
+
+db = Database()
+
+@app.route('/api/duel/search/join', methods=['POST'])
+def join_search():
+    """Добавить пользователя в очередь поиска"""
+    try:
+        data = request.get_json()
+        user_id_raw = data.get('user_id')
+        
+        # Обрабатываем как строку если это временный ID, иначе как int
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw) if user_id_raw else None
+            
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        db.add_to_search_queue(str(user_id))
+        print(f"✅ Пользователь {user_id} добавлен в очередь поиска")
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Ошибка добавления в очередь: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/duel/search/check', methods=['POST'])
+def check_opponent():
+    """Проверить, найден ли противник"""
+    try:
+        data = request.get_json()
+        user_id_raw = data.get('user_id')
+        
+        # Обрабатываем как строку если это временный ID, иначе как int
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw) if user_id_raw else None
+            
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        opponent_id = db.find_opponent(str(user_id))
+        
+        if opponent_id:
+            print(f"✅ Найден противник для {user_id}: {opponent_id}")
+            return jsonify({'success': True, 'opponent_id': opponent_id})
+        else:
+            return jsonify({'success': True, 'opponent_id': None})
+    except Exception as e:
+        print(f"❌ Ошибка поиска противника: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/duel/search/leave', methods=['POST'])
+def leave_search():
+    """Покинуть очередь поиска"""
+    try:
+        data = request.get_json()
+        user_id_raw = data.get('user_id')
+        
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw) if user_id_raw else None
+            
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        db.remove_from_search_queue(str(user_id))
+        print(f"✅ Пользователь {user_id} покинул очередь поиска")
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Ошибка выхода из очереди: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/duel/progress/update', methods=['POST'])
+def update_progress():
+    """Обновить прогресс дуэли"""
+    try:
+        data = request.get_json()
+        user_id_raw = data.get('user_id')
+        opponent_id_raw = data.get('opponent_id')
+        current_question = data.get('current_question', 0)
+        user_score = data.get('user_score', 0)
+        
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw) if user_id_raw else None
+            
+        if isinstance(opponent_id_raw, str) and opponent_id_raw.startswith('temp-'):
+            opponent_id = opponent_id_raw
+        else:
+            opponent_id = int(opponent_id_raw) if opponent_id_raw else None
+        
+        if not user_id or not opponent_id:
+            return jsonify({'success': False, 'error': 'user_id and opponent_id required'}), 400
+        
+        db.update_duel_progress(str(user_id), str(opponent_id), current_question, user_score)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Ошибка обновления прогресса: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/duel/progress/get', methods=['POST'])
+def get_progress():
+    """Получить прогресс противника"""
+    try:
+        data = request.get_json()
+        user_id_raw = data.get('user_id')
+        opponent_id_raw = data.get('opponent_id')
+        
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw) if user_id_raw else None
+            
+        if isinstance(opponent_id_raw, str) and opponent_id_raw.startswith('temp-'):
+            opponent_id = opponent_id_raw
+        else:
+            opponent_id = int(opponent_id_raw) if opponent_id_raw else None
+        
+        if not user_id or not opponent_id:
+            return jsonify({'success': False, 'error': 'user_id and opponent_id required'}), 400
+        
+        progress = db.get_opponent_progress(str(user_id), str(opponent_id))
+        
+        if progress:
+            return jsonify({
+                'success': True,
+                'current_question': progress[0],
+                'opponent_score': progress[1]
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'current_question': 0,
+                'opponent_score': 0
+            })
+    except Exception as e:
+        print(f"❌ Ошибка получения прогресса: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/top/players', methods=['GET'])
+def get_top_players():
+    """Получить топ игроков из базы данных"""
+    try:
+        top_users = db.get_top_users(limit=None)  # Получаем всех пользователей
+        
+        print(f"📊 Получено пользователей из БД: {len(top_users)}")
+        
+        players = []
+        for user in top_users:
+            # user может быть с photo_url или без (в зависимости от версии БД)
+            if len(user) >= 8:
+                user_id, username, first_name, photo_url, wins, losses, total_games, win_rate = user
+            else:
+                user_id, username, first_name, wins, losses, total_games, win_rate = user
+                photo_url = None
+            
+            # Логируем для отладки
+            print(f"👤 Пользователь {user_id}: username={username}, first_name={first_name}, photo_url={photo_url}")
+            
+            players.append({
+                'user_id': user_id,
+                'username': username or '',  # Убеждаемся что это не None
+                'first_name': first_name or '',  # Убеждаемся что это не None
+                'photo_url': photo_url or '',  # Убеждаемся что это не None
+                'wins': wins,
+                'losses': losses,
+                'total_games': total_games,
+                'win_rate': win_rate
+            })
+        
+        print(f"✅ Возвращаем {len(players)} игроков")
+        
+        return jsonify({
+            'success': True,
+            'players': players
+        })
+    except Exception as e:
+        print(f"❌ Ошибка получения топа игроков: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    import time
+    return jsonify({
+        'status': 'ok',
+        'timestamp': int(time.time())
+    })
+
+# Vercel требует функцию handler для Serverless Functions
+# Экспортируем app для использования в Vercel
+# Vercel автоматически найдет app и использует его как WSGI приложение
+
