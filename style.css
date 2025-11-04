@@ -595,6 +595,17 @@ body {
   letter-spacing: -0.02em;
 }
 
+.card img,
+.card .qimg {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 12px 0;
+  border-radius: var(--radius-sm);
+  object-fit: contain;
+}
+
 .search-input {
   width: 100%;
   padding: 14px 18px;

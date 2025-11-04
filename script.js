@@ -1330,6 +1330,15 @@ async function uiPenalties(){
      progressText.textContent = `${currentIndex+1}/${d.q.length}`;
    }
 
+   // Показываем подсказку сразу, если ответ неправильный
+   if(!isCorrect && q.tip) {
+     const tipElement = qs("#tip");
+     if(tipElement) {
+       tipElement.style.display = "block";
+       tipElement.textContent = `💡 ${q.tip}`;
+     }
+   }
+
    if(isCorrect){
      // Переходим к следующему вопросу без перерисовки текущего
      State.advanceTimer = setTimeout(()=>{
