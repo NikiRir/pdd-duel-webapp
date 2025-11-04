@@ -151,43 +151,37 @@ body {
 .stat-card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
-  padding: 16px 12px;
+  padding: 18px 12px;
   text-align: center;
   border: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   transition: all var(--transition);
 }
 
 .stat-card:hover {
-  border-color: var(--accent);
-  background: var(--accent-transparent);
+  border-color: rgba(0, 149, 246, 0.7);
+  background: rgba(0, 149, 246, 0.05);
 }
 
 .stat-card-large {
-  padding: 18px 12px;
-  background: rgba(0, 149, 246, 0.08);
-  border-color: rgba(0, 149, 246, 0.7);
-}
-
-.stat-icon {
-  font-size: 20px;
-  line-height: 1;
-  margin-bottom: 4px;
+  padding: 20px 12px;
+  background: rgba(0, 149, 246, 0.06);
+  border-color: rgba(0, 149, 246, 0.5);
 }
 
 .stat-value {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.2;
 }
 
 .stat-card-large .stat-value {
-  font-size: 20px;
-  color: rgba(0, 149, 246, 0.9);
+  font-size: 22px;
+  color: rgba(0, 149, 246, 0.8);
   font-weight: 700;
 }
 
@@ -225,13 +219,13 @@ body {
 }
 
 .nav-btn-primary {
-  background: rgba(0, 149, 246, 0.7);
-  color: white;
-  font-size: 15px;
-  font-weight: 600;
-  text-align: center;
-  justify-content: center;
-  border: none;
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  justify-content: flex-start;
+  border: 1px solid var(--border);
 }
 
 .nav-btn:hover {
@@ -240,7 +234,8 @@ body {
 }
 
 .nav-btn-primary:hover {
-  background: var(--accent-dark);
+  border-color: rgba(0, 149, 246, 0.7);
+  background: var(--accent-transparent);
 }
 
 .nav-btn:active {
@@ -432,8 +427,10 @@ body {
    Субстраницы (старые стили для совместимости)
 ======================= */
 .subpage-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -442,7 +439,7 @@ body {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
-  z-index: 10;
+  z-index: 200;
   flex-shrink: 0;
   overflow: hidden;
   margin: 0;
@@ -493,10 +490,13 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding-top: 50px;
+  margin-top: 0;
 }
 
 .view-content {
   padding: 16px;
+  padding-top: 200px;
   min-height: 200px;
 }
 
@@ -512,7 +512,13 @@ body {
 }
 
 .card h3 {
-  display: none;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  display: block;
 }
 
 .search-input {
@@ -539,9 +545,11 @@ body {
 }
 
 .meta {
-  font-size: 0.875rem;
+  font-size: 12px;
   color: var(--muted);
   margin-bottom: 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
 }
 
 .grid {
@@ -552,14 +560,16 @@ body {
 
 .answer {
   padding: 14px 16px;
-  border-radius: var(--radius-sm);
-  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
   background: var(--bg-card);
   cursor: pointer;
   transition: all var(--transition);
   text-align: left;
-  font-size: 0.9375rem;
+  font-size: 14px;
   font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
 }
 
 .answer:hover {
@@ -585,11 +595,19 @@ body {
 }
 
 .question-tracker {
+  position: fixed;
+  top: 100px;
+  left: 0;
+  right: 0;
   display: flex;
   gap: 8px;
-  padding: 16px;
+  padding: 12px 16px;
   overflow-x: auto;
-  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  z-index: 198;
 }
 
 .tracker-dot {
@@ -627,18 +645,22 @@ body {
 }
 
 .question-progress {
-  position: sticky;
-  top: 0;
-  background: var(--bg-card);
+  position: fixed;
+  top: 50px;
+  left: 0;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  z-index: 10;
+  border-bottom: 1px solid var(--border);
+  z-index: 199;
 }
 
 .question-progress-bar {
   width: 100%;
-  height: 4px;
-  background: rgba(0, 0, 0, 0.1);
+  height: 3px;
+  background: rgba(0, 149, 246, 0.15);
   border-radius: 2px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -646,14 +668,16 @@ body {
 
 .question-progress-bar > div {
   height: 100%;
-  background: var(--gradient-hero);
+  background: rgba(0, 149, 246, 0.7);
   transition: width 0.3s ease;
+  border-radius: 2px;
 }
 
 .question-progress-text {
-  font-size: 0.875rem;
+  font-size: 12px;
   color: var(--muted);
   font-weight: 500;
+  font-family: 'Inter', sans-serif;
 }
 
 /* =======================
