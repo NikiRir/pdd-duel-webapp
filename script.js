@@ -1901,7 +1901,7 @@ const DUEL_SEARCH_KEY = "pdd-duel-search-queue";
 const DUEL_SEARCH_TIMEOUT = 20000; // 20 секунд
 // URL API сервера
 // Для разработки используйте: const API_BASE_URL = "http://localhost:8080";
-const API_BASE_URL = "https://pdd-duel-webapp.onrender.com";  // Продакшен API сервер на Render
+const API_BASE_URL = "https://pdd-duel-webapp.vercel.app";  // Продакшен API сервер на Vercel
 
 function startDuelSearch() {
   // Пробуем получить Telegram ID несколько раз (API может загружаться асинхронно)

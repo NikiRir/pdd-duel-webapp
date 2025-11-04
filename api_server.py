@@ -10,8 +10,8 @@ from flask_cors import CORS
 from database import Database
 
 app = Flask(__name__)
-# Разрешаем CORS для веб-приложения на GitHub Pages
-CORS(app, origins=["https://nikirir.github.io", "http://localhost:*"])  # Разрешаем GitHub Pages и локальную разработку
+# Разрешаем CORS для веб-приложения на GitHub Pages и Vercel
+CORS(app, origins=["https://nikirir.github.io", "https://pdd-duel-webapp.vercel.app", "http://localhost:*"])  # Разрешаем GitHub Pages, Vercel и локальную разработку
 
 db = Database()
 

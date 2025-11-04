@@ -26,12 +26,9 @@ gunicorn api_server:app --bind 0.0.0.0:$PORT
 
 ## После развертывания
 
-✅ **API сервер развернут:** `https://pdd-duel-webapp.onrender.com`
+⚠️ **API сервер перемещен на Vercel:** `https://pdd-duel-webapp.vercel.app`
 
-URL уже обновлен в `script.js`. Если нужно изменить, найдите строку:
-```javascript
-const API_BASE_URL = "https://pdd-duel-webapp.onrender.com";
-```
+См. `VERCEL_SETUP.md` для инструкций по настройке на Vercel.
 
 ## Проверка работы
 

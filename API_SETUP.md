@@ -67,11 +67,11 @@ web: gunicorn -w 4 -b 0.0.0.0:$PORT api_server:app
 
 ## Настройка URL в веб-приложении
 
-✅ **API сервер уже настроен:** `https://pdd-duel-webapp.onrender.com`
+✅ **API сервер уже настроен:** `https://pdd-duel-webapp.vercel.app`
 
 URL обновлен в `script.js`. Если нужно изменить, найдите строку:
 ```javascript
-const API_BASE_URL = "https://pdd-duel-webapp.onrender.com";
+const API_BASE_URL = "https://pdd-duel-webapp.vercel.app";
 ```
 
 **Примечание:** Если API сервер на другом домене, убедитесь, что CORS настроен правильно (в `api_server.py` уже включен `CORS(app)`).
