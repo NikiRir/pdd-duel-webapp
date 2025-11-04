@@ -1998,18 +1998,21 @@ async function addToSearchQueue(userId) {
     
     // Используем API сервер для добавления в очередь
     try {
+      const userIdNum = typeof userId === 'string' && userId.startsWith('temp-') ? userId : parseInt(userId);
       const response = await fetch(`${API_BASE_URL}/api/duel/search/join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ user_id: parseInt(userId) || userId })
+        body: JSON.stringify({ user_id: userIdNum || userId })
       });
       
       if (response.ok) {
-        console.log("✅ Добавлен в очередь поиска через API");
+        const result = await response.json();
+        console.log("✅ Добавлен в очередь поиска через API:", userIdNum, result);
       } else {
-        console.warn("⚠️ Не удалось добавить в очередь через API, используем localStorage");
+        const errorText = await response.text();
+        console.warn("⚠️ Не удалось добавить в очередь через API:", response.status, errorText);
         // Fallback на localStorage
         const queue = getSearchQueue();
         const now = Date.now();
@@ -2087,24 +2090,30 @@ async function checkForOpponent(currentUserId) {
   try {
     // Используем API сервер для поиска противника
     try {
+      const userIdNum = typeof currentUserId === 'string' && currentUserId.startsWith('temp-') ? currentUserId : parseInt(currentUserId);
       const response = await fetch(`${API_BASE_URL}/api/duel/search/check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ user_id: parseInt(currentUserId) || currentUserId })
+        body: JSON.stringify({ user_id: userIdNum || currentUserId })
       });
       
       if (response.ok) {
         const data = await response.json();
+        console.log("🔍 Проверка противника:", userIdNum, "Результат:", data);
         if (data.success && data.found && data.opponent_id) {
           // Найден противник через API!
+          console.log("✅ Противник найден:", data.opponent_id);
           State.duelSearch.opponentId = data.opponent_id;
           State.duelSearch.isBot = false;
           stopDuelSearch();
           startRealDuel(data.opponent_id);
           return;
         }
+      } else {
+        const errorText = await response.text();
+        console.warn("⚠️ Ошибка проверки противника:", response.status, errorText);
       }
     } catch(apiError) {
       console.warn("⚠️ API недоступен, используем localStorage:", apiError);

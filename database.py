@@ -111,15 +111,15 @@ class Database:
         conn.commit()
         conn.close()
     
-    def add_to_search_queue(self, user_id: int):
+    def add_to_search_queue(self, user_id):
         """Добавить пользователя в очередь поиска противника"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Создаем таблицу очереди поиска если её нет
+        # Создаем таблицу очереди поиска если её нет (TEXT для поддержки временных ID)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS duel_search_queue (
-                user_id INTEGER PRIMARY KEY,
+                user_id TEXT PRIMARY KEY,
                 timestamp INTEGER NOT NULL
             )
         """)
@@ -129,34 +129,36 @@ class Database:
         now = int(time.time() * 1000)
         cursor.execute("DELETE FROM duel_search_queue WHERE timestamp < ?", (now - 30000,))
         
-        # Добавляем или обновляем запись
+        # Добавляем или обновляем запись (конвертируем user_id в строку)
+        user_id_str = str(user_id)
         cursor.execute("""
             INSERT OR REPLACE INTO duel_search_queue (user_id, timestamp)
             VALUES (?, ?)
-        """, (user_id, now))
+        """, (user_id_str, now))
         
         conn.commit()
         conn.close()
     
-    def remove_from_search_queue(self, user_id: int):
+    def remove_from_search_queue(self, user_id):
         """Удалить пользователя из очереди поиска"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("DELETE FROM duel_search_queue WHERE user_id = ?", (user_id,))
+        user_id_str = str(user_id)
+        cursor.execute("DELETE FROM duel_search_queue WHERE user_id = ?", (user_id_str,))
         
         conn.commit()
         conn.close()
     
-    def find_opponent(self, user_id: int) -> Optional[int]:
+    def find_opponent(self, user_id):
         """Найти противника для пользователя"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Создаем таблицу если её нет
+        # Создаем таблицу если её нет (TEXT для поддержки временных ID)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS duel_search_queue (
-                user_id INTEGER PRIMARY KEY,
+                user_id TEXT PRIMARY KEY,
                 timestamp INTEGER NOT NULL
             )
         """)
@@ -166,13 +168,14 @@ class Database:
         now = int(time.time() * 1000)
         cursor.execute("DELETE FROM duel_search_queue WHERE timestamp < ?", (now - 30000,))
         
-        # Ищем другого игрока
+        # Ищем другого игрока (конвертируем user_id в строку для сравнения)
+        user_id_str = str(user_id)
         cursor.execute("""
             SELECT user_id FROM duel_search_queue 
             WHERE user_id != ? 
             ORDER BY timestamp DESC 
             LIMIT 1
-        """, (user_id,))
+        """, (user_id_str,))
         
         result = cursor.fetchone()
         conn.close()

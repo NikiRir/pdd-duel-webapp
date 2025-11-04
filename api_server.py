@@ -20,15 +20,25 @@ def join_search():
     """Добавить пользователя в очередь поиска"""
     try:
         data = request.get_json()
-        user_id = int(data.get('user_id'))
+        user_id_raw = data.get('user_id')
+        
+        # Если это временный ID (строка с "temp-"), используем как есть
+        # Если это число, конвертируем в int
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw)
         
         db.add_to_search_queue(user_id)
+        print(f"✅ Пользователь добавлен в очередь: {user_id}")
         
         return jsonify({
             'success': True,
-            'message': 'Добавлен в очередь поиска'
+            'message': 'Добавлен в очередь поиска',
+            'user_id': user_id
         })
     except Exception as e:
+        print(f"❌ Ошибка добавления в очередь: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -39,14 +49,23 @@ def check_opponent():
     """Проверить наличие противника"""
     try:
         data = request.get_json()
-        user_id = int(data.get('user_id'))
+        user_id_raw = data.get('user_id')
+        
+        # Если это временный ID (строка с "temp-"), используем как есть
+        # Если это число, конвертируем в int
+        if isinstance(user_id_raw, str) and user_id_raw.startswith('temp-'):
+            user_id = user_id_raw
+        else:
+            user_id = int(user_id_raw)
         
         opponent_id = db.find_opponent(user_id)
+        print(f"🔍 Проверка противника для {user_id}: {'найден' if opponent_id else 'не найден'} {opponent_id if opponent_id else ''}")
         
         if opponent_id:
             # Удаляем обоих из очереди
             db.remove_from_search_queue(user_id)
             db.remove_from_search_queue(opponent_id)
+            print(f"✅ Противники соединены: {user_id} <-> {opponent_id}")
             
             return jsonify({
                 'success': True,
@@ -59,6 +78,7 @@ def check_opponent():
                 'found': False
             })
     except Exception as e:
+        print(f"❌ Ошибка проверки противника: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
