@@ -423,13 +423,50 @@ function incrementGamesPlayed() {
   saveUserStats();
 }
 
-function updateOnlineCount() {
-  // Симуляция онлайн пользователей (можно заменить на реальный API)
-  const onlineCount = Math.floor(Math.random() * 500) + 100;
-  State.onlineCount = onlineCount;
-  const onlineEl = qs("#online-count");
-  if (onlineEl) {
-    onlineEl.textContent = onlineCount;
+async function updateOnlineCount() {
+  try {
+    // Отправляем ping о том, что пользователь онлайн
+    const userId = TG?.initDataUnsafe?.user?.id || Date.now().toString();
+    const timestamp = Date.now();
+    
+    // Сохраняем наш ping в localStorage
+    const pingKey = `pdd-duel-ping-${userId}`;
+    localStorage.setItem(pingKey, timestamp.toString());
+    
+    // Считаем количество активных пользователей (пинг за последние 5 минут)
+    let activeCount = 0;
+    const now = Date.now();
+    const fiveMinutes = 5 * 60 * 1000;
+    
+    // Проверяем все записи в localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('pdd-duel-ping-')) {
+        const pingTime = parseInt(localStorage.getItem(key) || '0');
+        if (now - pingTime < fiveMinutes) {
+          activeCount++;
+        } else {
+          // Удаляем старые записи
+          localStorage.removeItem(key);
+        }
+      }
+    }
+    
+    // Минимальное значение - хотя бы мы сами
+    if (activeCount === 0) activeCount = 1;
+    
+    State.onlineCount = activeCount;
+    const onlineEl = qs("#online-count");
+    if (onlineEl) {
+      onlineEl.textContent = activeCount;
+    }
+  } catch(e) {
+    console.error("Ошибка обновления онлайн:", e);
+    // Fallback на минимальное значение
+    const onlineEl = qs("#online-count");
+    if (onlineEl) {
+      onlineEl.textContent = "1";
+    }
   }
   
   // Обновляем каждые 30 секунд
