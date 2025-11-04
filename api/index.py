@@ -206,6 +206,38 @@ def get_top_players():
             'error': str(e)
         }), 400
 
+@app.route('/api/users/register', methods=['POST'])
+def register_user():
+    """Регистрация пользователя из бота"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        username = data.get('username')
+        first_name = data.get('first_name')
+        photo_url = data.get('photo_url')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id required'}), 400
+        
+        # Преобразуем user_id в int если это не строка
+        if isinstance(user_id, str) and not user_id.startswith('temp-'):
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                pass
+        
+        # Используем Database напрямую для регистрации пользователя
+        db.get_or_create_user(user_id, username, first_name, photo_url)
+        
+        print(f"✅ Пользователь {user_id} зарегистрирован через API: username={username}, first_name={first_name}, photo_url={photo_url}")
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Ошибка регистрации пользователя: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""

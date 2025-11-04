@@ -55,15 +55,39 @@ async def cmd_start(message: Message):
     except Exception as e:
         logging.warning(f"⚠️ Не удалось получить фото пользователя {user_id}: {e}")
     
-    # Сохраняем/обновляем пользователя в базе данных
-    logging.info(f"💾 Сохранение пользователя в БД: ID={user_id}, username={username}, first_name={first_name}, photo_url={photo_url}")
+    # Сохраняем/обновляем пользователя в локальной БД
+    logging.info(f"💾 Сохранение пользователя в локальной БД: ID={user_id}, username={username}, first_name={first_name}, photo_url={photo_url}")
     user = db.get_or_create_user(
         user_id, 
         username, 
         first_name,
         photo_url
     )
-    logging.info(f"✅ Пользователь {user_id} сохранен в БД")
+    logging.info(f"✅ Пользователь {user_id} сохранен в локальной БД")
+    
+    # Также регистрируем пользователя в API сервере (Vercel)
+    try:
+        import aiohttp
+        api_url = os.getenv("API_BASE_URL", "https://pdd-duel-webapp.vercel.app")
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{api_url}/api/users/register",
+                json={
+                    'user_id': user_id,
+                    'username': username,
+                    'first_name': first_name,
+                    'photo_url': photo_url
+                },
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status == 200:
+                    logging.info(f"✅ Пользователь {user_id} зарегистрирован в API сервере")
+                else:
+                    error_text = await response.text()
+                    logging.warning(f"⚠️ Не удалось зарегистрировать пользователя {user_id} в API: {response.status} - {error_text}")
+    except Exception as e:
+        logging.warning(f"⚠️ Ошибка регистрации пользователя в API: {e}")
     
     welcome_text = f"""🚗 Привет, {message.from_user.first_name or 'друг'}!
 

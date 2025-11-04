@@ -3,8 +3,18 @@ import os
 from typing import Optional, List, Tuple
 
 class Database:
-    def __init__(self, db_path: str = "pdd_duel.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        # Для Vercel используем /tmp директорию (эпиhemeral, но работает для запроса)
+        # Для продакшена лучше использовать внешнюю БД
+        if db_path is None:
+            import os
+            if os.environ.get('VERCEL'):
+                # На Vercel используем /tmp
+                self.db_path = "/tmp/pdd_duel.db"
+            else:
+                self.db_path = "pdd_duel.db"
+        else:
+            self.db_path = db_path
         self.init_db()
     
     def get_connection(self):
