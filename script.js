@@ -1985,11 +1985,58 @@ async function uiTopPlayers(){
     </div>
   `, { subpage: true, title: "Топ игроков" });
   
+  // Принудительно регистрируем текущего пользователя в API перед загрузкой топа
+  const currentUserId = getTelegramUserId();
+  if (currentUserId) {
+    console.log("🔄 Принудительная регистрация пользователя перед загрузкой топа:", currentUserId);
+    try {
+      // Пробуем зарегистрировать пользователя, но не ждем результата
+      registerUserInAPI().catch(e => {
+        console.warn("⚠️ Ошибка принудительной регистрации:", e);
+      });
+    } catch(e) {
+      console.warn("⚠️ Ошибка принудительной регистрации:", e);
+    }
+  }
+  
+  // Небольшая задержка для регистрации
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
   // Просто запрашиваем данные из API
   let players = [];
   try {
     players = await getAllPlayersTopData();
     console.log(`✅ Получено ${players.length} игроков из API`);
+    
+    // Проверяем, есть ли текущий пользователь в топе
+    if (currentUserId) {
+      const userIdNum = typeof currentUserId === 'string' ? parseInt(currentUserId, 10) : currentUserId;
+      const userInTop = players.find(p => {
+        const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
+        return pUserId === userIdNum;
+      });
+      
+      if (!userInTop) {
+        console.warn("⚠️ Текущий пользователь не найден в топе. Проверяем настройки...");
+        // Проверяем настройки hide_from_top
+        const settingsKey = `pdd-duel-settings-${currentUserId}`;
+        const settings = localStorage.getItem(settingsKey);
+        if (settings) {
+          try {
+            const userSettings = JSON.parse(settings);
+            if (userSettings.hideFromTop) {
+              console.warn("⚠️ У пользователя включена настройка hideFromTop");
+            } else {
+              console.warn("⚠️ У пользователя НЕ включена настройка hideFromTop, но его нет в топе. Возможно, он не зарегистрирован в API.");
+            }
+          } catch(e) {
+            console.warn("⚠️ Ошибка парсинга настроек:", e);
+          }
+        }
+      } else {
+        console.log("✅ Текущий пользователь найден в топе");
+      }
+    }
   } catch(e) {
     console.error("❌ Ошибка загрузки топа из API:", e);
     // Если API не работает, пробуем использовать кэш
