@@ -163,9 +163,13 @@ async function registerUserInAPI() {
       
       if (data.success) {
         console.log("✅ Пользователь успешно зарегистрирован в API:", userId);
+        // Сохраняем пользователя в локальный кэш топа
+        savePlayerToLocalCache(userId, user.username, user.firstName, user.photoUrl || photoUrl);
         toast("✅ Регистрация в API успешна", 2000);
       } else {
         console.error("❌ API вернул ошибку при регистрации:", data.error);
+        // Даже при ошибке API сохраняем пользователя локально
+        savePlayerToLocalCache(userId, user.username, user.firstName, user.photoUrl || photoUrl);
         toast(`⚠️ Ошибка регистрации: ${data.error}`, 3000);
       }
     } else {
@@ -175,13 +179,103 @@ async function registerUserInAPI() {
         statusText: response.statusText,
         errorText: errorText
       });
+      // Даже при ошибке API сохраняем пользователя локально
+      savePlayerToLocalCache(userId, user.username, user.firstName, user.photoUrl || photoUrl);
       toast(`⚠️ Ошибка регистрации: ${response.status}`, 3000);
     }
   } catch(e) {
     console.error("❌ Критическая ошибка при регистрации пользователя в API:", e);
     console.error("❌ Stack trace:", e.stack);
+    // Даже при ошибке сохраняем пользователя локально
+    const user = getTelegramUser();
+    if (user) {
+      savePlayerToLocalCache(user.id, user.username, user.firstName, user.photoUrl);
+    }
     toast(`⚠️ Ошибка регистрации: ${e.message}`, 3000);
     // Не блокируем загрузку приложения при ошибке регистрации
+  }
+}
+
+// Сохраняет игрока в локальный кэш топа
+function savePlayerToLocalCache(userId, username, firstName, photoUrl) {
+  try {
+    const key = "pdd-duel-top-players-cache";
+    let players = [];
+    
+    // Загружаем существующий кэш
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try {
+        players = JSON.parse(cached);
+      } catch(e) {
+        console.warn("⚠️ Ошибка парсинга кэша игроков:", e);
+        players = [];
+      }
+    }
+    
+    // Ищем игрока в кэше
+    const userIdNum = typeof userId === 'string' ? parseInt(userId, 10) : userId;
+    const existingIndex = players.findIndex(p => {
+      const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
+      return pUserId === userIdNum;
+    });
+    
+    const playerData = {
+      userId: userIdNum,
+      username: username || '',
+      firstName: firstName || '',
+      lastName: '',
+      photoUrl: photoUrl || null,
+      hideUsername: false,
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+      winRate: 0,
+      experience: 0,
+      level: 1,
+      lastUpdate: Date.now()
+    };
+    
+    if (existingIndex >= 0) {
+      // Обновляем существующего игрока
+      players[existingIndex] = { ...players[existingIndex], ...playerData };
+    } else {
+      // Добавляем нового игрока
+      players.push(playerData);
+    }
+    
+    // Сохраняем обновленный кэш
+    localStorage.setItem(key, JSON.stringify(players));
+    console.log("✅ Игрок сохранен в локальный кэш:", userIdNum);
+  } catch(e) {
+    console.error("❌ Ошибка сохранения игрока в локальный кэш:", e);
+  }
+}
+
+// Загружает игроков из локального кэша
+function getPlayersFromLocalCache() {
+  try {
+    const key = "pdd-duel-top-players-cache";
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      const players = JSON.parse(cached);
+      console.log(`📦 Загружено ${players.length} игроков из локального кэша`);
+      return players;
+    }
+  } catch(e) {
+    console.warn("⚠️ Ошибка загрузки игроков из локального кэша:", e);
+  }
+  return [];
+}
+
+// Сохраняет список игроков в локальный кэш
+function savePlayersToLocalCache(players) {
+  try {
+    const key = "pdd-duel-top-players-cache";
+    localStorage.setItem(key, JSON.stringify(players));
+    console.log(`✅ Сохранено ${players.length} игроков в локальный кэш`);
+  } catch(e) {
+    console.error("❌ Ошибка сохранения игроков в локальный кэш:", e);
   }
 }
  
@@ -1041,8 +1135,13 @@ function saveUserTopData() {
   }
 }
 
-// Собирает данные всех игроков для топа ТОЛЬКО из базы данных бота (API)
+// Собирает данные всех игроков для топа из API с fallback на локальный кэш
 async function getAllPlayersTopData() {
+  // Сначала загружаем из локального кэша для быстрого отображения
+  const cachedPlayers = getPlayersFromLocalCache();
+  console.log(`📦 Загружено ${cachedPlayers.length} игроков из локального кэша`);
+  
+  // Пробуем обновить из API в фоне
   try {
     console.log("🔍 Запрос топа игроков с API:", `${API_BASE_URL}/api/top/players`);
     
@@ -1118,14 +1217,19 @@ async function getAllPlayersTopData() {
         firstName: player.first_name || '',  // Убеждаемся что это не null/undefined
         lastName: '',
         photoUrl: (player.photo_url && player.photo_url.trim() && player.photo_url !== 'null') ? player.photo_url.trim() : null, // Фото из базы данных
+        hideUsername: player.hide_username || false, // Настройка скрытия юзернейма из сервера
         gamesPlayed: player.total_games || 0,
         wins: player.wins || 0,
         losses: player.losses || 0,
         winRate: player.win_rate || 0,
         experience: 0,
-        level: 1
+        level: 1,
+        lastUpdate: Date.now()
       };
     });
+    
+    // Сохраняем обновленные данные в локальный кэш
+    savePlayersToLocalCache(players);
     
     // Проверяем настройки "Скрыть из топа" из localStorage для текущего пользователя
     const currentUserId = getTelegramUserId();
@@ -1175,7 +1279,14 @@ async function getAllPlayersTopData() {
       stack: apiError.stack,
       name: apiError.name
     });
-    // Пробрасываем ошибку дальше для обработки в uiTopPlayers
+    
+    // Если есть кэшированные данные, возвращаем их вместо ошибки
+    if (cachedPlayers.length > 0) {
+      console.log(`⚠️ Используем локальный кэш (${cachedPlayers.length} игроков) вместо API`);
+      return cachedPlayers;
+    }
+    
+    // Если кэша нет, пробрасываем ошибку
     throw apiError;
   }
 }
