@@ -49,6 +49,12 @@ class Database:
         except sqlite3.OperationalError:
             pass  # Колонка уже существует
         
+        # Добавляем колонку hide_from_top если её нет (для существующих баз)
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN hide_from_top INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass  # Колонка уже существует
+        
         # Таблица игр
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS games (
@@ -80,7 +86,7 @@ class Database:
         if not user:
             # Создаем нового пользователя
             cursor.execute(
-                "INSERT INTO users (user_id, username, first_name, photo_url, hide_username) VALUES (?, ?, ?, ?, 0)",
+                "INSERT INTO users (user_id, username, first_name, photo_url, hide_username, hide_from_top) VALUES (?, ?, ?, ?, 0, 0)",
                 (user_id, username, first_name, photo_url)
             )
             conn.commit()
@@ -107,9 +113,11 @@ class Database:
             )
             conn.commit()
         elif setting_name == 'hide_from_top':
-            # Для hide_from_top можно использовать отдельную колонку или хранить в JSON
-            # Пока используем hide_username как пример
-            pass
+            cursor.execute(
+                "UPDATE users SET hide_from_top = ? WHERE user_id = ?",
+                (1 if setting_value else 0, user_id)
+            )
+            conn.commit()
         
         conn.close()
         return True

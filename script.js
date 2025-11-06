@@ -785,6 +785,29 @@ function saveUserSettings() {
           console.warn("⚠️ Ошибка отправки настройки на сервер:", e);
         });
       }
+      
+      // Отправляем hide_from_top на сервер
+      if (State.settings.hideFromTop !== undefined) {
+        fetch(`${API_BASE_URL}/api/users/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            setting_name: 'hide_from_top',
+            setting_value: State.settings.hideFromTop || false
+          })
+        }).then(response => {
+          if (response.ok) {
+            console.log("✅ Настройка hide_from_top сохранена на сервере");
+          } else {
+            console.warn("⚠️ Не удалось сохранить настройку hide_from_top на сервере:", response.status);
+          }
+        }).catch(e => {
+          console.warn("⚠️ Ошибка отправки настройки hide_from_top на сервер:", e);
+        });
+      }
     }
   } catch(e) {
     console.error("Ошибка сохранения настроек:", e);
