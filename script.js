@@ -464,21 +464,32 @@ window.handleRegistrationSubmit = async function(e) {
     console.log("📤 globalAvatarDataUrl:", globalAvatarDataUrl);
     
     // Регистрируем пользователя с nickname и avatar
-    await registerUserWithNickname(nickname, globalAvatarDataUrl);
+    console.log("⏳ Вызываем registerUserWithNickname...");
+    const result = await registerUserWithNickname(nickname, globalAvatarDataUrl);
+    console.log("✅ registerUserWithNickname вернул:", result);
     
     console.log("✅ Регистрация успешна");
     
+    // Небольшая задержка для плавности
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
     // Скрываем экран регистрации
+    console.log("🔍 Скрываем экраны регистрации...");
     if (screen1) {
       screen1.classList.add("hidden");
       console.log("✅ screen1 скрыт");
+    } else {
+      console.warn("⚠️ screen1 не найден");
     }
     if (screen2) {
       screen2.classList.add("hidden");
       console.log("✅ screen2 скрыт");
+    } else {
+      console.warn("⚠️ screen2 не найден");
     }
     
     // Показываем основное приложение
+    console.log("🔍 Показываем основное приложение...");
     const app = document.querySelector(".app");
     console.log("🔍 app:", app);
     if (app) {
@@ -486,24 +497,44 @@ window.handleRegistrationSubmit = async function(e) {
       console.log("✅ app показан");
     } else {
       console.error("❌ app не найден!");
+      // Попробуем найти альтернативные селекторы
+      const appAlt = document.querySelector("#app") || document.querySelector(".main-app");
+      if (appAlt) {
+        appAlt.style.display = "flex";
+        console.log("✅ app найден по альтернативному селектору");
+      }
     }
     
     toast("✅ Профиль создан!", 2000);
+    
+    // Перезагружаем данные приложения
+    console.log("🔄 Перезагружаем данные приложения...");
+    if (typeof backgroundLoad === 'function') {
+      backgroundLoad();
+    } else if (typeof loadAppData === 'function') {
+      loadAppData();
+    }
   } catch(error) {
     console.error("❌ Ошибка регистрации:", error);
     console.error("❌ Stack:", error.stack);
+    console.error("❌ Error name:", error.name);
+    console.error("❌ Error message:", error.message);
     
     // Если nickname занят, показываем предложения
     if (error.suggestions && suggestionsDiv) {
+      console.log("📝 Показываем предложения nickname");
       showNicknameSuggestions(error.suggestions);
     } else {
-      toast(`❌ Ошибка: ${error.message}`, 3000);
+      const errorMsg = error.message || "Неизвестная ошибка";
+      console.error("❌ Показываем ошибку пользователю:", errorMsg);
+      toast(`❌ Ошибка: ${errorMsg}`, 3000);
     }
     
     // Включаем кнопку обратно
     if (continueBtn) {
       continueBtn.disabled = false;
       continueBtn.textContent = "Продолжить";
+      console.log("✅ Кнопка включена обратно");
     }
   }
 };
@@ -765,34 +796,54 @@ async function registerUserWithNickname(nickname, avatarDataUrl) {
   };
   
   console.log("📤 Регистрация с nickname:", registrationData);
+  console.log("📤 URL:", `${API_BASE_URL}/api/users/register`);
   
-  const response = await fetch(`${API_BASE_URL}/api/users/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(registrationData)
-  });
+  let response;
+  try {
+    console.log("⏳ Отправляем запрос на сервер...");
+    response = await fetch(`${API_BASE_URL}/api/users/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(registrationData)
+    });
+    console.log("✅ Получен ответ от сервера:", response.status, response.statusText);
+  } catch (fetchError) {
+    console.error("❌ Ошибка сети при регистрации:", fetchError);
+    throw new Error(`Ошибка сети: ${fetchError.message}`);
+  }
+  
+  let responseData;
+  try {
+    responseData = await response.json();
+    console.log("✅ Данные ответа:", responseData);
+  } catch (jsonError) {
+    console.error("❌ Ошибка парсинга JSON:", jsonError);
+    const text = await response.text().catch(() => 'Не удалось прочитать ответ');
+    console.error("❌ Текст ответа:", text);
+    throw new Error(`Ошибка сервера: ${response.status} - ${text}`);
+  }
   
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    if (data.error === 'nickname_taken' && data.suggestions) {
-      const error = new Error(data.message || "Этот псевдоним уже занят");
-      error.suggestions = data.suggestions;
+    console.error("❌ Сервер вернул ошибку:", response.status, responseData);
+    if (responseData.error === 'nickname_taken' && responseData.suggestions) {
+      const error = new Error(responseData.message || "Этот псевдоним уже занят");
+      error.suggestions = responseData.suggestions;
       throw error;
     }
-    const errorText = data.error || await response.text().catch(() => 'Не удалось прочитать ошибку');
+    const errorText = responseData.error || responseData.message || 'Неизвестная ошибка';
     throw new Error(`Ошибка регистрации: ${response.status} - ${errorText}`);
   }
   
-  const data = await response.json();
-  if (!data.success) {
-    if (data.error === 'nickname_taken' && data.suggestions) {
-      const error = new Error(data.message || "Этот псевдоним уже занят");
-      error.suggestions = data.suggestions;
+  if (!responseData.success) {
+    console.error("❌ Сервер вернул success: false", responseData);
+    if (responseData.error === 'nickname_taken' && responseData.suggestions) {
+      const error = new Error(responseData.message || "Этот псевдоним уже занят");
+      error.suggestions = responseData.suggestions;
       throw error;
     }
-    throw new Error(data.error || "Ошибка регистрации");
+    throw new Error(responseData.error || responseData.message || "Ошибка регистрации");
   }
   
   // Сохраняем nickname в localStorage
@@ -805,6 +856,7 @@ async function registerUserWithNickname(nickname, avatarDataUrl) {
   }));
   
   console.log("✅ Пользователь зарегистрирован с nickname:", nickname);
+  return { success: true, nickname, userId };
 }
 
 async function boot(){
