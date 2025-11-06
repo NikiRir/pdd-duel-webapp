@@ -94,6 +94,7 @@ function getStorageKey(baseKey) {
    // Статистика
    stats: {
      gamesPlayed: 0,
+     ticketsSolved: 0,
      experience: 0,
      level: 1,
      topPlace: null,
@@ -105,7 +106,8 @@ function getStorageKey(baseKey) {
    settings: {
      showDifficulty: false,
      hideCompletedTickets: false,
-     hideFromTop: false
+     hideFromTop: false,
+     hideUsername: false
    },
    // Глобальная статистика по билетам для расчета сложности
    ticketsDifficultyStats: {},
@@ -496,6 +498,7 @@ function loadUserStats() {
       const stats = JSON.parse(saved);
       State.stats = {
         gamesPlayed: stats.gamesPlayed || 0,
+        ticketsSolved: stats.ticketsSolved || 0,
         experience: stats.experience || 0,
         level: stats.level || 1,
         topPlace: stats.topPlace || null,
@@ -705,8 +708,7 @@ async function updateStatsDisplay() {
       gamesEl.textContent = State.stats.gamesPlayed;
       if (gamesLabelEl) gamesLabelEl.textContent = "игр сыграно";
     } else {
-      const ticketsCompleted = getTicketsCompletedCount();
-      gamesEl.textContent = ticketsCompleted;
+      gamesEl.textContent = State.stats.ticketsSolved;
       if (gamesLabelEl) gamesLabelEl.textContent = "билетов решено";
     }
   }
@@ -1575,6 +1577,7 @@ async function fetchJson(url){
 ======================= */
 function uiMainSettings(){
   const hideFromTop = State.settings.hideFromTop || false;
+  const hideUsername = State.settings.hideUsername || false;
   
   setView(`
     <div class="card">
@@ -1586,6 +1589,13 @@ function uiMainSettings(){
           </div>
           <input type="checkbox" id="setting-hide-from-top" ${hideFromTop ? 'checked' : ''} style="position: absolute; opacity: 0; pointer-events: none;" />
         </label>
+        <label style="display: flex; align-items: center; justify-content: space-between; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; background: var(--bg-card); transition: all var(--transition);" for="setting-hide-username" class="settings-toggle-label-username">
+          <span style="font-weight: 500; font-size: 15px; color: var(--text);">Скрыть юзернейм</span>
+          <div style="position: relative; width: 48px; height: 26px; background: ${hideUsername ? 'var(--accent)' : 'var(--border)'}; border-radius: 13px; transition: all var(--transition); cursor: pointer;">
+            <div style="position: absolute; top: 2px; left: ${hideUsername ? '24px' : '2px'}; width: 22px; height: 22px; background: white; border-radius: 50%; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+          </div>
+          <input type="checkbox" id="setting-hide-username" ${hideUsername ? 'checked' : ''} style="position: absolute; opacity: 0; pointer-events: none;" />
+        </label>
       </div>
     </div>
   `, { subpage: true, title: "Настройки" });
@@ -1593,6 +1603,8 @@ function uiMainSettings(){
   scheduleFrame(() => {
     const checkbox = qs("#setting-hide-from-top");
     const label = qs(".settings-toggle-label-main");
+    const checkboxUsername = qs("#setting-hide-username");
+    const labelUsername = qs(".settings-toggle-label-username");
     
     if (checkbox && label) {
       label.addEventListener("click", (e) => {
@@ -1603,14 +1615,31 @@ function uiMainSettings(){
         saveUserSettings();
         
         const toggle = label.querySelector("div > div");
-        const bg = label.querySelector("div");
-        if (toggle && bg) {
+        const toggleBg = label.querySelector("div");
+        if (toggle && toggleBg) {
           toggle.style.left = checkbox.checked ? '24px' : '2px';
-          bg.style.background = checkbox.checked ? 'var(--accent)' : 'var(--border)';
+          toggleBg.style.background = checkbox.checked ? 'var(--accent)' : 'var(--border)';
         }
         
         // Обновляем место в топе
         updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
+      }, { passive: true });
+    }
+    
+    if (checkboxUsername && labelUsername) {
+      labelUsername.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        checkboxUsername.checked = !checkboxUsername.checked;
+        State.settings.hideUsername = checkboxUsername.checked;
+        saveUserSettings();
+        
+        const toggle = labelUsername.querySelector("div > div");
+        const toggleBg = labelUsername.querySelector("div");
+        if (toggle && toggleBg) {
+          toggle.style.left = checkboxUsername.checked ? '24px' : '2px';
+          toggleBg.style.background = checkboxUsername.checked ? 'var(--accent)' : 'var(--border)';
+        }
       }, { passive: true });
     }
   });
@@ -1658,7 +1687,16 @@ async function uiTopPlayers(){
   
   const currentUserId = getTelegramUserId();
   
-  const playersHtml = players.map((player, index) => {
+  // Проверяем настройки для текущего пользователя
+  const hideFromTop = State.settings.hideFromTop || false;
+  const hideUsername = State.settings.hideUsername || false;
+  
+  // Фильтруем игроков, если текущий пользователь полностью скрыт из топа
+  const filteredPlayers = hideFromTop && currentUserId 
+    ? players.filter(p => p.userId !== currentUserId)
+    : players;
+  
+  const playersHtml = filteredPlayers.map((player, index) => {
     const isCurrentUser = currentUserId && player.userId === currentUserId;
     const place = index + 1;
     const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : place === 3 ? '🥉' : `${place}.`;
@@ -1673,17 +1711,34 @@ async function uiTopPlayers(){
     });
     
     let displayName = '';
-    // Проверяем username (может быть пустой строкой)
-    if (player.username && player.username.trim()) {
-      displayName = `@${player.username.trim()}`;
-    } else if (player.firstName && player.firstName.trim()) {
-      // Если нет username, используем first_name
-      displayName = player.firstName.trim();
+    // Если это текущий пользователь и включена опция "Скрыть юзернейм", не показываем @username
+    const shouldHideUsername = isCurrentUser && hideUsername;
+    
+    if (shouldHideUsername) {
+      // Скрываем юзернейм - показываем только first_name или "User"
+      if (player.firstName && player.firstName.trim()) {
+        displayName = player.firstName.trim();
+      } else {
+        displayName = "User";
+      }
     } else {
-      // Если нет никаких данных, используем ID
-      displayName = `ID: ${player.userId}`;
-      console.warn("⚠️ Нет данных пользователя для ID:", player.userId);
+      // Обычная логика отображения имени
+      if (player.username && player.username.trim()) {
+        displayName = `@${player.username.trim()}`;
+      } else if (player.firstName && player.firstName.trim()) {
+        // Если нет username, используем first_name
+        displayName = player.firstName.trim();
+      } else {
+        // Если нет никаких данных, используем ID
+        displayName = `ID: ${player.userId}`;
+        console.warn("⚠️ Нет данных пользователя для ID:", player.userId);
+      }
     }
+    
+    // Формируем ссылку на профиль пользователя (только если юзернейм не скрыт)
+    const profileLink = !shouldHideUsername && player.username && player.username.trim() 
+      ? `https://t.me/${player.username.trim()}`
+      : null;
     
     return `
       <div class="card" style="${isCurrentUser ? 'border: 2px solid var(--accent); background: rgba(0, 149, 246, 0.05);' : ''}">
@@ -1697,7 +1752,9 @@ async function uiTopPlayers(){
             ${displayName.charAt(0).toUpperCase()}
           </div>
           <div style="flex: 1; min-width: 0;">
-            <div style="font-weight: 600; font-size: 15px; color: var(--text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${esc(displayName)}${isCurrentUser ? ' (Вы)' : ''}</div>
+            <div style="font-weight: 600; font-size: 15px; color: var(--text); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${profileLink ? `<a href="${esc(profileLink)}" target="_blank" style="color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent);">${esc(displayName)}</a>` : esc(displayName)}${isCurrentUser ? ' (Вы)' : ''}
+            </div>
             <div style="display: flex; gap: 16px; font-size: 13px; color: var(--muted);">
               <span>Винрейт: <strong style="color: var(--text);">${player.winRate || 0}%</strong></span>
               <span>Побед: <strong style="color: var(--text);">${player.wins || 0}</strong></span>
@@ -2704,6 +2761,28 @@ async function syncDuelProgress() {
      </div>
      ${controls}
    `, { subpage: true, title: headerTitle });
+   
+   // Прокручиваем индикатор вопросов к текущему вопросу
+   setTimeout(() => {
+     const tracker = qs(".question-tracker");
+     const currentDot = qs(`.tracker-dot[data-question="${d.i}"]`);
+     if (tracker && currentDot) {
+       const trackerRect = tracker.getBoundingClientRect();
+       const dotRect = currentDot.getBoundingClientRect();
+       const scrollLeft = tracker.scrollLeft;
+       const dotLeft = dotRect.left - trackerRect.left + scrollLeft;
+       const dotWidth = dotRect.width;
+       const trackerWidth = trackerRect.width;
+       
+       // Прокручиваем так, чтобы текущий вопрос был виден
+       const targetScroll = dotLeft - (trackerWidth / 2) + (dotWidth / 2);
+       tracker.scrollTo({
+         left: Math.max(0, targetScroll),
+         behavior: 'smooth'
+       });
+     }
+   }, 100);
+   
    State.lock = false;
  }
  
@@ -2875,24 +2954,35 @@ async function syncDuelProgress() {
      saveTicketProgress(d.ticketLabel, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
      // Обновляем статистику сложности билета
      updateTicketDifficultyStats(d.ticketLabel, d.me, d.q.length);
+     // Увеличиваем счетчик решенных билетов
+     if (!State.stats.ticketsSolved) State.stats.ticketsSolved = 0;
+     State.stats.ticketsSolved++;
+     saveUserStats();
    } else if (d.mode === "topic" && d.topic) {
      const questionOrder = d.q.map((q) => q.question || q.text || JSON.stringify(q));
      saveTopicProgress(d.topic, d.me, d.q.length, d.q.length, d.q.length, d.answers, questionOrder);
    }
    
-   // Обновляем статистику ТОЛЬКО если это не игра против бота
+   // Обновляем статистику ТОЛЬКО если это дуэль (не билет и не тема)
    let expGain = 0;
-   if (!isBot) {
-     // Против реального игрока - засчитываем в топ
-     incrementGamesPlayed();
-     const correctPercent = (d.me / d.q.length) * 100;
-     // Начисляем опыт: 10 очков за игру + бонус за правильные ответы
-     expGain = 10 + Math.floor(correctPercent / 10);
-     addExperience(expGain);
+   if (d.mode === "duel") {
+     if (!isBot) {
+       // Против реального игрока - засчитываем в топ
+       incrementGamesPlayed();
+       const correctPercent = (d.me / d.q.length) * 100;
+       // Начисляем опыт: 10 очков за игру + бонус за правильные ответы
+       expGain = 10 + Math.floor(correctPercent / 10);
+       addExperience(expGain);
+     } else {
+       // Для игры против бота только опыт, но не засчитываем в статистику для топа
+       const correctPercent = (d.me / d.q.length) * 100;
+       expGain = 5 + Math.floor(correctPercent / 10); // Меньше опыта за бота
+       addExperience(expGain);
+     }
    } else {
-     // Для игры против бота только опыт, но не засчитываем в статистику для топа
+     // Для билетов и тем начисляем только опыт
      const correctPercent = (d.me / d.q.length) * 100;
-     expGain = 5 + Math.floor(correctPercent / 10); // Меньше опыта за бота
+     expGain = 5 + Math.floor(correctPercent / 10);
      addExperience(expGain);
    }
    
@@ -2900,16 +2990,25 @@ async function syncDuelProgress() {
    const botNotice = isBot ? '<p style="color: var(--muted); font-size: 12px; margin-top: 8px;">⚠️ Игра против робота не засчитывается в топ</p>' : '';
    const opponentType = isBot ? '<p style="color: var(--muted); font-size: 12px;">🤖 Против робота</p>' : '<p style="color: var(--accent); font-size: 12px;">⚔️ Против игрока</p>';
    
+   const isExcellent = d.me >= Math.ceil(d.q.length * 0.6);
+   const resultIcon = isExcellent ? "🏆" : "✅";
+   const resultTitle = isExcellent ? "Отлично!" : "Завершено";
+   const resultColor = isExcellent ? "#10b981" : "var(--accent)";
+   
    setView(`
-     <div class="card">
-       <h3>${d.me>=Math.ceil(d.q.length*0.6)?"🏆 Отлично!":"🏁 Завершено"}</h3>
-       <p>Верных: <b>${d.me}</b> из ${d.q.length}</p>
+     <div class="card" style="text-align: center; padding: 32px 24px;">
+       <div style="font-size: 64px; margin-bottom: 16px;">${resultIcon}</div>
+       <h2 style="font-size: 28px; font-weight: 700; color: ${resultColor}; margin-bottom: 12px;">${resultTitle}</h2>
+       <p style="font-size: 18px; color: var(--text); margin-bottom: 8px;">Верных: <strong style="color: ${resultColor}; font-size: 20px;">${d.me}</strong> из ${d.q.length}</p>
        ${opponentType}
-       <p style="color: var(--accent); margin-top: 8px;">+${expGain} опыта</p>
+       <div style="margin: 20px 0; padding: 16px; background: linear-gradient(135deg, rgba(0, 149, 246, 0.1) 0%, rgba(0, 149, 246, 0.05) 100%); border-radius: var(--radius-md); border: 1px solid var(--border);">
+         <p style="font-size: 14px; color: var(--muted); margin-bottom: 4px;">Получено опыта</p>
+         <p style="font-size: 24px; font-weight: 700; color: var(--accent);">+${expGain}</p>
+       </div>
        ${botNotice}
-       <div class="grid two" style="margin-top:10px">
-         <button class="btn btn-primary" id="again">Ещё раз</button>
-         <button class="btn" id="home">На главную</button>
+       <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 24px;">
+         <button class="btn btn-primary" id="again" style="background: var(--gradient-hero); color: white; border: none; padding: 14px 24px; font-size: 16px; font-weight: 600; border-radius: var(--radius-md); box-shadow: var(--shadow-md); transition: all var(--transition);">🔄 Ещё раз</button>
+         <button class="btn" id="home" style="background: var(--bg-card); color: var(--text); border: 2px solid var(--border); padding: 14px 24px; font-size: 16px; font-weight: 600; border-radius: var(--radius-md); transition: all var(--transition);">🏠 На главную</button>
        </div>
      </div>
    `, { subpage: true, title: headerTitle });
