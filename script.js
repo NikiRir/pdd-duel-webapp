@@ -51,18 +51,30 @@ function getTelegramUserId() {
 // Получаем данные пользователя из Telegram
 function getTelegramUser() {
   try {
+    console.log("🔍 getTelegramUser() вызвана");
+    console.log("🔍 TG объект:", TG);
+    console.log("🔍 TG?.initDataUnsafe:", TG?.initDataUnsafe);
+    console.log("🔍 TG?.initData:", TG?.initData);
+    
     const user = TG?.initDataUnsafe?.user || TG?.initData?.user || null;
+    console.log("🔍 Найденный user объект:", user);
+    
     if (user) {
-      return {
+      const userData = {
         id: user.id,
         username: user.username || `User${user.id}`,
         firstName: user.first_name || '',
         lastName: user.last_name || '',
         photoUrl: user.photo_url || null
       };
+      console.log("✅ getTelegramUser() вернула данные:", userData);
+      return userData;
     }
+    
+    console.warn("⚠️ getTelegramUser() не нашла данные пользователя");
     return null;
   } catch(e) {
+    console.error("❌ Ошибка в getTelegramUser():", e);
     return null;
   }
 }
@@ -78,15 +90,34 @@ function getStorageKey(baseKey) {
 
 // Регистрирует пользователя в API сервере
 async function registerUserInAPI() {
+  console.log("🚀 registerUserInAPI() вызвана");
+  
   try {
+    // Проверяем доступность Telegram WebApp
+    console.log("📱 Проверка Telegram WebApp:", {
+      TG_exists: !!TG,
+      initDataUnsafe: !!TG?.initDataUnsafe,
+      initData: !!TG?.initData
+    });
+    
     const user = getTelegramUser();
+    console.log("👤 Данные пользователя из getTelegramUser():", user);
+    
     if (!user) {
-      console.warn("⚠️ Не удалось получить данные пользователя из Telegram");
+      console.error("❌ Не удалось получить данные пользователя из Telegram");
+      console.error("❌ TG объект:", TG);
+      console.error("❌ TG.initDataUnsafe:", TG?.initDataUnsafe);
+      console.error("❌ TG.initData:", TG?.initData);
       return;
     }
     
     const userId = user.id;
-    console.log("📝 Регистрация пользователя в API:", userId);
+    console.log("📝 Начинаем регистрацию пользователя в API:", {
+      userId: userId,
+      username: user.username,
+      firstName: user.firstName,
+      photoUrl: user.photoUrl
+    });
     
     // Получаем фото пользователя из Telegram
     let photoUrl = user.photoUrl;
@@ -95,37 +126,61 @@ async function registerUserInAPI() {
         // Пробуем получить фото через Telegram API
         if (TG.initDataUnsafe?.user?.photo_url) {
           photoUrl = TG.initDataUnsafe.user.photo_url;
+          console.log("📸 Фото получено из initDataUnsafe:", photoUrl);
         }
       } catch(e) {
         console.warn("⚠️ Не удалось получить фото пользователя:", e);
       }
     }
     
+    const registrationData = {
+      user_id: userId,
+      username: user.username || null,
+      first_name: user.firstName || null,
+      photo_url: photoUrl || null
+    };
+    
+    console.log("📤 Отправка данных регистрации в API:", registrationData);
+    console.log("📤 URL:", `${API_BASE_URL}/api/users/register`);
+    
     const response = await fetch(`${API_BASE_URL}/api/users/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        user_id: userId,
-        username: user.username || null,
-        first_name: user.firstName || null,
-        photo_url: photoUrl || null
-      })
+      body: JSON.stringify(registrationData)
+    });
+    
+    console.log("📥 Ответ от API:", {
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
     });
     
     if (response.ok) {
       const data = await response.json();
+      console.log("📦 Данные ответа от API:", data);
+      
       if (data.success) {
-        console.log("✅ Пользователь успешно зарегистрирован в API");
+        console.log("✅ Пользователь успешно зарегистрирован в API:", userId);
+        toast("✅ Регистрация в API успешна", 2000);
       } else {
-        console.warn("⚠️ API вернул ошибку при регистрации:", data.error);
+        console.error("❌ API вернул ошибку при регистрации:", data.error);
+        toast(`⚠️ Ошибка регистрации: ${data.error}`, 3000);
       }
     } else {
-      console.warn("⚠️ Ошибка регистрации пользователя в API:", response.status);
+      const errorText = await response.text().catch(() => 'Не удалось прочитать ошибку');
+      console.error("❌ Ошибка регистрации пользователя в API:", {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText
+      });
+      toast(`⚠️ Ошибка регистрации: ${response.status}`, 3000);
     }
   } catch(e) {
-    console.warn("⚠️ Не удалось зарегистрировать пользователя в API:", e);
+    console.error("❌ Критическая ошибка при регистрации пользователя в API:", e);
+    console.error("❌ Stack trace:", e.stack);
+    toast(`⚠️ Ошибка регистрации: ${e.message}`, 3000);
     // Не блокируем загрузку приложения при ошибке регистрации
   }
 }
@@ -271,7 +326,10 @@ async function boot(){
   console.log("🚀 boot() запущен");
   
   // Регистрируем пользователя в API если он еще не зарегистрирован
-  await registerUserInAPI();
+  // Делаем это асинхронно, не блокируя загрузку
+  registerUserInAPI().catch(e => {
+    console.error("❌ Ошибка в registerUserInAPI:", e);
+  });
   
   // Предзагружаем штрафы и разметку параллельно в фоне
   Promise.all([
