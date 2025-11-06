@@ -728,9 +728,20 @@ function showNicknameSuggestions(suggestions) {
 
 // Регистрация пользователя с nickname и avatar
 async function registerUserWithNickname(nickname, avatarDataUrl) {
-  const user = getTelegramUser();
+  let user = getTelegramUser();
+  
+  // Если данные Telegram недоступны, создаем временного пользователя
   if (!user) {
-    throw new Error("Не удалось получить данные пользователя из Telegram");
+    console.warn("⚠️ Telegram данные недоступны, создаем временного пользователя");
+    const tempUserId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    user = {
+      id: tempUserId,
+      username: null,
+      firstName: nickname,
+      lastName: '',
+      photoUrl: avatarDataUrl || null
+    };
+    console.log("📝 Создан временный пользователь:", user);
   }
   
   const userId = user.id;
