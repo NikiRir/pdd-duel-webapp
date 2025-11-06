@@ -800,7 +800,11 @@ function saveUserSettings() {
           })
         }).then(response => {
           if (response.ok) {
-            console.log("✅ Настройка hide_from_top сохранена на сервере");
+            console.log("✅ Настройка hide_from_top сохранена на сервере:", State.settings.hideFromTop);
+            // Очищаем кэш топа, чтобы при следующей загрузке получить свежие данные
+            const cacheKey = "pdd-duel-top-players-cache";
+            localStorage.removeItem(cacheKey);
+            console.log("🗑️ Кэш топа очищен после изменения hide_from_top");
           } else {
             console.warn("⚠️ Не удалось сохранить настройку hide_from_top на сервере:", response.status);
           }
@@ -1962,6 +1966,19 @@ function uiMainSettings(){
         
         // Обновляем место в топе
         updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
+        
+        // Обновляем топ после изменения настройки (с небольшой задержкой для сохранения на сервере)
+        setTimeout(() => {
+          // Проверяем, открыт ли топ
+          const screen = qs("#screen");
+          if (screen && !screen.classList.contains("screen--hidden")) {
+            const title = qs("#screen-title");
+            if (title && title.textContent === "Топ игроков") {
+              console.log("🔄 Обновляем топ после изменения настройки hideFromTop");
+              uiTopPlayers().catch(e => console.error("Ошибка обновления топа:", e));
+            }
+          }
+        }, 500);
       }, { passive: true });
     }
     
