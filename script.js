@@ -416,6 +416,98 @@ if (document.readyState === "loading") {
   }
 }
  
+// Глобальная переменная для avatarDataUrl
+let globalAvatarDataUrl = null;
+
+// Глобальная функция для обработки регистрации (доступна везде)
+window.handleRegistrationSubmit = async function(e) {
+  console.log("🔘 handleRegistrationSubmit вызвана глобально", e);
+  
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  
+  // Получаем элементы
+  const nicknameInput = document.getElementById("nickname-input");
+  const continueBtn = document.getElementById("registration-continue-btn");
+  const suggestionsDiv = document.getElementById("nickname-suggestions");
+  const screen1 = document.getElementById("registration-screen-1");
+  const screen2 = document.getElementById("registration-screen-2");
+  
+  console.log("📝 nicknameInput:", nicknameInput);
+  console.log("📝 continueBtn:", continueBtn);
+  
+  const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+  console.log("📝 Псевдоним:", nickname);
+  
+  if (!nickname) {
+    console.warn("⚠️ Псевдоним пустой");
+    toast("⚠️ Введите псевдоним", 2000);
+    return;
+  }
+  
+  if (nickname.length > 10) {
+    console.warn("⚠️ Псевдоним слишком длинный");
+    toast("⚠️ Псевдоним не может быть длиннее 10 символов", 2000);
+    return;
+  }
+  
+  // Отключаем кнопку
+  if (continueBtn) {
+    continueBtn.disabled = true;
+    continueBtn.textContent = "⏳ Создание...";
+  }
+  
+  try {
+    console.log("📤 Начинаем регистрацию с nickname:", nickname);
+    console.log("📤 globalAvatarDataUrl:", globalAvatarDataUrl);
+    
+    // Регистрируем пользователя с nickname и avatar
+    await registerUserWithNickname(nickname, globalAvatarDataUrl);
+    
+    console.log("✅ Регистрация успешна");
+    
+    // Скрываем экран регистрации
+    if (screen1) {
+      screen1.classList.add("hidden");
+      console.log("✅ screen1 скрыт");
+    }
+    if (screen2) {
+      screen2.classList.add("hidden");
+      console.log("✅ screen2 скрыт");
+    }
+    
+    // Показываем основное приложение
+    const app = document.querySelector(".app");
+    console.log("🔍 app:", app);
+    if (app) {
+      app.style.display = "flex";
+      console.log("✅ app показан");
+    } else {
+      console.error("❌ app не найден!");
+    }
+    
+    toast("✅ Профиль создан!", 2000);
+  } catch(error) {
+    console.error("❌ Ошибка регистрации:", error);
+    console.error("❌ Stack:", error.stack);
+    
+    // Если nickname занят, показываем предложения
+    if (error.suggestions && suggestionsDiv) {
+      showNicknameSuggestions(error.suggestions);
+    } else {
+      toast(`❌ Ошибка: ${error.message}`, 3000);
+    }
+    
+    // Включаем кнопку обратно
+    if (continueBtn) {
+      continueBtn.disabled = false;
+      continueBtn.textContent = "Продолжить";
+    }
+  }
+};
+
 // Инициализация экрана регистрации
 function initRegistrationScreen() {
   const registrationScreen1 = qs("#registration-screen-1");
@@ -436,6 +528,7 @@ function initRegistrationScreen() {
     // Показываем фото из Telegram если есть
     avatarPreview.innerHTML = `<img src="${user.photoUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">`;
     avatarDataUrl = user.photoUrl;
+    globalAvatarDataUrl = user.photoUrl; // Сохраняем глобально
   }
   
   if (user && user.firstName) {
@@ -487,74 +580,8 @@ function initRegistrationScreen() {
     }, { passive: true });
   }
   
-  // Функция обработки отправки формы
-  const handleFormSubmit = async (e) => {
-    console.log("🔘 handleFormSubmit вызвана", e);
-    
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    
-    // Получаем актуальные значения элементов (на случай если они изменились)
-    const currentNicknameInput = qs("#nickname-input");
-    const currentContinueBtn = qs("#registration-continue-btn");
-    const currentSuggestionsDiv = qs("#nickname-suggestions");
-    
-    const nickname = currentNicknameInput ? currentNicknameInput.value.trim() : '';
-    console.log("📝 Псевдоним:", nickname);
-    
-    if (!nickname) {
-      toast("⚠️ Введите псевдоним", 2000);
-      return;
-    }
-    
-    if (nickname.length > 10) {
-      toast("⚠️ Псевдоним не может быть длиннее 10 символов", 2000);
-      return;
-    }
-    
-    // Отключаем кнопку
-    if (currentContinueBtn) {
-      currentContinueBtn.disabled = true;
-      currentContinueBtn.textContent = "⏳ Создание...";
-    }
-    
-    try {
-      console.log("📤 Начинаем регистрацию с nickname:", nickname);
-      // Регистрируем пользователя с nickname и avatar
-      await registerUserWithNickname(nickname, avatarDataUrl);
-      
-      console.log("✅ Регистрация успешна");
-      
-      // Скрываем экран регистрации
-      if (registrationScreen1) registrationScreen1.classList.add("hidden");
-      if (registrationScreen2) registrationScreen2.classList.add("hidden");
-      
-      // Показываем основное приложение
-      const app = qs(".app");
-      if (app) {
-        app.style.display = "flex";
-      }
-      
-      toast("✅ Профиль создан!", 2000);
-    } catch(error) {
-      console.error("❌ Ошибка регистрации:", error);
-      
-      // Если nickname занят, показываем предложения
-      if (error.suggestions && currentSuggestionsDiv) {
-        showNicknameSuggestions(error.suggestions);
-      } else {
-        toast(`❌ Ошибка: ${error.message}`, 3000);
-      }
-      
-      // Включаем кнопку обратно
-      if (currentContinueBtn) {
-        currentContinueBtn.disabled = false;
-        currentContinueBtn.textContent = "Продолжить";
-      }
-    }
-  };
+  // Используем глобальную функцию
+  const handleFormSubmit = window.handleRegistrationSubmit;
   
   // Обработчик отправки формы
   if (registrationForm) {
@@ -570,51 +597,77 @@ function initRegistrationScreen() {
     if (btn) {
       console.log("✅ Кнопка найдена, настраиваем обработчик");
       
-      // Убираем все старые обработчики
-      btn.onclick = null;
+      // Убираем все старые обработчики через клонирование
       const newBtn = btn.cloneNode(true);
       btn.parentNode.replaceChild(newBtn, btn);
       
       // Добавляем обработчик через onclick (самый надежный способ)
-      newBtn.onclick = (e) => {
+      newBtn.onclick = function(e) {
         console.log("🔘 onClick сработал!");
-        e.preventDefault();
-        e.stopPropagation();
-        handleFormSubmit(null);
+        if (e) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        window.handleRegistrationSubmit(null);
         return false;
       };
       
       // Также добавляем через addEventListener для надежности
-      newBtn.addEventListener("click", (e) => {
+      newBtn.addEventListener("click", function(e) {
         console.log("🔘 addEventListener сработал!");
         e.preventDefault();
         e.stopPropagation();
-        handleFormSubmit(null);
+        window.handleRegistrationSubmit(null);
         return false;
       }, { passive: false });
       
       console.log("✅ Обработчики добавлены на кнопку");
       return true;
     }
+    console.warn("⚠️ Кнопка не найдена в setupButtonHandler");
     return false;
   };
   
   // Пробуем сразу
   if (!setupButtonHandler()) {
     console.warn("⚠️ Кнопка не найдена сразу, пробуем через задержки");
-    setTimeout(setupButtonHandler, 100);
-    setTimeout(setupButtonHandler, 300);
-    setTimeout(setupButtonHandler, 500);
+    setTimeout(() => {
+      console.log("🔄 Попытка 1 (100ms)");
+      setupButtonHandler();
+    }, 100);
+    setTimeout(() => {
+      console.log("🔄 Попытка 2 (300ms)");
+      setupButtonHandler();
+    }, 300);
+    setTimeout(() => {
+      console.log("🔄 Попытка 3 (500ms)");
+      setupButtonHandler();
+    }, 500);
   }
   
   // Делегирование на document как последний fallback
-  document.addEventListener("click", (e) => {
+  const documentClickHandler = function(e) {
     const target = e.target;
+    console.log("🔍 Клик на document, target:", target, "id:", target?.id);
     if (target && target.id === "registration-continue-btn") {
       console.log("🔘 Делегирование на document сработало!");
       e.preventDefault();
       e.stopPropagation();
-      handleFormSubmit(null);
+      window.handleRegistrationSubmit(null);
+    }
+  };
+  
+  document.addEventListener("click", documentClickHandler, { passive: false, capture: true });
+  console.log("✅ Делегирование на document добавлено");
+  
+  // Также пробуем через window.onclick для максимальной надежности
+  window.addEventListener("click", function(e) {
+    const target = e.target;
+    if (target && (target.id === "registration-continue-btn" || target.closest("#registration-continue-btn"))) {
+      console.log("🔘 window.onclick сработал!");
+      e.preventDefault();
+      e.stopPropagation();
+      window.handleRegistrationSubmit(null);
     }
   }, { passive: false, capture: true });
 }
