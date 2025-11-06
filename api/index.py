@@ -232,11 +232,24 @@ def register_user():
             except ValueError:
                 pass
         
+        # Если есть nickname, проверяем его уникальность
+        if nickname:
+            nickname = nickname.strip()[:10]  # Максимум 10 символов
+            if not db.check_nickname_available(nickname, exclude_user_id=user_id):
+                # Предлагаем похожие варианты
+                suggestions = db.suggest_nicknames(nickname, limit=5)
+                return jsonify({
+                    'success': False,
+                    'error': 'nickname_taken',
+                    'message': 'Этот псевдоним уже занят',
+                    'suggestions': suggestions
+                }), 400
+        
         # Используем nickname если есть, иначе first_name
         display_name = nickname if nickname else first_name
         
         # Используем Database напрямую для регистрации пользователя
-        db.get_or_create_user(user_id, username, display_name, photo_url)
+        db.get_or_create_user(user_id, username, display_name, photo_url, nickname)
         
         print(f"✅ Пользователь {user_id} зарегистрирован через API: username={username}, first_name={display_name}, nickname={nickname}, photo_url={photo_url}")
         

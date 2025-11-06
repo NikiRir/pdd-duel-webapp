@@ -55,6 +55,12 @@ class Database:
         except sqlite3.OperationalError:
             pass  # Колонка уже существует
         
+        # Добавляем колонку nickname если её нет (для существующих баз)
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN nickname TEXT UNIQUE")
+        except sqlite3.OperationalError:
+            pass  # Колонка уже существует
+        
         # Таблица игр
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS games (
@@ -74,7 +80,7 @@ class Database:
         conn.commit()
         conn.close()
     
-    def get_or_create_user(self, user_id: int, username: Optional[str] = None, first_name: Optional[str] = None, photo_url: Optional[str] = None):
+    def get_or_create_user(self, user_id: int, username: Optional[str] = None, first_name: Optional[str] = None, photo_url: Optional[str] = None, nickname: Optional[str] = None):
         """Получить пользователя или создать нового"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -86,20 +92,94 @@ class Database:
         if not user:
             # Создаем нового пользователя
             cursor.execute(
-                "INSERT INTO users (user_id, username, first_name, photo_url, hide_username, hide_from_top) VALUES (?, ?, ?, ?, 0, 0)",
-                (user_id, username, first_name, photo_url)
+                "INSERT INTO users (user_id, username, first_name, photo_url, hide_username, hide_from_top, nickname) VALUES (?, ?, ?, ?, 0, 0, ?)",
+                (user_id, username, first_name, photo_url, nickname)
             )
             conn.commit()
         else:
             # Обновляем данные пользователя если они изменились
-            cursor.execute(
-                "UPDATE users SET username = COALESCE(?, username), first_name = COALESCE(?, first_name), photo_url = COALESCE(?, photo_url) WHERE user_id = ?",
-                (username, first_name, photo_url, user_id)
-            )
-            conn.commit()
+            update_fields = []
+            update_values = []
+            
+            if username is not None:
+                update_fields.append("username = COALESCE(?, username)")
+                update_values.append(username)
+            if first_name is not None:
+                update_fields.append("first_name = COALESCE(?, first_name)")
+                update_values.append(first_name)
+            if photo_url is not None:
+                update_fields.append("photo_url = COALESCE(?, photo_url)")
+                update_values.append(photo_url)
+            if nickname is not None:
+                update_fields.append("nickname = ?")
+                update_values.append(nickname)
+            
+            if update_fields:
+                update_values.append(user_id)
+                cursor.execute(
+                    f"UPDATE users SET {', '.join(update_fields)} WHERE user_id = ?",
+                    update_values
+                )
+                conn.commit()
         
         conn.close()
         return user_id
+    
+    def check_nickname_available(self, nickname: str, exclude_user_id: Optional[int] = None) -> bool:
+        """Проверить, доступен ли nickname"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        if exclude_user_id:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE nickname = ? AND user_id != ?", (nickname, exclude_user_id))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE nickname = ?", (nickname,))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count == 0
+    
+    def suggest_nicknames(self, base_nickname: str, limit: int = 5) -> List[str]:
+        """Предложить похожие варианты nickname"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Получаем все занятые nickname
+        cursor.execute("SELECT nickname FROM users WHERE nickname IS NOT NULL AND nickname != ''")
+        taken_nicknames = {row[0] for row in cursor.fetchall()}
+        
+        suggestions = []
+        base = base_nickname[:10]  # Максимум 10 символов
+        
+        # Генерируем варианты
+        for i in range(1, 1000):
+            if len(suggestions) >= limit:
+                break
+            
+            # Вариант 1: base + число
+            variant1 = f"{base}{i}"
+            if variant1 not in taken_nicknames and len(variant1) <= 10:
+                suggestions.append(variant1)
+                taken_nicknames.add(variant1)
+            
+            # Вариант 2: base + подчеркивание + число
+            if len(base) < 9:
+                variant2 = f"{base}_{i}"
+                if variant2 not in taken_nicknames and len(variant2) <= 10:
+                    suggestions.append(variant2)
+                    taken_nicknames.add(variant2)
+            
+            # Вариант 3: base + случайный суффикс
+            if len(base) < 8:
+                import random
+                suffix = random.randint(100, 999)
+                variant3 = f"{base}{suffix}"
+                if variant3 not in taken_nicknames and len(variant3) <= 10:
+                    suggestions.append(variant3)
+                    taken_nicknames.add(variant3)
+        
+        conn.close()
+        return suggestions[:limit]
     
     def update_user_setting(self, user_id: int, setting_name: str, setting_value: bool):
         """Обновить настройку пользователя"""

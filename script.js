@@ -418,16 +418,16 @@ if (document.readyState === "loading") {
  
 // Инициализация экрана регистрации
 function initRegistrationScreen() {
-  const registrationScreen = qs("#registration-screen");
-  const avatarInput = qs("#avatar-input");
-  const avatarUploadBtn = qs("#avatar-upload-btn");
+  const registrationScreen1 = qs("#registration-screen-1");
+  const registrationScreen2 = qs("#registration-screen-2");
+  const startBtn = qs("#registration-start-btn");
+  const closeBtn = qs("#registration-close-btn");
   const avatarPreview = qs("#avatar-preview");
   const nicknameInput = qs("#nickname-input");
   const registrationForm = qs("#registration-form");
-  const registrationSubmitBtn = qs("#registration-submit-btn");
-  const registrationFormSubmit = qs("#registration-form-submit");
+  const continueBtn = qs("#registration-continue-btn");
+  const suggestionsDiv = qs("#nickname-suggestions");
   
-  let selectedAvatar = null;
   let avatarDataUrl = null;
   
   // Загружаем данные пользователя из Telegram
@@ -439,26 +439,50 @@ function initRegistrationScreen() {
   }
   
   if (user && user.firstName) {
-    // Заполняем псевдоним из Telegram если есть
-    nicknameInput.value = user.firstName;
+    // Заполняем псевдоним из Telegram если есть (максимум 10 символов)
+    nicknameInput.value = user.firstName.substring(0, 10);
   }
   
-  // Обработчик загрузки аватарки
-  if (avatarUploadBtn && avatarInput) {
-    avatarUploadBtn.addEventListener("click", () => {
-      avatarInput.click();
+  // Кнопка "Создать профиль" - переход на второй экран
+  if (startBtn) {
+    startBtn.addEventListener("click", () => {
+      if (registrationScreen1) registrationScreen1.classList.add("hidden");
+      if (registrationScreen2) registrationScreen2.classList.remove("hidden");
     }, { passive: true });
-    
-    avatarInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          avatarDataUrl = event.target.result;
-          avatarPreview.innerHTML = `<img src="${avatarDataUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">`;
-          selectedAvatar = file;
-        };
-        reader.readAsDataURL(file);
+  }
+  
+  // Кнопка закрытия - возврат на первый экран
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      if (registrationScreen2) registrationScreen2.classList.add("hidden");
+      if (registrationScreen1) registrationScreen1.classList.remove("hidden");
+    }, { passive: true });
+  }
+  
+  // Проверка nickname при вводе
+  let checkTimeout = null;
+  if (nicknameInput) {
+    nicknameInput.addEventListener("input", (e) => {
+      const nickname = e.target.value.trim();
+      
+      // Ограничиваем длину до 10 символов
+      if (nickname.length > 10) {
+        e.target.value = nickname.substring(0, 10);
+        return;
+      }
+      
+      // Скрываем предложения при изменении
+      if (suggestionsDiv) {
+        suggestionsDiv.classList.add("hidden");
+        suggestionsDiv.innerHTML = "";
+      }
+      
+      // Проверяем уникальность с задержкой
+      if (checkTimeout) clearTimeout(checkTimeout);
+      if (nickname.length >= 1) {
+        checkTimeout = setTimeout(() => {
+          checkNicknameAvailability(nickname);
+        }, 500);
       }
     }, { passive: true });
   }
@@ -474,11 +498,15 @@ function initRegistrationScreen() {
         return;
       }
       
-      // Отключаем кнопки
-      if (registrationSubmitBtn) registrationSubmitBtn.disabled = true;
-      if (registrationFormSubmit) {
-        registrationFormSubmit.disabled = true;
-        registrationFormSubmit.textContent = "⏳ Создание...";
+      if (nickname.length > 10) {
+        toast("⚠️ Псевдоним не может быть длиннее 10 символов", 2000);
+        return;
+      }
+      
+      // Отключаем кнопку
+      if (continueBtn) {
+        continueBtn.disabled = true;
+        continueBtn.textContent = "⏳ Создание...";
       }
       
       try {
@@ -486,9 +514,8 @@ function initRegistrationScreen() {
         await registerUserWithNickname(nickname, avatarDataUrl);
         
         // Скрываем экран регистрации
-        if (registrationScreen) {
-          registrationScreen.classList.add("hidden");
-        }
+        if (registrationScreen1) registrationScreen1.classList.add("hidden");
+        if (registrationScreen2) registrationScreen2.classList.add("hidden");
         
         // Показываем основное приложение
         const app = qs(".app");
@@ -499,23 +526,75 @@ function initRegistrationScreen() {
         toast("✅ Профиль создан!", 2000);
       } catch(error) {
         console.error("❌ Ошибка регистрации:", error);
-        toast(`❌ Ошибка: ${error.message}`, 3000);
         
-        // Включаем кнопки обратно
-        if (registrationSubmitBtn) registrationSubmitBtn.disabled = false;
-        if (registrationFormSubmit) {
-          registrationFormSubmit.disabled = false;
-          registrationFormSubmit.textContent = "Создать профиль";
+        // Если nickname занят, показываем предложения
+        if (error.suggestions && suggestionsDiv) {
+          showNicknameSuggestions(error.suggestions);
+        } else {
+          toast(`❌ Ошибка: ${error.message}`, 3000);
+        }
+        
+        // Включаем кнопку обратно
+        if (continueBtn) {
+          continueBtn.disabled = false;
+          continueBtn.textContent = "Продолжить";
         }
       }
     }, { passive: false });
   }
+}
+
+// Проверка доступности nickname
+async function checkNicknameAvailability(nickname) {
+  if (!nickname || nickname.length < 1) return;
   
-  // Кнопка "Создать профиль" в левой панели
-  if (registrationSubmitBtn) {
-    registrationSubmitBtn.addEventListener("click", () => {
-      registrationForm.dispatchEvent(new Event("submit"));
-    }, { passive: true });
+  try {
+    const user = getTelegramUserId();
+    const response = await fetch(`${API_BASE_URL}/api/users/check-nickname`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        nickname: nickname,
+        user_id: user
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (!data.available && data.suggestions) {
+        showNicknameSuggestions(data.suggestions);
+      }
+    }
+  } catch(e) {
+    console.warn("⚠️ Ошибка проверки nickname:", e);
+  }
+}
+
+// Показать предложения nickname
+function showNicknameSuggestions(suggestions) {
+  const suggestionsDiv = qs("#nickname-suggestions");
+  const nicknameInput = qs("#nickname-input");
+  
+  if (!suggestionsDiv || !nicknameInput) return;
+  
+  if (suggestions && suggestions.length > 0) {
+    suggestionsDiv.innerHTML = suggestions.map(suggestion => 
+      `<div class="registration-suggestion" data-nickname="${suggestion}">${suggestion}</div>`
+    ).join("");
+    
+    suggestionsDiv.classList.remove("hidden");
+    
+    // Обработчики клика на предложения
+    suggestionsDiv.querySelectorAll(".registration-suggestion").forEach(suggestion => {
+      suggestion.addEventListener("click", () => {
+        const suggestedNickname = suggestion.dataset.nickname;
+        nicknameInput.value = suggestedNickname;
+        suggestionsDiv.classList.add("hidden");
+        suggestionsDiv.innerHTML = "";
+      }, { passive: true });
+    });
   }
 }
 
@@ -528,19 +607,22 @@ async function registerUserWithNickname(nickname, avatarDataUrl) {
   
   const userId = user.id;
   
-  // Конвертируем avatar в base64 если это data URL
-  let photoUrl = avatarDataUrl;
-  if (avatarDataUrl && avatarDataUrl.startsWith('data:')) {
-    // Если это data URL, отправляем как есть (или можно конвертировать)
-    photoUrl = avatarDataUrl;
+  // Ограничиваем длину nickname до 10 символов
+  nickname = nickname.trim().substring(0, 10);
+  
+  if (!nickname) {
+    throw new Error("Псевдоним не может быть пустым");
   }
+  
+  // Используем фото из Telegram
+  let photoUrl = avatarDataUrl || user.photoUrl || null;
   
   const registrationData = {
     user_id: userId,
     username: user.username || null,
-    first_name: nickname, // Используем nickname как first_name
-    nickname: nickname, // Добавляем nickname отдельно
-    photo_url: photoUrl || user.photoUrl || null
+    first_name: user.firstName || nickname, // Используем firstName из Telegram или nickname
+    nickname: nickname, // Псевдоним отдельно
+    photo_url: photoUrl
   };
   
   console.log("📤 Регистрация с nickname:", registrationData);
@@ -554,12 +636,23 @@ async function registerUserWithNickname(nickname, avatarDataUrl) {
   });
   
   if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Не удалось прочитать ошибку');
+    const data = await response.json().catch(() => ({}));
+    if (data.error === 'nickname_taken' && data.suggestions) {
+      const error = new Error(data.message || "Этот псевдоним уже занят");
+      error.suggestions = data.suggestions;
+      throw error;
+    }
+    const errorText = data.error || await response.text().catch(() => 'Не удалось прочитать ошибку');
     throw new Error(`Ошибка регистрации: ${response.status} - ${errorText}`);
   }
   
   const data = await response.json();
   if (!data.success) {
+    if (data.error === 'nickname_taken' && data.suggestions) {
+      const error = new Error(data.message || "Этот псевдоним уже занят");
+      error.suggestions = data.suggestions;
+      throw error;
+    }
     throw new Error(data.error || "Ошибка регистрации");
   }
   

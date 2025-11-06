@@ -334,36 +334,32 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #ffffff;
+  background: #F5F5F5;
   z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  padding: 20px;
+  overflow-y: auto;
 }
 
 .registration-screen.hidden {
   display: none;
 }
 
-.registration-container {
-  display: flex;
+/* Первый экран - карточка с кнопкой */
+.registration-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 48px 32px;
+  max-width: 400px;
   width: 100%;
-  height: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-/* Левая панель (40%) */
-.registration-left {
-  width: 40%;
-  background: #1a1a1a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 40px;
-  color: #ffffff;
+  text-align: center;
 }
 
 .registration-logo {
@@ -371,31 +367,20 @@ body {
 }
 
 .registration-app-name {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   margin: 0 0 24px 0;
-  color: #ffffff;
-  text-align: center;
+  color: #000000;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .registration-description {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 400;
-  margin: 0 0 8px 0;
-  color: #ffffff;
-  text-align: center;
+  margin: 0 0 4px 0;
+  color: #000000;
   line-height: 1.5;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-}
-
-.registration-buttons-left {
-  margin-top: 40px;
-  width: 100%;
-  max-width: 280px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 .registration-btn-black {
@@ -410,6 +395,7 @@ body {
   cursor: pointer;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   transition: opacity 0.2s;
+  margin-top: 32px;
 }
 
 .registration-btn-black:hover {
@@ -421,87 +407,104 @@ body {
   cursor: not-allowed;
 }
 
-.registration-btn-gray {
+/* Второй экран - форма */
+.registration-form-container {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 500px;
   width: 100%;
-  padding: 14px 24px;
-  background: #E5E5E5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.registration-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #E5E5E5;
+}
+
+.registration-form-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.registration-form-app-name {
+  font-size: 17px;
+  font-weight: 700;
   color: #000000;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 500;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.registration-checkmark {
+  width: 18px;
+  height: 18px;
+}
+
+.registration-form-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.registration-form-menu {
+  font-size: 20px;
+  color: #666666;
   cursor: pointer;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  transition: opacity 0.2s;
 }
 
-.registration-btn-gray:hover {
-  opacity: 0.8;
-}
-
-/* Правая панель (60%) */
-.registration-right {
-  width: 60%;
-  background: #ffffff;
+.registration-form-close {
+  font-size: 18px;
+  color: #666666;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  width: 24px;
+  height: 24px;
   display: flex;
-  flex-direction: column;
-  padding: 40px;
-  overflow-y: auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.registration-progress-bar {
+  display: flex;
+  gap: 0;
+  height: 2px;
+}
+
+.registration-progress-line {
+  flex: 1;
+  height: 100%;
+  background: #E5E5E5;
+}
+
+.registration-progress-line.active {
+  background: #000000;
+}
+
+.registration-form-content {
+  padding: 32px 20px;
 }
 
 .registration-form-title {
   font-size: 24px;
   font-weight: 700;
-  margin: 0 0 24px 0;
+  margin: 0 0 32px 0;
   color: #000000;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-.registration-progress {
+.registration-avatar-section {
   display: flex;
-  gap: 8px;
+  justify-content: center;
   margin-bottom: 32px;
 }
 
-.registration-progress-item {
-  width: 8px;
-  height: 8px;
-  background: #E5E5E5;
-  border-radius: 2px;
-}
-
-.registration-progress-item.active {
-  background: #000000;
-}
-
-.registration-form {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
-.registration-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.registration-label {
-  font-size: 14px;
-  font-weight: 400;
-  color: #999999;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-}
-
-.registration-avatar-container {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
 .registration-avatar-preview {
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   border-radius: 50%;
   overflow: hidden;
   background: #E5E5E5;
@@ -517,21 +520,16 @@ body {
   object-fit: cover;
 }
 
-.registration-avatar-btn {
-  padding: 10px 20px;
-  background: #ffffff;
-  border: 1px solid #E5E5E5;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 400;
-  color: #000000;
-  cursor: pointer;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  transition: border-color 0.2s;
+.registration-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.registration-avatar-btn:hover {
-  border-color: #000000;
+.registration-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .registration-input {
@@ -555,37 +553,74 @@ body {
   color: #999999;
 }
 
-.registration-hint {
-  font-size: 12px;
-  font-weight: 400;
-  color: #999999;
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+.registration-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: -16px;
 }
 
-.registration-btn-submit {
+.registration-suggestions.hidden {
+  display: none;
+}
+
+.registration-suggestion {
+  padding: 10px 16px;
+  background: #F5F5F5;
+  border: 1px solid #E5E5E5;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: #000000;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  transition: background 0.2s;
+}
+
+.registration-suggestion:hover {
+  background: #E5E5E5;
+}
+
+.registration-btn-continue {
+  width: 100%;
+  padding: 14px 24px;
+  background: #000000;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  transition: opacity 0.2s;
   margin-top: 8px;
+}
+
+.registration-btn-continue:hover {
+  opacity: 0.9;
+}
+
+.registration-btn-continue:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Мобильная адаптация */
 @media (max-width: 768px) {
-  .registration-container {
-    flex-direction: column;
+  .registration-card {
+    padding: 32px 24px;
   }
   
-  .registration-left {
-    width: 100%;
-    min-height: 40vh;
-    padding: 30px 20px;
+  .registration-form-container {
+    max-width: 100%;
   }
   
-  .registration-right {
-    width: 100%;
-    padding: 30px 20px;
+  .registration-form-content {
+    padding: 24px 16px;
   }
   
   .registration-app-name {
-    font-size: 24px;
+    font-size: 20px;
   }
   
   .registration-description {
