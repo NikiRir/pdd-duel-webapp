@@ -717,7 +717,11 @@ async function updateStatsDisplay() {
     // Вычисляем уровень на основе опыта (1 уровень = 100 опыта)
     const level = Math.floor(State.stats.experience / 100) + 1;
     State.stats.level = level;
-    levelEl.textContent = `${State.stats.experience}/${level}`;
+    // Опыт в текущем уровне = остаток от деления на 100
+    const expInCurrentLevel = State.stats.experience % 100;
+    // Опыт для следующего уровня = текущий уровень * 100
+    const expForNextLevel = level * 100;
+    levelEl.textContent = `${expInCurrentLevel}/${100} (Ур. ${level})`;
   }
   
   if (topPlaceEl) {
@@ -856,11 +860,14 @@ async function getAllPlayersTopData() {
     console.log("🔍 Запрос топа игроков с API:", `${API_BASE_URL}/api/top/players`);
     
     // Получаем данные ТОЛЬКО из API сервера (база данных бота)
+    // Добавляем cache: 'no-store' чтобы избежать проблем с кэшированием
     const response = await fetch(`${API_BASE_URL}/api/top/players`, {
       method: 'GET',
       headers: {
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
+      },
+      cache: 'no-store'
     });
     
     console.log("📡 Ответ API:", response.status, response.statusText);
@@ -1653,7 +1660,20 @@ async function uiTopPlayers(){
     </div>
   `, { subpage: true, title: "Топ игроков" });
   
-  const players = await getAllPlayersTopData();
+  // Добавляем таймаут для запроса
+  let players = [];
+  try {
+    players = await Promise.race([
+      getAllPlayersTopData(),
+      new Promise((resolve) => setTimeout(() => {
+        console.warn("⏱️ Таймаут загрузки топа игроков");
+        resolve([]);
+      }, 10000)) // 10 секунд таймаут
+    ]);
+  } catch(e) {
+    console.error("❌ Ошибка загрузки топа:", e);
+    players = [];
+  }
   
   console.log(`🎯 Отображение топа: ${players.length} игроков`);
   
