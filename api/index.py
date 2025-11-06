@@ -213,12 +213,13 @@ def get_top_players():
 
 @app.route('/api/users/register', methods=['POST'])
 def register_user():
-    """Регистрация пользователя из бота"""
+    """Регистрация пользователя из бота или веб-приложения"""
     try:
         data = request.get_json()
         user_id = data.get('user_id')
         username = data.get('username')
         first_name = data.get('first_name')
+        nickname = data.get('nickname')  # Новое поле для псевдонима
         photo_url = data.get('photo_url')
         
         if not user_id:
@@ -231,10 +232,13 @@ def register_user():
             except ValueError:
                 pass
         
-        # Используем Database напрямую для регистрации пользователя
-        db.get_or_create_user(user_id, username, first_name, photo_url)
+        # Используем nickname если есть, иначе first_name
+        display_name = nickname if nickname else first_name
         
-        print(f"✅ Пользователь {user_id} зарегистрирован через API: username={username}, first_name={first_name}, photo_url={photo_url}")
+        # Используем Database напрямую для регистрации пользователя
+        db.get_or_create_user(user_id, username, display_name, photo_url)
+        
+        print(f"✅ Пользователь {user_id} зарегистрирован через API: username={username}, first_name={display_name}, nickname={nickname}, photo_url={photo_url}")
         
         return jsonify({'success': True})
     except Exception as e:

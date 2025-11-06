@@ -8,8 +8,8 @@
    <link rel="preconnect" href="https://fonts.googleapis.com" />
    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet" />
-  <link rel="preload" href="style.css?v=65" as="style" />
-  <link rel="stylesheet" href="style.css?v=65" />
+  <link rel="preload" href="style.css?v=66" as="style" />
+  <link rel="stylesheet" href="style.css?v=66" />
   <script src="https://telegram.org/js/telegram-web-app.js" defer></script>
  </head>
  
@@ -105,16 +105,70 @@
      </nav>
    </div>
  
-   <div id="toast" class="toast-wrap"></div>
-   
-   <div id="loader-overlay" class="loader-overlay">
-     <div class="loader-progress-wrapper">
-       <div class="loader-progress">
-         <div class="loader-progress-bar" id="loader-progress"></div>
-       </div>
-     </div>
-   </div>
-   
-    <script src="script.js?v=80"></script>
+  <div id="toast" class="toast-wrap"></div>
+  
+  <!-- Экран регистрации -->
+  <div id="registration-screen" class="registration-screen">
+    <div class="registration-container">
+      <!-- Левая панель (40%) -->
+      <div class="registration-left">
+        <div class="registration-logo">
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="38" fill="#000000" stroke="#ffffff" stroke-width="4"/>
+            <path d="M40 25C40 25 30 30 30 40C30 50 40 55 40 55C40 55 50 50 50 40C50 30 40 25 40 25Z" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M40 35L37 38L40 41L43 38L40 35Z" fill="#ffffff"/>
+          </svg>
+        </div>
+        <h2 class="registration-app-name">ПДД ДУЭЛИ</h2>
+        <p class="registration-description">Высококачественные дуэли в Telegram.</p>
+        <p class="registration-description">Присоединяйся к сообществу</p>
+        <p class="registration-description">амбициозных игроков.</p>
+        <div class="registration-buttons-left">
+          <button class="registration-btn-black" id="registration-submit-btn">Создать профиль</button>
+          <button class="registration-btn-gray" id="registration-skip-btn" style="display: none;">Пропустить</button>
+        </div>
+      </div>
+      
+      <!-- Правая панель (60%) -->
+      <div class="registration-right">
+        <h3 class="registration-form-title">Создать профиль</h3>
+        <div class="registration-progress">
+          <div class="registration-progress-item active"></div>
+          <div class="registration-progress-item active"></div>
+          <div class="registration-progress-item"></div>
+          <div class="registration-progress-item"></div>
+        </div>
+        
+        <form id="registration-form" class="registration-form">
+          <!-- Аватарка -->
+          <div class="registration-field">
+            <label class="registration-label">Аватарка</label>
+            <div class="registration-avatar-container">
+              <div class="registration-avatar-preview" id="avatar-preview">
+                <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="30" cy="30" r="30" fill="#E5E5E5"/>
+                  <path d="M30 20C33.3137 20 36 22.6863 36 26C36 29.3137 33.3137 32 30 32C26.6863 32 24 29.3137 24 26C24 22.6863 26.6863 20 30 20Z" fill="#999999"/>
+                  <path d="M20 45C20 38.3726 25.3726 33 32 33H28C34.6274 33 40 38.3726 40 45V47H20V45Z" fill="#999999"/>
+                </svg>
+              </div>
+              <input type="file" id="avatar-input" accept="image/*" style="display: none;">
+              <button type="button" class="registration-avatar-btn" id="avatar-upload-btn">Загрузить фото</button>
+            </div>
+          </div>
+          
+          <!-- Псевдоним -->
+          <div class="registration-field">
+            <label class="registration-label">Псевдоним</label>
+            <input type="text" id="nickname-input" class="registration-input" placeholder="Введите ваш псевдоним" maxlength="50">
+            <p class="registration-hint">Макс. 50 символов</p>
+          </div>
+          
+          <button type="submit" class="registration-btn-black registration-btn-submit" id="registration-form-submit">Создать профиль</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+    <script src="script.js?v=81"></script>
  </body>
  </html>

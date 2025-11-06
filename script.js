@@ -416,128 +416,238 @@ if (document.readyState === "loading") {
   }
 }
  
+// Инициализация экрана регистрации
+function initRegistrationScreen() {
+  const registrationScreen = qs("#registration-screen");
+  const avatarInput = qs("#avatar-input");
+  const avatarUploadBtn = qs("#avatar-upload-btn");
+  const avatarPreview = qs("#avatar-preview");
+  const nicknameInput = qs("#nickname-input");
+  const registrationForm = qs("#registration-form");
+  const registrationSubmitBtn = qs("#registration-submit-btn");
+  const registrationFormSubmit = qs("#registration-form-submit");
+  
+  let selectedAvatar = null;
+  let avatarDataUrl = null;
+  
+  // Загружаем данные пользователя из Telegram
+  const user = getTelegramUser();
+  if (user && user.photoUrl) {
+    // Показываем фото из Telegram если есть
+    avatarPreview.innerHTML = `<img src="${user.photoUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">`;
+    avatarDataUrl = user.photoUrl;
+  }
+  
+  if (user && user.firstName) {
+    // Заполняем псевдоним из Telegram если есть
+    nicknameInput.value = user.firstName;
+  }
+  
+  // Обработчик загрузки аватарки
+  if (avatarUploadBtn && avatarInput) {
+    avatarUploadBtn.addEventListener("click", () => {
+      avatarInput.click();
+    }, { passive: true });
+    
+    avatarInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          avatarDataUrl = event.target.result;
+          avatarPreview.innerHTML = `<img src="${avatarDataUrl}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">`;
+          selectedAvatar = file;
+        };
+        reader.readAsDataURL(file);
+      }
+    }, { passive: true });
+  }
+  
+  // Обработчик отправки формы
+  if (registrationForm) {
+    registrationForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const nickname = nicknameInput.value.trim();
+      if (!nickname) {
+        toast("⚠️ Введите псевдоним", 2000);
+        return;
+      }
+      
+      // Отключаем кнопки
+      if (registrationSubmitBtn) registrationSubmitBtn.disabled = true;
+      if (registrationFormSubmit) {
+        registrationFormSubmit.disabled = true;
+        registrationFormSubmit.textContent = "⏳ Создание...";
+      }
+      
+      try {
+        // Регистрируем пользователя с nickname и avatar
+        await registerUserWithNickname(nickname, avatarDataUrl);
+        
+        // Скрываем экран регистрации
+        if (registrationScreen) {
+          registrationScreen.classList.add("hidden");
+        }
+        
+        // Показываем основное приложение
+        const app = qs(".app");
+        if (app) {
+          app.style.display = "flex";
+        }
+        
+        toast("✅ Профиль создан!", 2000);
+      } catch(error) {
+        console.error("❌ Ошибка регистрации:", error);
+        toast(`❌ Ошибка: ${error.message}`, 3000);
+        
+        // Включаем кнопки обратно
+        if (registrationSubmitBtn) registrationSubmitBtn.disabled = false;
+        if (registrationFormSubmit) {
+          registrationFormSubmit.disabled = false;
+          registrationFormSubmit.textContent = "Создать профиль";
+        }
+      }
+    }, { passive: false });
+  }
+  
+  // Кнопка "Создать профиль" в левой панели
+  if (registrationSubmitBtn) {
+    registrationSubmitBtn.addEventListener("click", () => {
+      registrationForm.dispatchEvent(new Event("submit"));
+    }, { passive: true });
+  }
+}
+
+// Регистрация пользователя с nickname и avatar
+async function registerUserWithNickname(nickname, avatarDataUrl) {
+  const user = getTelegramUser();
+  if (!user) {
+    throw new Error("Не удалось получить данные пользователя из Telegram");
+  }
+  
+  const userId = user.id;
+  
+  // Конвертируем avatar в base64 если это data URL
+  let photoUrl = avatarDataUrl;
+  if (avatarDataUrl && avatarDataUrl.startsWith('data:')) {
+    // Если это data URL, отправляем как есть (или можно конвертировать)
+    photoUrl = avatarDataUrl;
+  }
+  
+  const registrationData = {
+    user_id: userId,
+    username: user.username || null,
+    first_name: nickname, // Используем nickname как first_name
+    nickname: nickname, // Добавляем nickname отдельно
+    photo_url: photoUrl || user.photoUrl || null
+  };
+  
+  console.log("📤 Регистрация с nickname:", registrationData);
+  
+  const response = await fetch(`${API_BASE_URL}/api/users/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(registrationData)
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Не удалось прочитать ошибку');
+    throw new Error(`Ошибка регистрации: ${response.status} - ${errorText}`);
+  }
+  
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || "Ошибка регистрации");
+  }
+  
+  // Сохраняем nickname в localStorage
+  const userIdStr = String(userId);
+  const userDataKey = `pdd-duel-user-${userIdStr}`;
+  localStorage.setItem(userDataKey, JSON.stringify({
+    nickname: nickname,
+    avatar: avatarDataUrl,
+    registered: true
+  }));
+  
+  console.log("✅ Пользователь зарегистрирован с nickname:", nickname);
+}
+
 async function boot(){
   console.log("🚀 boot() запущен");
   
-  // Регистрируем пользователя в API если он еще не зарегистрирован
-  // Делаем это асинхронно, не блокируя загрузку
-  registerUserInAPI().catch(e => {
-    console.error("❌ Ошибка в registerUserInAPI:", e);
-  });
+  // Показываем экран регистрации вместо загрузчика
+  const registrationScreen = qs("#registration-screen");
+  const app = qs(".app");
   
-  // Предзагружаем штрафы и разметку параллельно в фоне
-  Promise.all([
-    loadPenalties().catch(() => {}),
-    loadMarkup().catch(() => {})
-  ]).catch(() => {});
+  if (registrationScreen) {
+    registrationScreen.classList.remove("hidden");
+  }
+  if (app) {
+    app.style.display = "none";
+  }
   
-  showLoader();
+  // Инициализируем экран регистрации
+  initRegistrationScreen();
   
-  // Добавляем общий таймаут для boot (максимум 35 секунд)
-  const bootTimeout = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error("Таймаут загрузки приложения")), 35000);
-  });
-
-  const bootTask = async () => {
-    let hasQuestions = false;
+  // Загружаем данные приложения в фоне пока пользователь регистрируется
+  const backgroundLoad = async () => {
+    console.log("📦 Загрузка данных в фоне...");
     
-    // Сразу загружаем fallback данные для быстрого отклика
+    // Предзагружаем штрафы и разметку
+    Promise.all([
+      loadPenalties().catch(() => {}),
+      loadMarkup().catch(() => {})
+    ]).catch(() => {});
+    
+    // Загружаем fallback данные
     try {
-      console.log("📦 Загружаем fallback данные немедленно...");
       hydrateFallback({ reset: true });
-      hasQuestions = State.pool.length > 0;
-      console.log("✓ Fallback данные загружены, вопросов:", State.pool.length);
-      // Если fallback загружен, сразу рендерим интерфейс
-      if (hasQuestions) {
-        try {
-          renderHome();
-          updateStatsCounters();
-          initCarousel();
-        } catch(e) {
-          console.error("Ошибка рендеринга:", e);
-        }
-      }
+      console.log("✓ Fallback данные загружены");
     } catch(err) {
-      console.error("Ошибка загрузки fallback данных:", err);
+      console.error("Ошибка загрузки fallback:", err);
     }
-
-    // Загружаем билеты с таймаутом (максимум 20 секунд)
+    
+    // Загружаем билеты
     try {
-      const loadTimeout = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Таймаут загрузки билетов")), 20000);
-      });
-
-      try {
-        console.log("📥 Начинаем загрузку билетов...");
-        updateLoaderProgress(20);
-        await Promise.race([loadTickets(), loadTimeout]);
-        updateLoaderProgress(90);
-        console.log("✓ Билеты загружены, вопросов:", State.pool.length);
-        hasQuestions = State.pool.length > 0;
-      } catch(e) {
-        console.error("Ошибка загрузки билетов:", e);
-        hasQuestions = State.pool.length > 0;
-      }
+      await loadTickets();
+      console.log("✓ Билеты загружены");
     } catch(e) {
-      console.error("Критическая ошибка в boot():", e);
+      console.error("Ошибка загрузки билетов:", e);
     }
-
+    
     // Гарантируем, что данные есть
     if (!State.pool.length) {
       try {
-        console.log("📦 Применяем fallback данные в finally...");
         hydrateFallback();
-        console.log("✓ Fallback применен, вопросов:", State.pool.length);
       } catch(err) {
-        console.error("Ошибка применения fallback в finally:", err);
+        console.error("Ошибка применения fallback:", err);
       }
     }
-    hasQuestions = State.pool.length > 0;
     
-    // Рендерим интерфейс
+    // Инициализируем интерфейс (но не показываем пока не зарегистрирован)
     try {
       loadUserStats();
       updateStatsDisplay();
       startStatsRotation();
       renderHome();
       updateStatsCounters();
-      // Сохраняем данные пользователя для топа (даже если игр = 0)
       saveUserTopData();
     } catch(err) {
-      console.error("Ошибка при рендеринге:", err);
+      console.error("Ошибка инициализации:", err);
     }
     
-    if(!hasQuestions) {
-      setTimeout(()=>notifyDataIssue(), 350);
-    }
+    console.log("✅ Фоновая загрузка завершена");
   };
-
-  try {
-    await Promise.race([bootTask(), bootTimeout]);
-  } catch(err) {
-    console.error("⚠️ Критическая ошибка или таймаут в boot():", err);
-    // В случае критической ошибки гарантируем, что есть хотя бы fallback данные
-    if (!State.pool.length) {
-      try {
-        hydrateFallback();
-        loadUserStats();
-        updateStatsDisplay();
-        startStatsRotation();
-        renderHome();
-        updateStatsCounters();
-        // Сохраняем данные пользователя для топа (даже если игр = 0)
-        saveUserTopData();
-      } catch(finalErr) {
-        console.error("Критическая ошибка применения fallback:", finalErr);
-      }
-    }
-  } finally {
-    updateLoaderProgress(100);
-    setTimeout(() => {
-      hideLoader();
-    }, 500);
-    console.log("✅ boot() завершен");
-  }
+  
+  // Запускаем загрузку в фоне
+  backgroundLoad().catch(e => {
+    console.error("❌ Ошибка фоновой загрузки:", e);
+  });
+  
+  console.log("✅ boot() завершен, ожидаем регистрации");
 }
  
  
