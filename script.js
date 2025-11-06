@@ -75,6 +75,60 @@ function getStorageKey(baseKey) {
   }
   return baseKey; // Fallback для тестирования вне Telegram
 }
+
+// Регистрирует пользователя в API сервере
+async function registerUserInAPI() {
+  try {
+    const user = getTelegramUser();
+    if (!user) {
+      console.warn("⚠️ Не удалось получить данные пользователя из Telegram");
+      return;
+    }
+    
+    const userId = user.id;
+    console.log("📝 Регистрация пользователя в API:", userId);
+    
+    // Получаем фото пользователя из Telegram
+    let photoUrl = user.photoUrl;
+    if (!photoUrl && TG) {
+      try {
+        // Пробуем получить фото через Telegram API
+        if (TG.initDataUnsafe?.user?.photo_url) {
+          photoUrl = TG.initDataUnsafe.user.photo_url;
+        }
+      } catch(e) {
+        console.warn("⚠️ Не удалось получить фото пользователя:", e);
+      }
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/api/users/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        username: user.username || null,
+        first_name: user.firstName || null,
+        photo_url: photoUrl || null
+      })
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        console.log("✅ Пользователь успешно зарегистрирован в API");
+      } else {
+        console.warn("⚠️ API вернул ошибку при регистрации:", data.error);
+      }
+    } else {
+      console.warn("⚠️ Ошибка регистрации пользователя в API:", response.status);
+    }
+  } catch(e) {
+    console.warn("⚠️ Не удалось зарегистрировать пользователя в API:", e);
+    // Не блокируем загрузку приложения при ошибке регистрации
+  }
+}
  
  const State = {
    pool: [],
@@ -215,6 +269,9 @@ if (document.readyState === "loading") {
  
 async function boot(){
   console.log("🚀 boot() запущен");
+  
+  // Регистрируем пользователя в API если он еще не зарегистрирован
+  await registerUserInAPI();
   
   // Предзагружаем штрафы и разметку параллельно в фоне
   Promise.all([
