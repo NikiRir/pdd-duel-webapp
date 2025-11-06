@@ -66,28 +66,35 @@ async def cmd_start(message: Message):
     logging.info(f"✅ Пользователь {user_id} сохранен в локальной БД")
     
     # Также регистрируем пользователя в API сервере (Vercel)
-    try:
-        import aiohttp
-        api_url = os.getenv("API_BASE_URL", "https://pdd-duel-webapp.vercel.app")
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{api_url}/api/users/register",
-                json={
-                    'user_id': user_id,
-                    'username': username,
-                    'first_name': first_name,
-                    'photo_url': photo_url
-                },
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                if response.status == 200:
-                    logging.info(f"✅ Пользователь {user_id} зарегистрирован в API сервере")
-                else:
-                    error_text = await response.text()
-                    logging.warning(f"⚠️ Не удалось зарегистрировать пользователя {user_id} в API: {response.status} - {error_text}")
-    except Exception as e:
-        logging.warning(f"⚠️ Ошибка регистрации пользователя в API: {e}")
+    # Делаем это асинхронно в фоне, не блокируя отправку сообщения
+    async def register_in_api():
+        try:
+            import aiohttp
+            api_url = os.getenv("API_BASE_URL", "https://pdd-duel-webapp.vercel.app")
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{api_url}/api/users/register",
+                    json={
+                        'user_id': user_id,
+                        'username': username,
+                        'first_name': first_name,
+                        'photo_url': photo_url
+                    },
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as response:
+                    if response.status == 200:
+                        logging.info(f"✅ Пользователь {user_id} зарегистрирован в API сервере")
+                    else:
+                        error_text = await response.text()
+                        logging.warning(f"⚠️ Не удалось зарегистрировать пользователя {user_id} в API: {response.status} - {error_text}")
+        except asyncio.TimeoutError:
+            logging.warning(f"⚠️ Таймаут при регистрации пользователя {user_id} в API")
+        except Exception as e:
+            logging.warning(f"⚠️ Ошибка регистрации пользователя в API: {e}")
+    
+    # Запускаем регистрацию в фоне, не ждем её завершения
+    asyncio.create_task(register_in_api())
     
     welcome_text = f"""🚗 Привет, {message.from_user.first_name or 'друг'}!
 
@@ -104,7 +111,33 @@ async def cmd_start(message: Message):
 
 Нажми кнопку ниже, чтобы начать! 👇"""
     
-    await message.answer(welcome_text, reply_markup=get_main_keyboard())
+    # Отправляем приветственное сообщение с обработкой ошибок и таймаутом
+    try:
+        # Пробуем отправить сообщение с таймаутом
+        await asyncio.wait_for(
+            message.answer(welcome_text, reply_markup=get_main_keyboard()),
+            timeout=10.0  # 10 секунд таймаут
+        )
+        logging.info(f"✅ Приветственное сообщение отправлено пользователю {user_id}")
+    except asyncio.TimeoutError:
+        logging.error(f"❌ Таймаут при отправке сообщения пользователю {user_id}")
+        # Пробуем отправить без клавиатуры
+        try:
+            await asyncio.wait_for(
+                message.answer(welcome_text),
+                timeout=5.0
+            )
+            logging.info(f"✅ Приветственное сообщение отправлено без клавиатуры пользователю {user_id}")
+        except Exception as e2:
+            logging.error(f"❌ Не удалось отправить сообщение пользователю {user_id}: {e2}")
+    except Exception as e:
+        logging.error(f"❌ Ошибка при отправке сообщения пользователю {user_id}: {e}")
+        # Пробуем отправить без клавиатуры как fallback
+        try:
+            await message.answer(welcome_text)
+            logging.info(f"✅ Приветственное сообщение отправлено без клавиатуры (fallback) пользователю {user_id}")
+        except Exception as e2:
+            logging.error(f"❌ Критическая ошибка при отправке сообщения пользователю {user_id}: {e2}")
 
 @dp.callback_query(F.data == "top_players")
 async def show_top_players(callback: types.CallbackQuery):
