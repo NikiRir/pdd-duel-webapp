@@ -1979,7 +1979,29 @@ function uiMainSettings(){
 }
 
 async function uiTopPlayers(){
-  // Показываем загрузку
+  // Сначала загружаем из локального кэша для быстрого отображения
+  const cachedPlayers = getPlayersFromLocalCache();
+  console.log(`📦 Загружено ${cachedPlayers.length} игроков из локального кэша`);
+  
+  // Если есть кэшированные данные, показываем их сразу
+  if (cachedPlayers.length > 0) {
+    console.log("✅ Показываем данные из кэша сразу");
+    displayTopPlayers(cachedPlayers);
+    
+    // Затем обновляем из API в фоне
+    getAllPlayersTopData().then(players => {
+      if (players && players.length > 0) {
+        console.log("✅ Обновляем топ из API");
+        displayTopPlayers(players);
+      }
+    }).catch(e => {
+      console.warn("⚠️ Не удалось обновить топ из API:", e);
+      // Оставляем данные из кэша
+    });
+    return;
+  }
+  
+  // Если кэша нет, показываем загрузку и ждем API
   setView(`
     <div class="card">
       <p style="text-align: center; color: var(--muted);">Загрузка топа игроков...</p>
@@ -1994,19 +2016,37 @@ async function uiTopPlayers(){
       getAllPlayersTopData(),
       new Promise((resolve) => setTimeout(() => {
         console.warn("⏱️ Таймаут загрузки топа игроков (30 секунд)");
-        toast("Таймаут загрузки топа. Попробуйте обновить страницу.", 5000);
-        resolve([]);
+        // При таймауте используем кэш если есть
+        const fallbackCache = getPlayersFromLocalCache();
+        if (fallbackCache.length > 0) {
+          console.log(`⚠️ Используем кэш (${fallbackCache.length} игроков) при таймауте`);
+          resolve(fallbackCache);
+        } else {
+          toast("Таймаут загрузки топа. Попробуйте обновить страницу.", 5000);
+          resolve([]);
+        }
       }, 30000)) // 30 секунд таймаут
     ]);
   } catch(e) {
     console.error("❌ Ошибка загрузки топа:", e);
-    toast(`Ошибка загрузки топа: ${e.message}`, 5000);
-    players = [];
+    // При ошибке используем кэш если есть
+    const fallbackCache = getPlayersFromLocalCache();
+    if (fallbackCache.length > 0) {
+      console.log(`⚠️ Используем кэш (${fallbackCache.length} игроков) при ошибке`);
+      players = fallbackCache;
+    } else {
+      toast(`Ошибка загрузки топа: ${e.message}`, 5000);
+      players = [];
+    }
   }
   
   console.log(`🎯 Отображение топа: ${players.length} игроков`);
-  
-  if (!players.length) {
+  displayTopPlayers(players);
+}
+
+// Отображает топ игроков
+async function displayTopPlayers(players) {
+  if (!players || players.length === 0) {
     // Проверяем, что API вообще доступен
     let apiStatus = '⏳ Проверка...';
     let healthCheckOk = false;
@@ -2022,6 +2062,14 @@ async function uiTopPlayers(){
       apiStatus = healthCheckOk ? '✅ API работает' : (apiCheck ? `❌ API ошибка ${apiCheck.status}` : '❌ API недоступен');
     } catch(e) {
       apiStatus = `❌ Ошибка: ${e.message}`;
+    }
+    
+    // Проверяем кэш еще раз перед показом ошибки
+    const fallbackCache = getPlayersFromLocalCache();
+    if (fallbackCache.length > 0) {
+      console.log(`⚠️ Используем кэш (${fallbackCache.length} игроков) при пустом ответе`);
+      displayTopPlayers(fallbackCache);
+      return;
     }
     
     // Проверяем настройки скрытия из топа
