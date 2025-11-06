@@ -1985,77 +1985,97 @@ async function uiTopPlayers(){
     </div>
   `, { subpage: true, title: "Топ игроков" });
   
-  // Принудительно регистрируем текущего пользователя в API перед загрузкой топа
+  // Принудительно регистрируем текущего пользователя в API
   const currentUserId = getTelegramUserId();
   if (currentUserId) {
-    console.log("🔄 Принудительная регистрация пользователя перед загрузкой топа:", currentUserId);
+    console.log("🔄 Регистрация пользователя перед загрузкой топа:", currentUserId);
+    // Регистрируем синхронно, ждем результат
     try {
-      // Пробуем зарегистрировать пользователя, но не ждем результата
-      registerUserInAPI().catch(e => {
-        console.warn("⚠️ Ошибка принудительной регистрации:", e);
-      });
+      await registerUserInAPI();
+      console.log("✅ Пользователь зарегистрирован");
+      // Небольшая задержка для сохранения в БД
+      await new Promise(resolve => setTimeout(resolve, 300));
     } catch(e) {
-      console.warn("⚠️ Ошибка принудительной регистрации:", e);
+      console.warn("⚠️ Ошибка регистрации:", e);
     }
   }
   
-  // Небольшая задержка для регистрации
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  // Просто запрашиваем данные из API
+  // Запрашиваем данные из API
   let players = [];
+  let apiError = null;
+  
   try {
-    players = await getAllPlayersTopData();
-    console.log(`✅ Получено ${players.length} игроков из API`);
+    console.log("📡 Запрос топа игроков из API...");
+    const timestamp = Date.now();
+    const response = await fetch(`${API_BASE_URL}/api/top/players?t=${timestamp}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      },
+      cache: 'no-store'
+    });
     
-    // Проверяем, есть ли текущий пользователь в топе
-    if (currentUserId) {
-      const userIdNum = typeof currentUserId === 'string' ? parseInt(currentUserId, 10) : currentUserId;
-      const userInTop = players.find(p => {
-        const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
-        return pUserId === userIdNum;
-      });
-      
-      if (!userInTop) {
-        console.warn("⚠️ Текущий пользователь не найден в топе. Проверяем настройки...");
-        // Проверяем настройки hide_from_top
-        const settingsKey = `pdd-duel-settings-${currentUserId}`;
-        const settings = localStorage.getItem(settingsKey);
-        if (settings) {
-          try {
-            const userSettings = JSON.parse(settings);
-            if (userSettings.hideFromTop) {
-              console.warn("⚠️ У пользователя включена настройка hideFromTop");
-            } else {
-              console.warn("⚠️ У пользователя НЕ включена настройка hideFromTop, но его нет в топе. Возможно, он не зарегистрирован в API.");
-            }
-          } catch(e) {
-            console.warn("⚠️ Ошибка парсинга настроек:", e);
-          }
-        }
-      } else {
-        console.log("✅ Текущий пользователь найден в топе");
-      }
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Не удалось прочитать ошибку');
+      throw new Error(`API вернул ошибку ${response.status}: ${errorText}`);
     }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.error || "Неизвестная ошибка API");
+    }
+    
+    if (!data.players || !Array.isArray(data.players)) {
+      throw new Error("Некорректные данные от API");
+    }
+    
+    // Преобразуем данные
+    players = data.players.map(player => {
+      const userId = typeof player.user_id === 'string' ? parseInt(player.user_id, 10) : player.user_id;
+      return {
+        userId: userId,
+        username: player.username || '',
+        firstName: player.first_name || '',
+        lastName: '',
+        photoUrl: (player.photo_url && player.photo_url.trim() && player.photo_url !== 'null') ? player.photo_url.trim() : null,
+        hideUsername: player.hide_username || false,
+        gamesPlayed: player.total_games || 0,
+        wins: player.wins || 0,
+        losses: player.losses || 0,
+        winRate: player.win_rate || 0,
+        experience: 0,
+        level: 1
+      };
+    });
+    
+    // Сортируем
+    players.sort((a, b) => {
+      if (a.gamesPlayed > 0 && b.gamesPlayed === 0) return -1;
+      if (a.gamesPlayed === 0 && b.gamesPlayed > 0) return 1;
+      if (a.gamesPlayed > 0 && b.gamesPlayed > 0) {
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+      }
+      return a.userId - b.userId;
+    });
+    
+    console.log(`✅ Получено ${players.length} игроков из API`);
   } catch(e) {
     console.error("❌ Ошибка загрузки топа из API:", e);
-    // Если API не работает, пробуем использовать кэш
-    const cachedPlayers = getPlayersFromLocalCache();
-    if (cachedPlayers.length > 0) {
-      console.log(`⚠️ Используем кэш (${cachedPlayers.length} игроков) вместо API`);
-      players = cachedPlayers;
-    } else {
-      toast(`Ошибка загрузки топа: ${e.message}`, 5000);
-      players = [];
-    }
+    apiError = e;
+    players = [];
   }
   
   // Отображаем топ
-  displayTopPlayers(players);
+  displayTopPlayers(players, apiError);
 }
 
 // Отображает топ игроков
-async function displayTopPlayers(players) {
+async function displayTopPlayers(players, apiError = null) {
   if (!players || players.length === 0) {
     // Проверяем, что API вообще доступен
     let apiStatus = '⏳ Проверка...';
@@ -2072,14 +2092,6 @@ async function displayTopPlayers(players) {
       apiStatus = healthCheckOk ? '✅ API работает' : (apiCheck ? `❌ API ошибка ${apiCheck.status}` : '❌ API недоступен');
     } catch(e) {
       apiStatus = `❌ Ошибка: ${e.message}`;
-    }
-    
-    // Проверяем кэш еще раз перед показом ошибки
-    const fallbackCache = getPlayersFromLocalCache();
-    if (fallbackCache.length > 0) {
-      console.log(`⚠️ Используем кэш (${fallbackCache.length} игроков) при пустом ответе`);
-      displayTopPlayers(fallbackCache);
-      return;
     }
     
     // Проверяем настройки скрытия из топа
@@ -2115,16 +2127,36 @@ async function displayTopPlayers(players) {
             <li>У вас не включена опция "Не показывать меня в топе" в настройках</li>
           </ul>
           <button class="btn" id="retry-top" style="margin-top: 12px; width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">🔄 Попробовать снова</button>
+          <button class="btn" id="force-register" style="margin-top: 8px; width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">📝 Зарегистрировать меня в API</button>
         </div>
       </div>
     `, { subpage: true, title: "Топ игроков" });
     
-    // Добавляем обработчик кнопки "Попробовать снова"
+    // Добавляем обработчики кнопок
     scheduleFrame(() => {
       const retryBtn = qs("#retry-top");
       if (retryBtn) {
         retryBtn.addEventListener("click", () => {
           uiTopPlayers();
+        }, { passive: true });
+      }
+      
+      const forceRegisterBtn = qs("#force-register");
+      if (forceRegisterBtn) {
+        forceRegisterBtn.addEventListener("click", async () => {
+          forceRegisterBtn.disabled = true;
+          forceRegisterBtn.textContent = "⏳ Регистрация...";
+          try {
+            await registerUserInAPI();
+            toast("✅ Регистрация завершена. Обновляю топ...", 2000);
+            setTimeout(() => {
+              uiTopPlayers();
+            }, 1000);
+          } catch(e) {
+            toast(`❌ Ошибка регистрации: ${e.message}`, 3000);
+            forceRegisterBtn.disabled = false;
+            forceRegisterBtn.textContent = "📝 Зарегистрировать меня в API";
+          }
         }, { passive: true });
       }
     });
