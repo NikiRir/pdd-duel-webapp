@@ -1253,27 +1253,7 @@ async function getAllPlayersTopData() {
     // Сохраняем обновленные данные в локальный кэш
     savePlayersToLocalCache(players);
     
-    // Проверяем настройки "Скрыть из топа" из localStorage для текущего пользователя
-    const currentUserId = getTelegramUserId();
-    if (currentUserId) {
-      const userIdNum = typeof currentUserId === 'string' ? parseInt(currentUserId, 10) : currentUserId;
-      const settingsKey = `pdd-duel-settings-${currentUserId}`;
-      const settings = localStorage.getItem(settingsKey);
-      if (settings) {
-        try {
-          const userSettings = JSON.parse(settings);
-          if (userSettings.hideFromTop) {
-            // Удаляем текущего пользователя из топа если он скрыт
-            players = players.filter(p => {
-              const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
-              return pUserId !== userIdNum;
-            });
-          }
-        } catch(e) {
-          console.warn("Ошибка парсинга настроек:", e);
-        }
-      }
-    }
+    // НЕ фильтруем на клиенте - фильтрация происходит на сервере в SQL запросе
     
     // Сортируем: сначала по винрейту (убывание), потом по количеству игр (убывание), потом по ID (возрастание)
     players.sort((a, b) => {
@@ -1967,8 +1947,13 @@ function uiMainSettings(){
         // Обновляем место в топе
         updateStatsDisplay().catch(e => console.error("Ошибка обновления статистики:", e));
         
-        // Обновляем топ после изменения настройки (с небольшой задержкой для сохранения на сервере)
+        // Обновляем топ после изменения настройки (с задержкой для сохранения на сервере)
         setTimeout(() => {
+          // Очищаем кэш топа перед обновлением
+          const cacheKey = "pdd-duel-top-players-cache";
+          localStorage.removeItem(cacheKey);
+          console.log("🗑️ Кэш топа очищен перед обновлением после изменения hideFromTop");
+          
           // Проверяем, открыт ли топ
           const screen = qs("#screen");
           if (screen && !screen.classList.contains("screen--hidden")) {
@@ -1978,7 +1963,7 @@ function uiMainSettings(){
               uiTopPlayers().catch(e => console.error("Ошибка обновления топа:", e));
             }
           }
-        }, 500);
+        }, 1000); // Увеличиваем задержку до 1 секунды для гарантии сохранения на сервере
       }, { passive: true });
     }
     
@@ -2112,13 +2097,11 @@ async function displayTopPlayers(players) {
   const currentUserId = getTelegramUserId();
   
   // Проверяем настройки для текущего пользователя
-  const hideFromTop = State.settings.hideFromTop || false;
   const hideUsername = State.settings.hideUsername || false;
   
-  // Фильтруем игроков, если текущий пользователь полностью скрыт из топа
-  const filteredPlayers = hideFromTop && currentUserId 
-    ? players.filter(p => p.userId !== currentUserId)
-    : players;
+  // НЕ фильтруем на клиенте - фильтрация hide_from_top происходит на сервере в SQL запросе
+  // Сервер уже исключил пользователей с hide_from_top = 1 из результата
+  const filteredPlayers = players;
   
   const playersHtml = filteredPlayers.map((player, index) => {
     const isCurrentUser = currentUserId && player.userId === currentUserId;
