@@ -1135,13 +1135,8 @@ function saveUserTopData() {
   }
 }
 
-// Собирает данные всех игроков для топа из API с fallback на локальный кэш
+// Собирает данные всех игроков для топа из API
 async function getAllPlayersTopData() {
-  // Сначала загружаем из локального кэша для быстрого отображения
-  const cachedPlayers = getPlayersFromLocalCache();
-  console.log(`📦 Загружено ${cachedPlayers.length} игроков из локального кэша`);
-  
-  // Пробуем обновить из API в фоне
   try {
     console.log("🔍 Запрос топа игроков с API:", `${API_BASE_URL}/api/top/players`);
     
@@ -1274,19 +1269,7 @@ async function getAllPlayersTopData() {
     return players;
   } catch(apiError) {
     console.error("❌ Ошибка получения топа из API:", apiError);
-    console.error("❌ Детали ошибки:", {
-      message: apiError.message,
-      stack: apiError.stack,
-      name: apiError.name
-    });
-    
-    // Если есть кэшированные данные, возвращаем их вместо ошибки
-    if (cachedPlayers.length > 0) {
-      console.log(`⚠️ Используем локальный кэш (${cachedPlayers.length} игроков) вместо API`);
-      return cachedPlayers;
-    }
-    
-    // Если кэша нет, пробрасываем ошибку
+    // Пробрасываем ошибку наверх
     throw apiError;
   }
 }
@@ -1979,68 +1962,32 @@ function uiMainSettings(){
 }
 
 async function uiTopPlayers(){
-  // Сначала загружаем из локального кэша для быстрого отображения
-  const cachedPlayers = getPlayersFromLocalCache();
-  console.log(`📦 Загружено ${cachedPlayers.length} игроков из локального кэша`);
-  
-  // Если есть кэшированные данные, показываем их сразу
-  if (cachedPlayers.length > 0) {
-    console.log("✅ Показываем данные из кэша сразу");
-    displayTopPlayers(cachedPlayers);
-    
-    // Затем обновляем из API в фоне
-    getAllPlayersTopData().then(players => {
-      if (players && players.length > 0) {
-        console.log("✅ Обновляем топ из API");
-        displayTopPlayers(players);
-      }
-    }).catch(e => {
-      console.warn("⚠️ Не удалось обновить топ из API:", e);
-      // Оставляем данные из кэша
-    });
-    return;
-  }
-  
-  // Если кэша нет, показываем загрузку и ждем API
+  // Показываем загрузку
   setView(`
     <div class="card">
       <p style="text-align: center; color: var(--muted);">Загрузка топа игроков...</p>
     </div>
   `, { subpage: true, title: "Топ игроков" });
   
-  // Загружаем данные топа с увеличенным таймаутом
+  // Просто запрашиваем данные из API
   let players = [];
   try {
-    // Увеличиваем таймаут до 30 секунд для медленных соединений
-    players = await Promise.race([
-      getAllPlayersTopData(),
-      new Promise((resolve) => setTimeout(() => {
-        console.warn("⏱️ Таймаут загрузки топа игроков (30 секунд)");
-        // При таймауте используем кэш если есть
-        const fallbackCache = getPlayersFromLocalCache();
-        if (fallbackCache.length > 0) {
-          console.log(`⚠️ Используем кэш (${fallbackCache.length} игроков) при таймауте`);
-          resolve(fallbackCache);
-        } else {
-          toast("Таймаут загрузки топа. Попробуйте обновить страницу.", 5000);
-          resolve([]);
-        }
-      }, 30000)) // 30 секунд таймаут
-    ]);
+    players = await getAllPlayersTopData();
+    console.log(`✅ Получено ${players.length} игроков из API`);
   } catch(e) {
-    console.error("❌ Ошибка загрузки топа:", e);
-    // При ошибке используем кэш если есть
-    const fallbackCache = getPlayersFromLocalCache();
-    if (fallbackCache.length > 0) {
-      console.log(`⚠️ Используем кэш (${fallbackCache.length} игроков) при ошибке`);
-      players = fallbackCache;
+    console.error("❌ Ошибка загрузки топа из API:", e);
+    // Если API не работает, пробуем использовать кэш
+    const cachedPlayers = getPlayersFromLocalCache();
+    if (cachedPlayers.length > 0) {
+      console.log(`⚠️ Используем кэш (${cachedPlayers.length} игроков) вместо API`);
+      players = cachedPlayers;
     } else {
       toast(`Ошибка загрузки топа: ${e.message}`, 5000);
       players = [];
     }
   }
   
-  console.log(`🎯 Отображение топа: ${players.length} игроков`);
+  // Отображаем топ
   displayTopPlayers(players);
 }
 
