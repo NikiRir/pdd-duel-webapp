@@ -128,6 +128,7 @@ class Database:
         cursor = conn.cursor()
         
         # Вычисляем статистику для каждого пользователя (включая тех, кто не играл)
+        # Исключаем пользователей с hide_from_top = 1
         query = """
             SELECT 
                 u.user_id,
@@ -145,6 +146,7 @@ class Database:
                 END as win_rate
             FROM users u
             LEFT JOIN games g ON (g.user_id = u.user_id OR g.opponent_id = u.user_id)
+            WHERE COALESCE(u.hide_from_top, 0) = 0
             GROUP BY u.user_id
             ORDER BY win_rate DESC, total_games DESC, u.user_id ASC
         """
