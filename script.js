@@ -564,18 +564,52 @@ function initRegistrationScreen() {
     console.error("❌ Форма не найдена!");
   }
   
-  // Также добавляем обработчик напрямую на кнопку (fallback)
-  if (continueBtn) {
-    console.log("✅ Кнопка найдена, добавляем обработчик click");
-    continueBtn.addEventListener("click", (e) => {
-      console.log("🔘 Клик по кнопке Продолжить");
+  // Обработчик клика на кнопку (используем несколько методов для надежности)
+  const buttonClickHandler = (e) => {
+    console.log("🔘 Клик по кнопке Продолжить");
+    if (e) {
       e.preventDefault();
       e.stopPropagation();
-      handleFormSubmit(null);
-    }, { passive: false });
-  } else {
-    console.error("❌ Кнопка не найдена!");
+    }
+    handleFormSubmit(null);
+  };
+  
+  // Метод 1: Прямая привязка через qs
+  if (continueBtn) {
+    console.log("✅ Кнопка найдена через qs, добавляем обработчик click");
+    continueBtn.addEventListener("click", buttonClickHandler, { passive: false });
   }
+  
+  // Метод 2: Прямая привязка через getElementById
+  const btnById = document.getElementById("registration-continue-btn");
+  if (btnById && btnById !== continueBtn) {
+    console.log("✅ Кнопка найдена через getElementById, добавляем обработчик click");
+    btnById.addEventListener("click", buttonClickHandler, { passive: false });
+  }
+  
+  // Метод 3: Делегирование событий на контейнере (надежный fallback)
+  const formContainer = document.getElementById("registration-screen-2");
+  if (formContainer) {
+    console.log("✅ Используем делегирование событий на контейнере");
+    formContainer.addEventListener("click", (e) => {
+      const target = e.target;
+      if (target && (target.id === "registration-continue-btn" || target.closest("#registration-continue-btn"))) {
+        console.log("🔘 Клик по кнопке Продолжить (через делегирование)");
+        e.preventDefault();
+        e.stopPropagation();
+        handleFormSubmit(null);
+      }
+    }, { passive: false });
+  }
+  
+  // Метод 4: Пробуем через небольшую задержку (на случай если элементы еще не в DOM)
+  setTimeout(() => {
+    const delayedBtn = document.getElementById("registration-continue-btn");
+    if (delayedBtn) {
+      console.log("✅ Кнопка найдена после задержки, добавляем обработчик click");
+      delayedBtn.addEventListener("click", buttonClickHandler, { passive: false });
+    }
+  }, 200);
 }
 
 // Проверка доступности nickname
