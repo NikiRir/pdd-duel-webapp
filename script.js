@@ -489,9 +489,21 @@ function initRegistrationScreen() {
   
   // Функция обработки отправки формы
   const handleFormSubmit = async (e) => {
-    if (e) e.preventDefault();
+    console.log("🔘 handleFormSubmit вызвана", e);
     
-    const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    // Получаем актуальные значения элементов (на случай если они изменились)
+    const currentNicknameInput = qs("#nickname-input");
+    const currentContinueBtn = qs("#registration-continue-btn");
+    const currentSuggestionsDiv = qs("#nickname-suggestions");
+    
+    const nickname = currentNicknameInput ? currentNicknameInput.value.trim() : '';
+    console.log("📝 Псевдоним:", nickname);
+    
     if (!nickname) {
       toast("⚠️ Введите псевдоним", 2000);
       return;
@@ -503,14 +515,17 @@ function initRegistrationScreen() {
     }
     
     // Отключаем кнопку
-    if (continueBtn) {
-      continueBtn.disabled = true;
-      continueBtn.textContent = "⏳ Создание...";
+    if (currentContinueBtn) {
+      currentContinueBtn.disabled = true;
+      currentContinueBtn.textContent = "⏳ Создание...";
     }
     
     try {
+      console.log("📤 Начинаем регистрацию с nickname:", nickname);
       // Регистрируем пользователя с nickname и avatar
       await registerUserWithNickname(nickname, avatarDataUrl);
+      
+      console.log("✅ Регистрация успешна");
       
       // Скрываем экран регистрации
       if (registrationScreen1) registrationScreen1.classList.add("hidden");
@@ -527,32 +542,39 @@ function initRegistrationScreen() {
       console.error("❌ Ошибка регистрации:", error);
       
       // Если nickname занят, показываем предложения
-      if (error.suggestions && suggestionsDiv) {
+      if (error.suggestions && currentSuggestionsDiv) {
         showNicknameSuggestions(error.suggestions);
       } else {
         toast(`❌ Ошибка: ${error.message}`, 3000);
       }
       
       // Включаем кнопку обратно
-      if (continueBtn) {
-        continueBtn.disabled = false;
-        continueBtn.textContent = "Продолжить";
+      if (currentContinueBtn) {
+        currentContinueBtn.disabled = false;
+        currentContinueBtn.textContent = "Продолжить";
       }
     }
   };
   
   // Обработчик отправки формы
   if (registrationForm) {
+    console.log("✅ Форма найдена, добавляем обработчик submit");
     registrationForm.addEventListener("submit", handleFormSubmit, { passive: false });
+  } else {
+    console.error("❌ Форма не найдена!");
   }
   
   // Также добавляем обработчик напрямую на кнопку (fallback)
   if (continueBtn) {
+    console.log("✅ Кнопка найдена, добавляем обработчик click");
     continueBtn.addEventListener("click", (e) => {
+      console.log("🔘 Клик по кнопке Продолжить");
       e.preventDefault();
       e.stopPropagation();
       handleFormSubmit(null);
     }, { passive: false });
+  } else {
+    console.error("❌ Кнопка не найдена!");
   }
 }
 
