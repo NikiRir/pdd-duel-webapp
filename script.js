@@ -496,9 +496,19 @@ function loadUserStats() {
     const saved = localStorage.getItem(key);
     if (saved) {
       const stats = JSON.parse(saved);
+      // Убеждаемся, что gamesPlayed и ticketsSolved - это числа, а не строки или undefined
+      const gamesPlayed = typeof stats.gamesPlayed === 'number' ? stats.gamesPlayed : 0;
+      const ticketsSolved = typeof stats.ticketsSolved === 'number' ? stats.ticketsSolved : 0;
+      
+      console.log("📊 Загружена статистика:", {
+        gamesPlayed,
+        ticketsSolved,
+        experience: stats.experience || 0
+      });
+      
       State.stats = {
-        gamesPlayed: stats.gamesPlayed || 0,
-        ticketsSolved: stats.ticketsSolved || 0,
+        gamesPlayed: gamesPlayed,
+        ticketsSolved: ticketsSolved,
         experience: stats.experience || 0,
         level: stats.level || 1,
         topPlace: stats.topPlace || null,
@@ -506,11 +516,17 @@ function loadUserStats() {
         topicsProgress: stats.topicsProgress || {}
       };
     } else {
+      // Инициализируем нулями если нет сохраненных данных
+      State.stats.gamesPlayed = 0;
+      State.stats.ticketsSolved = 0;
       State.stats.ticketsProgress = {};
       State.stats.topicsProgress = {};
     }
   } catch(e) {
     console.error("Ошибка загрузки статистики:", e);
+    // При ошибке тоже инициализируем нулями
+    State.stats.gamesPlayed = 0;
+    State.stats.ticketsSolved = 0;
     State.stats.ticketsProgress = {};
     State.stats.topicsProgress = {};
   }
@@ -691,11 +707,40 @@ async function updateStatsDisplay() {
     const players = await getAllPlayersTopData();
     const currentUserId = getTelegramUserId();
     if (currentUserId) {
-      const userPlace = players.findIndex(p => p.userId === currentUserId) + 1;
-      State.stats.topPlace = userPlace > 0 ? userPlace : null;
+      // Приводим к числу для корректного сравнения
+      const userIdNum = typeof currentUserId === 'string' ? parseInt(currentUserId, 10) : currentUserId;
+      console.log("🔍 Поиск места в топе для userId:", userIdNum, "тип:", typeof userIdNum);
+      console.log("📊 Игроков в топе:", players.length);
+      
+      const userPlace = players.findIndex(p => {
+        const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
+        return pUserId === userIdNum;
+      });
+      
+      console.log("📍 Найденное место:", userPlace);
+      
+      if (userPlace >= 0) {
+        State.stats.topPlace = userPlace + 1;
+        console.log("✅ Место в топе установлено:", State.stats.topPlace);
+      } else {
+        // Если пользователь не найден, проверяем почему
+        console.warn("⚠️ Пользователь не найден в топе. Проверяем причины...");
+        const userInList = players.some(p => {
+          const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
+          return pUserId === userIdNum;
+        });
+        if (!userInList) {
+          console.warn("⚠️ Пользователь отсутствует в списке игроков из API");
+        }
+        State.stats.topPlace = null;
+      }
+    } else {
+      console.warn("⚠️ Не удалось получить Telegram userId");
+      State.stats.topPlace = null;
     }
   } catch(e) {
-    console.warn("Ошибка обновления места в топе:", e);
+    console.error("❌ Ошибка обновления места в топе:", e);
+    State.stats.topPlace = null;
   }
   
   const gamesEl = qs("#games-played");
@@ -861,11 +906,15 @@ async function getAllPlayersTopData() {
     
     // Получаем данные ТОЛЬКО из API сервера (база данных бота)
     // Добавляем cache: 'no-store' чтобы избежать проблем с кэшированием
-    const response = await fetch(`${API_BASE_URL}/api/top/players`, {
+    // Добавляем timestamp для предотвращения кэширования
+    const timestamp = Date.now();
+    const response = await fetch(`${API_BASE_URL}/api/top/players?t=${timestamp}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
       },
       cache: 'no-store'
     });
@@ -875,8 +924,8 @@ async function getAllPlayersTopData() {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("❌ Ошибка API:", response.status, errorText);
-      // Показываем ошибку пользователю через toast
-      toast(`Ошибка загрузки топа: ${response.status}`, 3000);
+      // Не показываем toast при каждой ошибке, только логируем
+      console.warn("⚠️ API вернул ошибку, но продолжаем работу");
       return [];
     }
     
@@ -907,8 +956,11 @@ async function getAllPlayersTopData() {
         photo_url: player.photo_url
       });
       
+      // Приводим user_id к числу для единообразия
+      const userId = typeof player.user_id === 'string' ? parseInt(player.user_id, 10) : player.user_id;
+      
       return {
-        userId: player.user_id,
+        userId: userId,
         username: player.username || '',  // Убеждаемся что это не null/undefined
         firstName: player.first_name || '',  // Убеждаемся что это не null/undefined
         lastName: '',
@@ -925,6 +977,7 @@ async function getAllPlayersTopData() {
     // Проверяем настройки "Скрыть из топа" из localStorage для текущего пользователя
     const currentUserId = getTelegramUserId();
     if (currentUserId) {
+      const userIdNum = typeof currentUserId === 'string' ? parseInt(currentUserId, 10) : currentUserId;
       const settingsKey = `pdd-duel-settings-${currentUserId}`;
       const settings = localStorage.getItem(settingsKey);
       if (settings) {
@@ -932,7 +985,10 @@ async function getAllPlayersTopData() {
           const userSettings = JSON.parse(settings);
           if (userSettings.hideFromTop) {
             // Удаляем текущего пользователя из топа если он скрыт
-            players = players.filter(p => p.userId !== currentUserId);
+            players = players.filter(p => {
+              const pUserId = typeof p.userId === 'string' ? parseInt(p.userId, 10) : p.userId;
+              return pUserId !== userIdNum;
+            });
           }
         } catch(e) {
           console.warn("Ошибка парсинга настроек:", e);
