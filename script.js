@@ -487,59 +487,71 @@ function initRegistrationScreen() {
     }, { passive: true });
   }
   
+  // Функция обработки отправки формы
+  const handleFormSubmit = async (e) => {
+    if (e) e.preventDefault();
+    
+    const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+    if (!nickname) {
+      toast("⚠️ Введите псевдоним", 2000);
+      return;
+    }
+    
+    if (nickname.length > 10) {
+      toast("⚠️ Псевдоним не может быть длиннее 10 символов", 2000);
+      return;
+    }
+    
+    // Отключаем кнопку
+    if (continueBtn) {
+      continueBtn.disabled = true;
+      continueBtn.textContent = "⏳ Создание...";
+    }
+    
+    try {
+      // Регистрируем пользователя с nickname и avatar
+      await registerUserWithNickname(nickname, avatarDataUrl);
+      
+      // Скрываем экран регистрации
+      if (registrationScreen1) registrationScreen1.classList.add("hidden");
+      if (registrationScreen2) registrationScreen2.classList.add("hidden");
+      
+      // Показываем основное приложение
+      const app = qs(".app");
+      if (app) {
+        app.style.display = "flex";
+      }
+      
+      toast("✅ Профиль создан!", 2000);
+    } catch(error) {
+      console.error("❌ Ошибка регистрации:", error);
+      
+      // Если nickname занят, показываем предложения
+      if (error.suggestions && suggestionsDiv) {
+        showNicknameSuggestions(error.suggestions);
+      } else {
+        toast(`❌ Ошибка: ${error.message}`, 3000);
+      }
+      
+      // Включаем кнопку обратно
+      if (continueBtn) {
+        continueBtn.disabled = false;
+        continueBtn.textContent = "Продолжить";
+      }
+    }
+  };
+  
   // Обработчик отправки формы
   if (registrationForm) {
-    registrationForm.addEventListener("submit", async (e) => {
+    registrationForm.addEventListener("submit", handleFormSubmit, { passive: false });
+  }
+  
+  // Также добавляем обработчик напрямую на кнопку (fallback)
+  if (continueBtn) {
+    continueBtn.addEventListener("click", (e) => {
       e.preventDefault();
-      
-      const nickname = nicknameInput.value.trim();
-      if (!nickname) {
-        toast("⚠️ Введите псевдоним", 2000);
-        return;
-      }
-      
-      if (nickname.length > 10) {
-        toast("⚠️ Псевдоним не может быть длиннее 10 символов", 2000);
-        return;
-      }
-      
-      // Отключаем кнопку
-      if (continueBtn) {
-        continueBtn.disabled = true;
-        continueBtn.textContent = "⏳ Создание...";
-      }
-      
-      try {
-        // Регистрируем пользователя с nickname и avatar
-        await registerUserWithNickname(nickname, avatarDataUrl);
-        
-        // Скрываем экран регистрации
-        if (registrationScreen1) registrationScreen1.classList.add("hidden");
-        if (registrationScreen2) registrationScreen2.classList.add("hidden");
-        
-        // Показываем основное приложение
-        const app = qs(".app");
-        if (app) {
-          app.style.display = "flex";
-        }
-        
-        toast("✅ Профиль создан!", 2000);
-      } catch(error) {
-        console.error("❌ Ошибка регистрации:", error);
-        
-        // Если nickname занят, показываем предложения
-        if (error.suggestions && suggestionsDiv) {
-          showNicknameSuggestions(error.suggestions);
-        } else {
-          toast(`❌ Ошибка: ${error.message}`, 3000);
-        }
-        
-        // Включаем кнопку обратно
-        if (continueBtn) {
-          continueBtn.disabled = false;
-          continueBtn.textContent = "Продолжить";
-        }
-      }
+      e.stopPropagation();
+      handleFormSubmit(null);
     }, { passive: false });
   }
 }
