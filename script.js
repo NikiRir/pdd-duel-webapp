@@ -665,6 +665,33 @@ function saveUserSettings() {
   try {
     const key = getStorageKey("pdd-duel-settings");
     localStorage.setItem(key, JSON.stringify(State.settings));
+    
+    // Отправляем настройки на сервер
+    const userId = getTelegramUserId();
+    if (userId) {
+      // Отправляем hide_username на сервер
+      if (State.settings.hideUsername !== undefined) {
+        fetch(`${API_BASE_URL}/api/users/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_id: userId,
+            setting_name: 'hide_username',
+            setting_value: State.settings.hideUsername || false
+          })
+        }).then(response => {
+          if (response.ok) {
+            console.log("✅ Настройка hide_username сохранена на сервере");
+          } else {
+            console.warn("⚠️ Не удалось сохранить настройку на сервере:", response.status);
+          }
+        }).catch(e => {
+          console.warn("⚠️ Ошибка отправки настройки на сервер:", e);
+        });
+      }
+    }
   } catch(e) {
     console.error("Ошибка сохранения настроек:", e);
   }
@@ -1962,8 +1989,8 @@ async function uiTopPlayers(){
     });
     
     let displayName = '';
-    // Если это текущий пользователь и включена опция "Скрыть юзернейм", не показываем @username
-    const shouldHideUsername = isCurrentUser && hideUsername;
+    // Проверяем настройку скрытия юзернейма из сервера (для всех пользователей)
+    const shouldHideUsername = player.hideUsername || false;
     
     if (shouldHideUsername) {
       // Скрываем юзернейм - показываем только first_name или "User"

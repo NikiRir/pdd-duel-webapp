@@ -170,21 +170,26 @@ def get_top_players():
         
         players = []
         for user in top_users:
-            # user может быть с photo_url или без (в зависимости от версии БД)
-            if len(user) >= 8:
+            # user может быть с photo_url и hide_username или без (в зависимости от версии БД)
+            if len(user) >= 9:
+                user_id, username, first_name, photo_url, hide_username, wins, losses, total_games, win_rate = user
+            elif len(user) >= 8:
                 user_id, username, first_name, photo_url, wins, losses, total_games, win_rate = user
+                hide_username = 0
             else:
                 user_id, username, first_name, wins, losses, total_games, win_rate = user
                 photo_url = None
+                hide_username = 0
             
             # Логируем для отладки
-            print(f"👤 Пользователь {user_id}: username={username}, first_name={first_name}, photo_url={photo_url}")
+            print(f"👤 Пользователь {user_id}: username={username}, first_name={first_name}, photo_url={photo_url}, hide_username={hide_username}")
             
             players.append({
                 'user_id': user_id,
                 'username': username or '',  # Убеждаемся что это не None
                 'first_name': first_name or '',  # Убеждаемся что это не None
                 'photo_url': photo_url or '',  # Убеждаемся что это не None
+                'hide_username': bool(hide_username),  # Преобразуем в boolean
                 'wins': wins,
                 'losses': losses,
                 'total_games': total_games,
@@ -234,6 +239,37 @@ def register_user():
         return jsonify({'success': True})
     except Exception as e:
         print(f"❌ Ошибка регистрации пользователя: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+@app.route('/api/users/settings', methods=['POST'])
+def update_user_settings():
+    """Обновить настройки пользователя"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        setting_name = data.get('setting_name')
+        setting_value = data.get('setting_value')
+        
+        if not user_id or not setting_name:
+            return jsonify({'success': False, 'error': 'user_id and setting_name required'}), 400
+        
+        # Преобразуем user_id в int если это не строка
+        if isinstance(user_id, str) and not user_id.startswith('temp-'):
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                pass
+        
+        # Обновляем настройку
+        db.update_user_setting(user_id, setting_name, setting_value)
+        
+        print(f"✅ Настройка {setting_name} для пользователя {user_id} обновлена: {setting_value}")
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"❌ Ошибка обновления настроек пользователя: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 400
