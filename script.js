@@ -965,25 +965,38 @@ async function getAllPlayersTopData() {
     // Добавляем cache: 'no-store' чтобы избежать проблем с кэшированием
     // Добавляем timestamp для предотвращения кэширования
     const timestamp = Date.now();
-    const response = await fetch(`${API_BASE_URL}/api/top/players?t=${timestamp}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      },
-      cache: 'no-store'
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 секунд таймаут для fetch
+    
+    let response;
+    try {
+      response = await fetch(`${API_BASE_URL}/api/top/players?t=${timestamp}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+    } catch(fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        console.error("❌ Таймаут запроса к API (25 секунд)");
+        throw new Error("Таймаут запроса к API");
+      }
+      throw fetchError;
+    }
     
     console.log("📡 Ответ API:", response.status, response.statusText);
     
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = await response.text().catch(() => 'Не удалось прочитать ошибку');
       console.error("❌ Ошибка API:", response.status, errorText);
-      // Не показываем toast при каждой ошибке, только логируем
-      console.warn("⚠️ API вернул ошибку, но продолжаем работу");
-      return [];
+      throw new Error(`API вернул ошибку ${response.status}: ${errorText}`);
     }
     
     const data = await response.json();
@@ -991,14 +1004,12 @@ async function getAllPlayersTopData() {
     
     if (!data.success) {
       console.error("❌ API вернул ошибку:", data.error || "Неизвестная ошибка");
-      toast(`Ошибка API: ${data.error || "Неизвестная ошибка"}`, 3000);
-      return [];
+      throw new Error(data.error || "Неизвестная ошибка API");
     }
     
     if (!data.players || !Array.isArray(data.players)) {
       console.error("❌ API вернул некорректные данные:", data);
-      toast("Ошибка: некорректные данные от API", 3000);
-      return [];
+      throw new Error("Некорректные данные от API");
     }
     
     console.log(`✅ Получено ${data.players.length} игроков из API`);
@@ -1074,7 +1085,13 @@ async function getAllPlayersTopData() {
     return players;
   } catch(apiError) {
     console.error("❌ Ошибка получения топа из API:", apiError);
-    return [];
+    console.error("❌ Детали ошибки:", {
+      message: apiError.message,
+      stack: apiError.stack,
+      name: apiError.name
+    });
+    // Пробрасываем ошибку дальше для обработки в uiTopPlayers
+    throw apiError;
   }
 }
 
@@ -1773,18 +1790,21 @@ async function uiTopPlayers(){
     </div>
   `, { subpage: true, title: "Топ игроков" });
   
-  // Добавляем таймаут для запроса
+  // Загружаем данные топа с увеличенным таймаутом
   let players = [];
   try {
+    // Увеличиваем таймаут до 30 секунд для медленных соединений
     players = await Promise.race([
       getAllPlayersTopData(),
       new Promise((resolve) => setTimeout(() => {
-        console.warn("⏱️ Таймаут загрузки топа игроков");
+        console.warn("⏱️ Таймаут загрузки топа игроков (30 секунд)");
+        toast("Таймаут загрузки топа. Попробуйте обновить страницу.", 5000);
         resolve([]);
-      }, 10000)) // 10 секунд таймаут
+      }, 30000)) // 30 секунд таймаут
     ]);
   } catch(e) {
     console.error("❌ Ошибка загрузки топа:", e);
+    toast(`Ошибка загрузки топа: ${e.message}`, 5000);
     players = [];
   }
   
@@ -1793,11 +1813,37 @@ async function uiTopPlayers(){
   if (!players.length) {
     // Проверяем, что API вообще доступен
     let apiStatus = '⏳ Проверка...';
+    let healthCheckOk = false;
     try {
-      const apiCheck = await fetch(`${API_BASE_URL}/health`, { method: 'GET' }).catch(() => null);
-      apiStatus = apiCheck ? (apiCheck.ok ? '✅ API работает' : `❌ API ошибка ${apiCheck.status}`) : '❌ API недоступен';
+      const healthController = new AbortController();
+      const healthTimeout = setTimeout(() => healthController.abort(), 5000);
+      const apiCheck = await fetch(`${API_BASE_URL}/health`, { 
+        method: 'GET',
+        signal: healthController.signal
+      }).catch(() => null);
+      clearTimeout(healthTimeout);
+      healthCheckOk = apiCheck ? apiCheck.ok : false;
+      apiStatus = healthCheckOk ? '✅ API работает' : (apiCheck ? `❌ API ошибка ${apiCheck.status}` : '❌ API недоступен');
     } catch(e) {
       apiStatus = `❌ Ошибка: ${e.message}`;
+    }
+    
+    // Проверяем настройки скрытия из топа
+    const currentUserId = getTelegramUserId();
+    let hideFromTopInfo = '';
+    if (currentUserId) {
+      const settingsKey = `pdd-duel-settings-${currentUserId}`;
+      const settings = localStorage.getItem(settingsKey);
+      if (settings) {
+        try {
+          const userSettings = JSON.parse(settings);
+          if (userSettings.hideFromTop) {
+            hideFromTopInfo = '<p style="font-size: 11px; color: #ff6b6b; margin-top: 8px; font-weight: 600;">⚠️ У вас включена опция "Не показывать меня в топе"</p>';
+          }
+        } catch(e) {
+          console.warn("Ошибка парсинга настроек:", e);
+        }
+      }
     }
     
     setView(`
@@ -1806,15 +1852,29 @@ async function uiTopPlayers(){
         <div style="padding: 12px; background: rgba(255, 193, 7, 0.1); border-radius: 8px; margin-top: 12px;">
           <p style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">${apiStatus}</p>
           <p style="font-size: 11px; color: var(--muted); margin-bottom: 4px;">URL: ${API_BASE_URL}/api/top/players</p>
+          ${hideFromTopInfo}
           <p style="font-size: 11px; color: var(--muted); margin-top: 8px;">💡 Убедитесь, что:</p>
           <ul style="font-size: 11px; color: var(--muted); margin: 8px 0; padding-left: 20px;">
-            <li>Пользователи зарегистрированы через /start в боте</li>
+            <li>Пользователи зарегистрированы (откройте приложение, регистрация происходит автоматически)</li>
             <li>API сервер работает и доступен</li>
             <li>База данных содержит пользователей</li>
+            <li>У вас не включена опция "Не показывать меня в топе" в настройках</li>
           </ul>
+          <button class="btn" id="retry-top" style="margin-top: 12px; width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;">🔄 Попробовать снова</button>
         </div>
       </div>
     `, { subpage: true, title: "Топ игроков" });
+    
+    // Добавляем обработчик кнопки "Попробовать снова"
+    scheduleFrame(() => {
+      const retryBtn = qs("#retry-top");
+      if (retryBtn) {
+        retryBtn.addEventListener("click", () => {
+          uiTopPlayers();
+        }, { passive: true });
+      }
+    });
+    
     return;
   }
   
